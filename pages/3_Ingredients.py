@@ -1,10 +1,12 @@
 import streamlit as st
-import pandas as pd
-from utils.data import load_ingredient_master  # to be created
+from utils.data import load_ingredient_master
 
 def render():
-    st.subheader("🧾 Ingredient Master Table")
-    st.write("View all ingredient inputs, costs, and how frequently they are used.")
-
+    st.subheader("📦 Ingredient Master Table")
+    
     df = load_ingredient_master()
+    if df.empty:
+        st.info("No ingredients found.")
+        return
+
     st.dataframe(df, use_container_width=True)
