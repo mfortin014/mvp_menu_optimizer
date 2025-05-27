@@ -25,29 +25,29 @@ def load_recipes_summary():
         st.error(f"Failed to load recipe summary: {e}")
         return pd.DataFrame()
 
-
 def load_recipe_list():
-    """
-    Return a list of recipe names for dropdowns.
-    """
-    try:
-        data = supabase.table("recipes").select("name").execute()
-        return [row["name"] for row in data.data]
-    except Exception as e:
-        st.error(f"Failed to load recipe list: {e}")
-        return []
+    """Returns a simple list of recipe names for dropdown."""
+    res = supabase.table("recipes").select("name").execute()
+    if res.data:
+        return [item["name"] for item in res.data]
+    return []
 
-
-def load_recipe_details(recipe_name):
-    """
-    Load ingredients, quantities, unit costs, selling price for a given recipe.
-    """
-    try:
-        data = supabase.rpc("get_recipe_details", {"recipe_name": recipe_name}).execute()
-        return pd.DataFrame(data.data)
-    except Exception as e:
-        st.error(f"Failed to load details for '{recipe_name}': {e}")
+def load_recipe_details(recipe_name: str) -> pd.DataFrame:
+    """Returns full breakdown of a given recipe, including ingredient info and costing."""
+    recipe = supabase.table("recipes").select("id, price").eq("name", recipe_name).single().execute()
+    if not recipe.data:
         return pd.DataFrame()
+
+    recipe_id = recipe.data["id"]
+    selling_price = recipe.data["price"]
+
+    query = supabase.rpc("get_recipe_details", {"rid": recipe_id}).execute()
+    if not query.data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(query.data)
+    df["selling_price"] = selling_price
+    return df
 
 
 def load_ingredient_master():
