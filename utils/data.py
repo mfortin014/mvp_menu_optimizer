@@ -14,16 +14,17 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 def load_recipes_summary():
-    """
-    Load a summary table with columns: recipe, popularity, profitability
-    """
+    """Fetches recipe performance data from Supabase view 'recipe_summary'."""
     try:
-        data = supabase.table("recipe_summary").select("*").execute()
-        df = pd.DataFrame(data.data)
-        return df
-    except Exception as e:
-        st.error(f"Failed to load recipe summary: {e}")
+        res = supabase.table("recipe_summary").select("*").execute()
+        if res.data:
+            df = pd.DataFrame(res.data)
+            return df
         return pd.DataFrame()
+    except Exception as e:
+        print("Failed to load recipe summary:", e)
+        return pd.DataFrame()
+
 
 def load_recipe_list():
     """Returns a simple list of recipe names for dropdown."""
