@@ -67,7 +67,7 @@ if df.empty:
     st.info("No recipe data available to display.")
 else:
     display_df = df[[
-        'recipe', 'price', 'cost', 'margin_dollar', 'profitability', 'popularity'
+        'recipe', 'price', 'cost', 'margin_dollar', 'profitability', 'popularity', 'quadrant'
     ]].copy()
 
     display_df.rename(columns={
@@ -76,7 +76,8 @@ else:
         'cost': 'Cost ($)',
         'margin_dollar': 'Margin ($)',
         'profitability': 'Margin (%)',
-        'popularity': 'Units Sold'
+        'popularity': 'Units Sold',
+        'quadrant': 'Quandrant'
     }, inplace=True)
 
     display_df['Margin (%)'] = (display_df['Margin (%)'] * 100).round(1)
