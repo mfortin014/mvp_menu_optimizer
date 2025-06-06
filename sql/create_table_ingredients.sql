@@ -1,23 +1,29 @@
-create table if not exists ingredients (
-  id uuid primary key default gen_random_uuid(),
-  ingredient_code text unique not null,               -- e.g. ING001
-  name text not null,                                 -- Display name
-  ingredient_type text not null,                      -- 'Bought' or 'Prepped'
-  status text default 'Active' check (status in ('Active', 'Inactive')),
-  
-  package_qty numeric,                                -- Number (e.g. 6)
-  package_uom text,                                   -- e.g. g, kg, L
-  package_type text,                                  -- Optional (box, tray, bag)
-  package_cost numeric,                               -- Total purchase cost
+create table public.ingredients (
+  id uuid not null default gen_random_uuid (),
+  ingredient_code text not null,
+  name text not null,
+  ingredient_type text not null,
+  status text null default 'Active'::text,
+  package_qty numeric null,
+  package_uom text null,
+  package_type text null,
+  package_cost numeric null,
+  unit_weight_g numeric null,
+  message text null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  yield_pct numeric not null default 100.0,
+  category_id uuid null,
+  constraint ingredients_pkey primary key (id),
+  constraint ingredients_ingredient_code_key unique (ingredient_code),
+  constraint ingredients_category_id_fkey foreign KEY (category_id) references ref_ingredient_categories (id),
+  constraint ingredients_status_check check (
+    (
+      status = any (array['Active'::text, 'Inactive'::text])
+    )
+  )
+) TABLESPACE pg_default;
 
-  base_uom text,                                      -- Used in recipes (g, unit, etc)
-  std_qty numeric default 100,                        -- Default recipe usage qty
-  unit_weight_g numeric,                              -- If base_uom = unit
-
-  yield_qty numeric,                                  -- Only for Prepped ingredients
-
-  message text,                                       -- Optional notes (warnings, substitutions, etc)
-
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
-);
+create trigger update_ingredients_updated_at BEFORE
+update on ingredients for EACH row
+execute FUNCTION set_updated_at ();
