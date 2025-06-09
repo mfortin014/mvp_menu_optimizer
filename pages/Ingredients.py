@@ -27,15 +27,15 @@ category_reverse_lookup = {v: k for k, v in category_lookup.items()}
 
 df = fetch_ingredients()
 df["category"] = df["category_id"].map(category_lookup)
-
+df = df.drop(columns=["ref_ingredient_categories"], errors="ignore")
 display_df = df.drop(columns=["id", "created_at", "updated_at", "category_id"], errors="ignore")
 
 # === AgGrid Interactive Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
-# No pagination — scrollable full table
 grid_height = 600 if len(display_df) > 10 else None
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
+
 grid_options = gb.build()
 
 grid_response = AgGrid(
@@ -47,22 +47,18 @@ grid_response = AgGrid(
     allow_unsafe_jscode=True
 )
 
-
+# === Handle Selection ===
 selected_row = grid_response["selected_rows"]
 edit_data = None
 
-# Safely handle AgGrid return value
 if selected_row is not None:
-    # Handle case where it's a DataFrame (not expected, but observed)
     if isinstance(selected_row, pd.DataFrame) and not selected_row.empty:
         selected_code = selected_row.iloc[0].get("ingredient_code")
-    # Handle expected case: list of dicts
     elif isinstance(selected_row, list) and len(selected_row) > 0:
         selected_code = selected_row[0].get("ingredient_code")
     else:
         selected_code = None
 
-    # Match full row from df
     if selected_code:
         match = df[df["ingredient_code"] == selected_code]
         if not match.empty:
@@ -70,54 +66,77 @@ if selected_row is not None:
 
 edit_mode = edit_data is not None
 
-
 # === Sidebar Form ===
 with st.sidebar:
     st.subheader("➕ Add or Edit Ingredient")
     with st.form("ingredient_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Ingredient Code", value=edit_data.get("ingredient_code", "") if edit_mode else "")
-        ingredient_type = st.selectbox(
-            "Ingredient Type", ["Bought", "Prepped"],
-            index=["Bought", "Prepped"].index(edit_data.get("ingredient_type", "Bought")) if edit_mode else 0
-        )
+
+        # Ingredient Type
+        type_options = ["— Select —", "Bought", "Prepped"]
+        selected_type = edit_data.get("ingredient_type") if edit_mode else None
+        type_index = type_options.index(selected_type) if selected_type in type_options else 0
+        ingredient_type = st.selectbox("Ingredient Type", type_options, index=type_index)
+        ingredient_type = ingredient_type if ingredient_type != "— Select —" else None
+
+        # Package Quantity
         package_qty = st.number_input("Package Quantity", min_value=0.0, step=0.1,
                                       value=float(edit_data.get("package_qty", 0.0)) if edit_mode else 0.0)
-        package_uom = st.selectbox(
-            "Package UOM", uom_options,
-            index=uom_options.index(edit_data.get("package_uom")) if edit_mode and edit_data.get("package_uom") in uom_options else 0
-        )
+
+        # Package UOM
+        uom_list = ["— Select —"] + uom_options
+        selected_uom = edit_data.get("package_uom") if edit_mode else None
+        uom_index = uom_list.index(selected_uom) if selected_uom in uom_list else 0
+        package_uom = st.selectbox("Package UOM", uom_list, index=uom_index)
+        package_uom = package_uom if package_uom != "— Select —" else None
+
+        # Package Cost
         package_cost = st.number_input("Package Cost", min_value=0.0, step=0.01,
                                        value=float(edit_data.get("package_cost", 0.0)) if edit_mode else 0.0)
+
+        # Yield %
         yield_pct = st.number_input("Yield (%)", min_value=0.0, max_value=100.0, step=1.0,
                                     value=float(edit_data.get("yield_pct", 100.0)) if edit_mode else 100.0)
-        status = st.selectbox("Status", ["Active", "Inactive"],
-                              index=["Active", "Inactive"].index(edit_data.get("status", "Active")) if edit_mode else 0)
-        category_names = list(category_reverse_lookup.keys())
-        category_name = st.selectbox("Category", category_names,
-                                     index=category_names.index(category_lookup.get(edit_data.get("category_id"), category_names[0])) if edit_mode else 0)
-        category_id = category_reverse_lookup[category_name]
+
+        # Status
+        status_options = ["— Select —", "Active", "Inactive"]
+        selected_status = edit_data.get("status") if edit_mode else None
+        status_index = status_options.index(selected_status) if selected_status in status_options else 0
+        status = st.selectbox("Status", status_options, index=status_index)
+        status = status if status != "— Select —" else None
+
+        # Category
+        category_names = ["— Select —"] + [c['name'] for c in categories]
+        category_id = edit_data.get("category_id") if edit_mode else None
+        preselected_category = category_lookup.get(category_id)
+        category_index = category_names.index(preselected_category) if preselected_category in category_names else 0
+        category_name = st.selectbox("Category", category_names, index=category_index)
+        category_id = [c["id"] for c in categories if c["name"] == category_name][0] if category_name != "— Select —" else None
 
         submitted = st.form_submit_button("Save Ingredient")
-        if submitted and name:
-            data = {
-                "name": name,
-                "ingredient_code": code,
-                "ingredient_type": ingredient_type,
-                "package_qty": package_qty,
-                "package_uom": package_uom,
-                "package_cost": package_cost,
-                "yield_pct": yield_pct,
-                "status": status,
-                "category_id": category_id
-            }
-            if edit_mode:
-                supabase.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
-                st.success("Ingredient updated.")
+        if submitted:
+            if not all([name, code, ingredient_type, package_uom, status, category_id]):
+                st.error("⚠️ Please complete all fields before saving.")
             else:
-                supabase.table("ingredients").insert(data).execute()
-                st.success("Ingredient added.")
-            st.experimental_rerun()
+                data = {
+                    "name": name,
+                    "ingredient_code": code,
+                    "ingredient_type": ingredient_type,
+                    "package_qty": package_qty,
+                    "package_uom": package_uom,
+                    "package_cost": package_cost,
+                    "yield_pct": yield_pct,
+                    "status": status,
+                    "category_id": category_id
+                }
+                if edit_mode:
+                    supabase.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
+                    st.success("Ingredient updated.")
+                else:
+                    supabase.table("ingredients").insert(data).execute()
+                    st.success("Ingredient added.")
+                st.experimental_rerun()
 
     if edit_mode:
         if st.button("Cancel"):
