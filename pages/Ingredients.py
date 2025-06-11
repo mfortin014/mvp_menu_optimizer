@@ -47,6 +47,19 @@ grid_response = AgGrid(
     allow_unsafe_jscode=True
 )
 
+# === CSV Export Button ===
+st.markdown("### 📥 Export Ingredients")
+export_df = display_df.copy()
+for col in ["package_qty", "package_cost", "yield_pct"]:
+    if col in export_df.columns:
+        export_df[col] = export_df[col].round(6)
+st.download_button(
+    label="Download Ingredients as CSV",
+    data=export_df.to_csv(index=False),
+    file_name="ingredients_export.csv",
+    mime="text/csv"
+)
+
 # === Handle Selection ===
 selected_row = grid_response["selected_rows"]
 edit_data = None
@@ -115,18 +128,33 @@ with st.sidebar:
         category_id = [c["id"] for c in categories if c["name"] == category_name][0] if category_name != "— Select —" else None
 
         submitted = st.form_submit_button("Save Ingredient")
+        errors = []
+
+        if not name:
+            errors.append("Name")
+        if not code:
+            errors.append("Ingredient Code")
+        if not ingredient_type:
+            errors.append("Ingredient Type")
+        if not package_uom:
+            errors.append("Package UOM")
+        if not status:
+            errors.append("Status")
+        if not category_id:
+            errors.append("Category")
+
         if submitted:
-            if not all([name, code, ingredient_type, package_uom, status, category_id]):
-                st.error("⚠️ Please complete all fields before saving.")
+            if errors:
+                st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
             else:
                 data = {
                     "name": name,
                     "ingredient_code": code,
                     "ingredient_type": ingredient_type,
-                    "package_qty": package_qty,
+                    "package_qty": round(package_qty, 6),
                     "package_uom": package_uom,
-                    "package_cost": package_cost,
-                    "yield_pct": yield_pct,
+                    "package_cost": round(package_cost, 6),
+                    "yield_pct": round(yield_pct, 6),
                     "status": status,
                     "category_id": category_id
                 }
@@ -136,12 +164,13 @@ with st.sidebar:
                 else:
                     supabase.table("ingredients").insert(data).execute()
                     st.success("Ingredient added.")
-                st.experimental_rerun()
+                st.rerun()
+
 
     if edit_mode:
         if st.button("Cancel"):
-            st.experimental_rerun()
+            st.rerun()
         if st.button("Delete"):
             supabase.table("ingredients").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
             st.success("Ingredient inactivated.")
-            st.experimental_rerun()
+            st.rerun()
