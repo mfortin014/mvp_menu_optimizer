@@ -1,39 +1,96 @@
-# 📊 Menu Optimizer – MVP Progress Summary (2025-06-13)
+# 🧠 Menu Optimizer – MVP Progress Summary (As of 2025-06-12)
+
+This document summarizes the key milestones, decisions, and technical patterns implemented during the Menu Optimizer MVP development.
+
+---
 
 ## ✅ Key Features Implemented
 
-- **Ingredient Management Page**
-  - CRUD operations using form inputs with validation
-  - AgGrid table with filtering, sorting, and selection
-  - CSV export with rounding and exportable state
-  - CSV import with inline validation and duplicate detection
+### Ingredients Module
+- **Ingredient Form with Validation**
+  - `ingredient_code`, `name`, `ingredient_type`, `package_qty`, `package_uom`, `package_cost`, `yield_pct`, `status`, `category`
+  - Defaults and validations mirror expected Supabase schema (e.g. yield_pct % logic, normalized type/status, capped field lengths)
+  - Form uses Streamlit's sidebar; includes Save, Cancel, and soft Delete logic
 
-- **Recipe Management Page**
-  - Matching layout and functionality with Ingredient page
-  - Introduced `recipe_category` column for custom use
-  - Switched base_yield_uom input to text for MVP flexibility
+- **Table View with AgGrid**
+  - Shows ingredients in filterable, sortable table
+  - Selection loads sidebar form for edit
+  - Export to CSV (rounded numeric fields)
+  - Selection logic mimics radio behavior (single edit target)
 
-- **Reference Data Page**
-  - Supports direct table editing for `ref_ingredient_categories`, `ref_uom_conversion`, and `ref_status`
-  - Simple, shared UI with edit, add, and inactivate
+- **CSV Import with Validation**
+  - Supports batch import of ingredients
+  - Validation of all fields + conflict detection against existing rows
+  - Rejected rows returned in downloadable CSV with error comments
+  - Duplicate codes with same data silently skipped; conflicting rows flagged
 
-- **Import System**
-  - CSV import with row-level validation and rejection report
-  - Skips duplicate `ingredient_code` with source vs DB comparison
-  - Exported CSV of rejected rows with reason column
+### Recipes Module
+- Same architecture as Ingredients page
+- Added `recipe_category` (text field) between `status` and `yield`
+- `base_yield_uom` now accepts free-form text (not tied to UOM table)
+- Handles basic CRUD via form (Save, Cancel, Inactivate)
+- Export to CSV with same rounding logic
 
-## 🔄 Decisions & Conventions
+### Reference Data Page
+- Inline CRUD editors for:
+  - `ref_ingredient_categories`
+  - `ref_uom_conversion`
+  - `ref_sample_types`
+  - `ref_markets`
+  - `ref_warehouses`
+- No CSV export or deletion (MVP constraint)
+- Simplified layout and usage flow
 
-- No CSV import until recipe categories are finalized
-- `base_yield_uom` is freeform for MVP to avoid UOM coupling
-- Form validation doesn't currently enforce uniqueness in `recipe_code`—but DB does
-- Post-MVP improvements planned for:
-  - Hierarchical packaging definitions
-  - In-app quickfilter clearing in AgGrid
-  - Modular multi-object import page
+---
 
-## ⚠️ Issues to Revisit
-- Cancel buttons don't clear the sidebar form in all views
-- Supabase outages impacted testing and confidence in status codes
-- AgGrid filtering UX could be improved with "clear all filters" support
-- Home page: quick access to active ingredients and recipes to be added
+## 🔁 Technical Patterns
+
+- Shared AgGrid setup for data tables
+- Sidebar pattern for editing forms
+- Field normalization (e.g. status/title capitalization)
+- `st.session_state` used for selection memory and cancel logic
+- Conflict resolution on import via content-aware duplicate comparison
+- Decimal precision rounding at import and export
+- Use of `st.rerun()` instead of deprecated `st.experimental_rerun()`
+
+---
+
+## 🧱 Infrastructure Notes
+
+- All logic connects to Supabase via `supabase.table().select/insert/update`
+- `yield_pct` logic: values between 0 and 1 are multiplied by 100
+- Ingredient code and recipe code uniqueness enforced at the DB level and on submitting the form
+- Manual schema modification occurred to add `recipe_category` field
+
+---
+
+## 🚧 Known Issues & MVP Limitations
+
+- Cancel button does not resets form
+- `ref_uom_conversion` used inconsistently for recipe vs ingredient UOMs
+- No pagination or lazy loading yet
+- No true deletion in reference data
+- No recipe lines (ingredients per recipe) management yet
+
+---
+
+## 🧠 Design Decisions to Remember
+
+- Ingredient and Recipe codes are enforced as unique at the database level
+- CSV import does not allow overwriting existing entries via import (only via form)
+- Ingredient/Recipe `status` is used to soft-delete (avoid true deletion)
+- `base_yield_uom` for Recipes is intentionally free-form for MVP
+- We opted to allow `package_uom` values not present in the UOM table for flexibility
+
+---
+
+## 🧭 Migration Planning Notes
+
+- UOMs may need clearer scoping between measurement, packaging, and yield contexts
+- Recipe-to-ingredient conversion for BOM-level recipes is deferred post-MVP
+- Ref tables may benefit from their own structured forms + versioning in React
+- Long-term: separate module for recipe lines with drag/drop support and cost validation
+
+---
+
+*Generated 2025-06-12 as a Phase 2 milestone snapshot.*
