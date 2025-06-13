@@ -11,16 +11,15 @@ def fetch_recipes():
     res = supabase.table("recipes").select("*").order("name").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-def fetch_uoms():
-    res = supabase.table("ref_uom_conversion").select("from_uom").execute()
-    return sorted(set(row["from_uom"] for row in res.data)) if res.data else []
-
-# === Fetch data ===
-uom_options = fetch_uoms()
+# === Fetch Data ===
 df = fetch_recipes()
-display_df = df.drop(columns=["id", "updated_at"], errors="ignore")
+ordered_cols = [
+    "recipe_code", "name", "status", "recipe_category",
+    "base_yield_qty", "base_yield_uom", "price"
+]
+display_df = df[ordered_cols] if not df.empty else pd.DataFrame(columns=ordered_cols)
 
-# === AgGrid Interactive Table ===
+# === AgGrid Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
 grid_height = 600 if len(display_df) > 10 else None
 gb.configure_default_column(editable=False, filter=True, sortable=True)
@@ -75,27 +74,21 @@ with st.sidebar:
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
 
-        # Yield Quantity
-        yield_qty = st.number_input("Base Yield Quantity", min_value=0.0, step=0.1,
-                                    value=float(edit_data.get("base_yield_qty", 1.0)) if edit_mode else 1.0)
-
-        # Yield UOM
-        uom_list = ["— Select —"] + uom_options
-        selected_uom = edit_data.get("base_yield_uom") if edit_mode else None
-        uom_index = uom_list.index(selected_uom) if selected_uom in uom_list else 0
-        yield_uom = st.selectbox("Base Yield UOM", uom_list, index=uom_index)
-        yield_uom = yield_uom if yield_uom != "— Select —" else None
-
-        # Price
-        price = st.number_input("Price", min_value=0.0, step=0.01,
-                                value=float(edit_data.get("price", 0.0)) if edit_mode else 0.0)
-
-        # Status
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
         status_index = status_options.index(selected_status) if selected_status in status_options else 0
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
+
+        recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
+
+        yield_qty = st.number_input("Base Yield Quantity", min_value=0.0, step=0.1,
+                                    value=float(edit_data.get("base_yield_qty", 1.0)) if edit_mode else 1.0)
+
+        yield_uom = st.text_input("Base Yield UOM", value=edit_data.get("base_yield_uom", "") if edit_mode else "")
+
+        price = st.number_input("Price", min_value=0.0, step=0.01,
+                                value=float(edit_data.get("price", 0.0)) if edit_mode else 0.0)
 
         submitted = st.form_submit_button("Save Recipe")
         errors = []
@@ -113,21 +106,26 @@ with st.sidebar:
             if errors:
                 st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
             else:
-                data = {
-                    "name": name,
-                    "recipe_code": code,
-                    "base_yield_qty": round(yield_qty, 6),
-                    "base_yield_uom": yield_uom,
-                    "price": round(price, 6),
-                    "status": status
-                }
-                if edit_mode:
-                    supabase.table("recipes").update(data).eq("id", edit_data["id"]).execute()
-                    st.success("Recipe updated.")
+                existing_check = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
+                if not edit_mode and existing_check.data:
+                    st.error("❌ Recipe code already exists.")
                 else:
-                    supabase.table("recipes").insert(data).execute()
-                    st.success("Recipe added.")
-                st.rerun()
+                    data = {
+                        "name": name,
+                        "recipe_code": code,
+                        "base_yield_qty": round(yield_qty, 6),
+                        "base_yield_uom": yield_uom,
+                        "price": round(price, 6),
+                        "status": status,
+                        "recipe_category": recipe_category
+                    }
+                    if edit_mode:
+                        supabase.table("recipes").update(data).eq("id", edit_data["id"]).execute()
+                        st.success("Recipe updated.")
+                    else:
+                        supabase.table("recipes").insert(data).execute()
+                        st.success("Recipe added.")
+                    st.rerun()
 
     if edit_mode:
         if st.button("Cancel"):
