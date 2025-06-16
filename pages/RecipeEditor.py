@@ -75,10 +75,9 @@ else:
     df["ingredient"] = df["ingredient_id"].map(ingredients_lookup)
     df["note"] = df["recipe_line_id"].map(notes_map)
     display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "line_cost", "note"]]
-    display_df = display_df.rename(columns={"recipe_line_id": "line_id"})
 
 # === AgGrid Table ===
-gb = GridOptionsBuilder.from_dataframe(display_df.drop(columns=["line_id"]))
+gb = GridOptionsBuilder.from_dataframe(display_df)
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
 grid_options = gb.build()
@@ -92,13 +91,23 @@ grid_response = AgGrid(
 )
 
 # === Handle Selection for Edit ===
-selected = grid_response.get("selected_rows")
+selected_row = grid_response["selected_rows"]
 edit_data = None
-if isinstance(selected, list) and selected:
-    line_id = selected[0].get("line_id")
-    row = df[df["recipe_line_id"] == line_id]
-    if not row.empty:
-        edit_data = row.iloc[0].to_dict()
+
+if selected_row is not None:
+    if isinstance(selected_row, pd.DataFrame) and not selected_row.empty:
+        selected_recipe_line_id = selected_row.iloc[0].get("recipe_line_id")
+        row = df[df["recipe_line_id"] == selected_recipe_line_id]
+    elif isinstance(selected_row, list) and len(selected_row) > 0:
+        selected_recipe_line_id = selected_row[0].get("recipe_line_id")
+        row = df[df["recipe_line_id"] == selected_recipe_line_id]
+    else:
+        selected_recipe_line_id = None
+
+    if selected_recipe_line_id:
+        match = df[df["recipe_line_id"] == selected_recipe_line_id]
+        if not match.empty:
+            edit_data = match.iloc[0].to_dict()
 
 edit_mode = edit_data is not None
 
@@ -161,7 +170,7 @@ with st.sidebar:
 
 # === CSV Export ===
 st.markdown("### 📥 Export Recipe Lines")
-exp_df = display_df.drop(columns=["line_id"]).copy()
+exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
 exp_df["line_cost"] = exp_df["line_cost"].round(6)
 st.download_button(
     label="Download Lines as CSV",
