@@ -80,6 +80,7 @@ else:
 gb = GridOptionsBuilder.from_dataframe(display_df)
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
+gb.configure_column("recipe_line_id", hide=True)
 grid_options = gb.build()
 grid_response = AgGrid(
     display_df,
