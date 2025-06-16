@@ -1,57 +1,171 @@
 import streamlit as st
 import pandas as pd
-from utils.data import load_recipe_list, load_ingredient_master, get_recipe_id_by_name, get_ingredient_id_by_name, add_recipe, add_recipe_line
+from utils.supabase import supabase
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="Recipe Editor", layout="wide")
-st.title("🛠️ Recipe Editor")
+st.title("📝 Recipe Editor")
 
-# --- SECTION 1: Add New Recipe ---
-st.subheader("➕ Add New Recipe")
+# === Helper Functions ===
+def fetch_recipes():
+    res = supabase.table("recipes") \
+        .select("id, name") \
+        .eq("status", "Active") \
+        .order("name") \
+        .execute()
+    return res.data or []
 
-with st.form("add_recipe_form", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        recipe_name = st.text_input("Recipe Name", max_chars=100)
-        recipe_code = st.text_input("Recipe Code", max_chars=20)
-    with col2:
-        base_yield_qty = st.number_input("Base Yield Quantity", min_value=0.0, step=0.1)
-        base_yield_uom = st.text_input("Yield UOM", value="plate")
-        price = st.number_input("Selling Price ($)", min_value=0.0, step=0.1)
-        status = st.selectbox("Status", ["Active", "In Development", "Seasonal", "Discontinued"])
+def fetch_ingredients_lookup():
+    res = supabase.table("ingredients") \
+        .select("id, name") \
+        .eq("status", "Active") \
+        .order("name") \
+        .execute()
+    return {row["id"]: row["name"] for row in (res.data or [])}
 
-    submitted = st.form_submit_button("Create Recipe")
-    if submitted:
-        success = add_recipe(recipe_name, recipe_code, price, base_yield_qty, base_yield_uom, status)
-        if success:
-            st.success(f"✅ Recipe '{recipe_name}' added.")
-        else:
-            st.error("❌ Failed to add recipe. Please check the input.")
+def fetch_uoms():
+    res = supabase.table("ref_uom_conversion") \
+        .select("from_uom") \
+        .execute()
+    return sorted({r["from_uom"] for r in (res.data or [])})
 
-st.markdown("---")
+# === Recipe Selection ===
+recipes = fetch_recipes()
+name_to_id = {r["name"]: r["id"] for r in recipes}
+options = ["— Select —"] + [r["name"] for r in recipes]
+selected_name = st.selectbox("Select Recipe", options)
+recipe_id = name_to_id.get(selected_name)
 
-# --- SECTION 2: Add Ingredient Line to Existing Recipe ---
-st.subheader("➕ Add Ingredient to Recipe")
+if not recipe_id:
+    st.info("Please select a recipe to view and edit.")
+    st.stop()
 
-recipes = load_recipe_list()
-ingredients_df = load_ingredient_master()
-ingredient_names = ingredients_df["name"].tolist()
+# === Header Metrics ===
+summary_res = supabase.table("recipe_summary") \
+    .select("recipe, price, cost, margin_dollar, profitability") \
+    .eq("recipe_id", recipe_id) \
+    .execute()
+if summary_res.data:
+    summ = summary_res.data[0]
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Recipe", summ["recipe"])
+    col2.metric("Cost", f"${summ['cost']:.2f}")
+    col3.metric("Price", f"${summ['price']:.2f}")
+    pct = f"{summ['profitability']*100:.1f}%"
+    col4.metric("Margin", f"${summ['margin_dollar']:.2f} ({pct})")
+else:
+    st.warning("No summary available for this recipe.")
 
-with st.form("add_recipe_line_form", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        selected_recipe = st.selectbox("Select Recipe", recipes)
-        selected_ingredient = st.selectbox("Select Ingredient", ingredient_names)
-    with col2:
-        qty = st.number_input("Quantity", min_value=0.0, step=0.1)
-        qty_uom = st.text_input("Quantity UOM", value="g")
-        note = st.text_input("Optional Note")
+# === Load Recipe Lines with Costs & Notes ===
+rlc_res = supabase.table("recipe_line_costs") \
+    .select("*") \
+    .eq("recipe_id", recipe_id) \
+    .execute()
+df = pd.DataFrame(rlc_res.data or [])
+notes_res = supabase.table("recipe_lines") \
+    .select("id, note") \
+    .eq("recipe_id", recipe_id) \
+    .execute()
+notes_map = {row["id"]: row["note"] for row in (notes_res.data or [])}
 
-    submitted_line = st.form_submit_button("Add Line to Recipe")
-    if submitted_line:
-        recipe_id = get_recipe_id_by_name(selected_recipe)
-        ingredient_id = get_ingredient_id_by_name(selected_ingredient)
-        success = add_recipe_line(recipe_id, ingredient_id, qty, qty_uom, note)
-        if success:
-            st.success(f"✅ Added {selected_ingredient} to {selected_recipe}.")
-        else:
-            st.error("❌ Failed to add line.")
+if df.empty:
+    display_df = pd.DataFrame(columns=["ingredient", "qty", "qty_uom", "line_cost", "note"])
+else:
+    ingredients_lookup = fetch_ingredients_lookup()
+    df["ingredient"] = df["ingredient_id"].map(ingredients_lookup)
+    df["note"] = df["recipe_line_id"].map(notes_map)
+    display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "line_cost", "note"]]
+    display_df = display_df.rename(columns={"recipe_line_id": "line_id"})
+
+# === AgGrid Table ===
+gb = GridOptionsBuilder.from_dataframe(display_df.drop(columns=["line_id"]))
+gb.configure_default_column(editable=False, filter=True, sortable=True)
+gb.configure_selection("single", use_checkbox=False)
+grid_options = gb.build()
+grid_response = AgGrid(
+    display_df,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    fit_columns_on_grid_load=True,
+    height=500,
+    allow_unsafe_jscode=True
+)
+
+# === Handle Selection for Edit ===
+selected = grid_response.get("selected_rows")
+edit_data = None
+if isinstance(selected, list) and selected:
+    line_id = selected[0].get("line_id")
+    row = df[df["recipe_line_id"] == line_id]
+    if not row.empty:
+        edit_data = row.iloc[0].to_dict()
+
+edit_mode = edit_data is not None
+
+# === Sidebar Form ===
+with st.sidebar:
+    st.subheader("➕ Add or Edit Recipe Line")
+    with st.form("line_form"):
+        ingr_lookup = fetch_ingredients_lookup()
+        ingr_names = ["— Select —"] + list(ingr_lookup.values())
+        default_ingr = ingr_lookup.get(edit_data.get("ingredient_id")) if edit_mode else None
+        ingr_index = ingr_names.index(default_ingr) if default_ingr in ingr_names else 0
+        selected_ingr = st.selectbox("Ingredient", ingr_names, index=ingr_index)
+        ingredient_id = next((k for k, v in ingr_lookup.items() if v == selected_ingr), None)
+
+        qty = st.number_input(
+            "Quantity", min_value=0.0, step=0.1,
+            value=float(edit_data.get("qty", 1.0)) if edit_mode else 1.0
+        )
+        uom_opts = ["— Select —"] + fetch_uoms()
+        default_uom = edit_data.get("qty_uom") if edit_mode else None
+        uom_index = uom_opts.index(default_uom) if default_uom in uom_opts else 0
+        qty_uom = st.selectbox("UOM", uom_opts, index=uom_index)
+
+        note = st.text_area("Note", value=edit_data.get("note", "") if edit_mode else "")
+
+        submit_label = "Save" if edit_mode else "Add Ingredient"
+        submitted = st.form_submit_button(submit_label)
+
+        errors = []
+        if not ingredient_id:
+            errors.append("Ingredient")
+        if not qty_uom:
+            errors.append("UOM")
+        if submitted:
+            if errors:
+                st.error(f"⚠️ Please complete: {', '.join(errors)}")
+            else:
+                payload = {
+                    "recipe_id": recipe_id,
+                    "ingredient_id": ingredient_id,
+                    "qty": qty,
+                    "qty_uom": qty_uom,
+                    "note": note or None
+                }
+                if edit_mode:
+                    supabase.table("recipe_lines").update(payload).eq("id", edit_data["recipe_line_id"]).execute()
+                    st.success("Line updated.")
+                else:
+                    supabase.table("recipe_lines").insert(payload).execute()
+                    st.success("Line added.")
+                st.rerun()
+
+    if edit_mode:
+        if st.button("Cancel"):
+            st.rerun()
+        if st.button("Delete"):
+            supabase.table("recipe_lines").delete().eq("id", edit_data["recipe_line_id"]).execute()
+            st.success("Line deleted.")
+            st.rerun()
+
+# === CSV Export ===
+st.markdown("### 📥 Export Recipe Lines")
+exp_df = display_df.drop(columns=["line_id"]).copy()
+exp_df["line_cost"] = exp_df["line_cost"].round(6)
+st.download_button(
+    label="Download Lines as CSV",
+    data=exp_df.to_csv(index=False),
+    file_name=f"{selected_name.replace(' ', '_')}_lines.csv",
+    mime="text/csv"
+)
