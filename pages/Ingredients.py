@@ -8,7 +8,7 @@ st.title("🥦 Ingredients")
 
 # === Helper Functions ===
 def fetch_ingredients():
-    res = supabase.table("ingredients").select("*", "ref_ingredient_categories(name)").order("name").execute()
+    res = supabase.table("ingredients").select("*", "ref_ingredient_categories(name)", "ref_storage_type(name)").order("name").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 def fetch_uoms():
@@ -19,16 +19,24 @@ def fetch_categories():
     res = supabase.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
     return res.data if res.data else []
 
+def fetch_storage_types():
+    res = supabase.table("ref_storage_type").select("id, name").eq("status", "Active").execute()
+    return res.data if res.data else []
+
 # === Fetch data ===
 uom_options = fetch_uoms()
 categories = fetch_categories()
+storage_types = fetch_storage_types()
 category_lookup = {c["id"]: c["name"] for c in categories}
+storage_lookup = {s["id"]: s["name"] for s in storage_types}
 category_reverse_lookup = {v: k for k, v in category_lookup.items()}
+
 
 df = fetch_ingredients()
 df["category"] = df["category_id"].map(category_lookup)
-df = df.drop(columns=["ref_ingredient_categories"], errors="ignore")
-display_df = df.drop(columns=["id", "created_at", "updated_at", "category_id"], errors="ignore")
+df["storage_type"] = df["storage_type_id"].map(storage_lookup)
+df = df.drop(columns=["ref_ingredient_categories", "ref_storage_type"], errors="ignore")
+display_df = df.drop(columns=["id", "created_at", "updated_at", "category_id", "storage_type_id"], errors="ignore")
 
 # === AgGrid Interactive Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
@@ -48,7 +56,7 @@ grid_response = AgGrid(
 )
 
 # === CSV Export Button ===
-st.markdown("### 📥 Export Ingredients")
+st.markdown("### 🗕 Export Ingredients")
 export_df = display_df.copy()
 for col in ["package_qty", "package_cost", "yield_pct"]:
     if col in export_df.columns:
@@ -112,6 +120,21 @@ with st.sidebar:
         yield_pct = st.number_input("Yield (%)", min_value=0.0, max_value=100.0, step=1.0,
                                     value=float(edit_data.get("yield_pct", 100.0)) if edit_mode else 100.0)
 
+        # Base UOM
+        base_uom_options = ["— Select —", "g", "ml", "unit"]
+        selected_base = edit_data.get("base_uom") if edit_mode else None
+        base_index = base_uom_options.index(selected_base) if selected_base in base_uom_options else 0
+        base_uom = st.selectbox("Base UOM (optional, will be inferred if left blank)", base_uom_options, index=base_index)
+        base_uom = base_uom if base_uom != "— Select —" else None
+
+        # Storage Type
+        storage_names = ["— Select —"] + [s["name"] for s in storage_types]
+        storage_id = edit_data.get("storage_type_id") if edit_mode else None
+        preselected_storage = storage_lookup.get(storage_id)
+        storage_index = storage_names.index(preselected_storage) if preselected_storage in storage_names else 0
+        selected_storage = st.selectbox("Storage Type", storage_names, index=storage_index)
+        storage_type_id = [s["id"] for s in storage_types if s["name"] == selected_storage][0] if selected_storage != "— Select —" else None
+
         # Status
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
@@ -155,8 +178,10 @@ with st.sidebar:
                     "package_uom": package_uom,
                     "package_cost": round(package_cost, 6),
                     "yield_pct": round(yield_pct, 6),
+                    "base_uom": base_uom,
                     "status": status,
-                    "category_id": category_id
+                    "category_id": category_id,
+                    "storage_type_id": storage_type_id
                 }
                 if edit_mode:
                     supabase.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
@@ -165,7 +190,6 @@ with st.sidebar:
                     supabase.table("ingredients").insert(data).execute()
                     st.success("Ingredient added.")
                 st.rerun()
-
 
     if edit_mode:
         if st.button("Cancel"):
