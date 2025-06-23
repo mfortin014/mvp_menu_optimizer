@@ -8,8 +8,12 @@ st.title("🥦 Ingredients")
 
 # === Helper Functions ===
 def fetch_ingredients():
-    res = supabase.table("ingredients").select("*", "ref_ingredient_categories(name)", "ref_storage_type(name)").order("name").execute()
+    res = supabase.table("ingredients").select("*").order("name").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+def fetch_ingredient_costs():
+    res = supabase.table("ingredient_costs").select("ingredient_code, unit_cost").execute()
+    return {row["ingredient_code"]: row["unit_cost"] for row in res.data} if res.data else {}
 
 def fetch_uoms():
     res = supabase.table("ref_uom_conversion").select("from_uom").execute()
@@ -31,12 +35,18 @@ category_lookup = {c["id"]: c["name"] for c in categories}
 storage_lookup = {s["id"]: s["name"] for s in storage_types}
 category_reverse_lookup = {v: k for k, v in category_lookup.items()}
 
+cost_lookup = fetch_ingredient_costs()
 
 df = fetch_ingredients()
 df["category"] = df["category_id"].map(category_lookup)
 df["storage_type"] = df["storage_type_id"].map(storage_lookup)
-df = df.drop(columns=["ref_ingredient_categories", "ref_storage_type"], errors="ignore")
-display_df = df.drop(columns=["id", "created_at", "updated_at", "category_id", "storage_type_id"], errors="ignore")
+df["unit_cost"] = df["ingredient_code"].map(cost_lookup)
+
+column_order = [
+    "name", "ingredient_code", "ingredient_type", "package_qty", "package_uom",
+    "package_cost", "yield_pct", "status", "category", "storage_type", "unit_cost", "base_uom"
+]
+display_df = df[column_order if all(c in df.columns for c in column_order) else df.columns]
 
 # === AgGrid Interactive Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
@@ -56,9 +66,9 @@ grid_response = AgGrid(
 )
 
 # === CSV Export Button ===
-st.markdown("### 🗕 Export Ingredients")
+st.markdown("### 🇵 Export Ingredients")
 export_df = display_df.copy()
-for col in ["package_qty", "package_cost", "yield_pct"]:
+for col in ["package_qty", "package_cost", "yield_pct", "unit_cost"]:
     if col in export_df.columns:
         export_df[col] = export_df[col].round(6)
 st.download_button(
@@ -120,21 +130,6 @@ with st.sidebar:
         yield_pct = st.number_input("Yield (%)", min_value=0.0, max_value=100.0, step=1.0,
                                     value=float(edit_data.get("yield_pct", 100.0)) if edit_mode else 100.0)
 
-        # Base UOM
-        base_uom_options = ["— Select —", "g", "ml", "unit"]
-        selected_base = edit_data.get("base_uom") if edit_mode else None
-        base_index = base_uom_options.index(selected_base) if selected_base in base_uom_options else 0
-        base_uom = st.selectbox("Base UOM (optional, will be inferred if left blank)", base_uom_options, index=base_index)
-        base_uom = base_uom if base_uom != "— Select —" else None
-
-        # Storage Type
-        storage_names = ["— Select —"] + [s["name"] for s in storage_types]
-        storage_id = edit_data.get("storage_type_id") if edit_mode else None
-        preselected_storage = storage_lookup.get(storage_id)
-        storage_index = storage_names.index(preselected_storage) if preselected_storage in storage_names else 0
-        selected_storage = st.selectbox("Storage Type", storage_names, index=storage_index)
-        storage_type_id = [s["id"] for s in storage_types if s["name"] == selected_storage][0] if selected_storage != "— Select —" else None
-
         # Status
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
@@ -149,6 +144,21 @@ with st.sidebar:
         category_index = category_names.index(preselected_category) if preselected_category in category_names else 0
         category_name = st.selectbox("Category", category_names, index=category_index)
         category_id = [c["id"] for c in categories if c["name"] == category_name][0] if category_name != "— Select —" else None
+
+        # Storage Type
+        storage_names = ["— Select —"] + [s["name"] for s in storage_types]
+        storage_id = edit_data.get("storage_type_id") if edit_mode else None
+        preselected_storage = storage_lookup.get(storage_id)
+        storage_index = storage_names.index(preselected_storage) if preselected_storage in storage_names else 0
+        selected_storage = st.selectbox("Storage Type", storage_names, index=storage_index)
+        storage_type_id = [s["id"] for s in storage_types if s["name"] == selected_storage][0] if selected_storage != "— Select —" else None
+
+        # Base UOM
+        base_uom_options = ["— Select —", "g", "ml", "unit"]
+        selected_base = edit_data.get("base_uom") if edit_mode else None
+        base_index = base_uom_options.index(selected_base) if selected_base in base_uom_options else 0
+        base_uom = st.selectbox("Base UOM (optional, will be inferred if left blank)", base_uom_options, index=base_index)
+        base_uom = base_uom if base_uom != "— Select —" else None
 
         submitted = st.form_submit_button("Save Ingredient")
         errors = []
