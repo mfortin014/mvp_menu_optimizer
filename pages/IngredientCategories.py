@@ -3,23 +3,10 @@ import pandas as pd
 from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import streamlit as st
-
-def require_auth():
-    PASSWORD = st.secrets.get("CHEF_PASSWORD", "demo123")  # fallback default
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-
-    if not st.session_state.authenticated:
-        st.title("🔐 Secure Access")
-        password = st.text_input("Enter password:", type="password")
-        if password == PASSWORD:
-            st.session_state.authenticated = True
-            st.rerun()
-        elif password:
-            st.error("Incorrect password")
-        st.stop()
+from utils.auth import require_auth
 
 require_auth()
+
 
 st.set_page_config(page_title="Ingredient Categories", layout="wide")
 st.title("📋 Ingredient Categories")
