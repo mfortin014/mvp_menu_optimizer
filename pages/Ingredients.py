@@ -42,6 +42,10 @@ df["category"] = df["category_id"].map(category_lookup)
 df["storage_type"] = df["storage_type_id"].map(storage_lookup)
 df["unit_cost"] = df["ingredient_code"].map(cost_lookup)
 
+for col in ["package_qty", "package_cost", "yield_pct", "unit_cost"]:
+    if col in df.columns:
+        df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
+
 column_order = [
     "name", "ingredient_code", "ingredient_type", "package_qty", "package_uom",
     "package_cost", "yield_pct", "status", "category", "storage_type", "unit_cost", "base_uom"
@@ -53,6 +57,12 @@ gb = GridOptionsBuilder.from_dataframe(display_df)
 grid_height = 600 if len(display_df) > 10 else None
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
+
+# Right-align formatted numeric columns
+decimal_columns = ["package_qty", "package_cost", "yield_pct", "unit_cost"]
+for col in decimal_columns:
+    if col in display_df.columns:
+        gb.configure_column(col, cellStyle={"textAlign": "right"})
 
 grid_options = gb.build()
 
@@ -70,7 +80,7 @@ st.markdown("### 🇵 Export Ingredients")
 export_df = display_df.copy()
 for col in ["package_qty", "package_cost", "yield_pct", "unit_cost"]:
     if col in export_df.columns:
-        export_df[col] = export_df[col].round(6)
+        export_df[col] = export_df[col].astype(str)
 st.download_button(
     label="Download Ingredients as CSV",
     data=export_df.to_csv(index=False),
@@ -104,41 +114,34 @@ with st.sidebar:
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Ingredient Code", value=edit_data.get("ingredient_code", "") if edit_mode else "")
 
-        # Ingredient Type
         type_options = ["— Select —", "Bought", "Prepped"]
         selected_type = edit_data.get("ingredient_type") if edit_mode else None
         type_index = type_options.index(selected_type) if selected_type in type_options else 0
         ingredient_type = st.selectbox("Ingredient Type", type_options, index=type_index)
         ingredient_type = ingredient_type if ingredient_type != "— Select —" else None
 
-        # Package Quantity
         package_qty = st.number_input("Package Quantity", min_value=0.0, step=0.1,
                                       value=float(edit_data.get("package_qty", 0.0)) if edit_mode else 0.0)
 
-        # Package UOM
         uom_list = ["— Select —"] + uom_options
         selected_uom = edit_data.get("package_uom") if edit_mode else None
         uom_index = uom_list.index(selected_uom) if selected_uom in uom_list else 0
         package_uom = st.selectbox("Package UOM", uom_list, index=uom_index)
         package_uom = package_uom if package_uom != "— Select —" else None
 
-        # Package Cost
         package_cost = st.number_input("Package Cost", min_value=0.0, step=0.01,
                                        value=float(edit_data.get("package_cost", 0.0)) if edit_mode else 0.0)
 
-        # Yield %
         raw_yield = st.number_input("Yield (%)", min_value=0.0, max_value=200.0, step=1.0,
                                     value=float(edit_data.get("yield_pct", 100.0)) if edit_mode else 100.0)
         yield_pct = raw_yield * 100 if 0 < raw_yield <= 2 else raw_yield
 
-        # Status
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
         status_index = status_options.index(selected_status) if selected_status in status_options else 0
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
 
-        # Category
         category_names = ["— Select —"] + [c['name'] for c in categories]
         category_id = edit_data.get("category_id") if edit_mode else None
         preselected_category = category_lookup.get(category_id)
@@ -146,7 +149,6 @@ with st.sidebar:
         category_name = st.selectbox("Category", category_names, index=category_index)
         category_id = [c["id"] for c in categories if c["name"] == category_name][0] if category_name != "— Select —" else None
 
-        # Storage Type
         storage_names = ["— Select —"] + [s["name"] for s in storage_types]
         storage_id = edit_data.get("storage_type_id") if edit_mode else None
         preselected_storage = storage_lookup.get(storage_id)
@@ -154,7 +156,6 @@ with st.sidebar:
         selected_storage = st.selectbox("Storage Type", storage_names, index=storage_index)
         storage_type_id = [s["id"] for s in storage_types if s["name"] == selected_storage][0] if selected_storage != "— Select —" else None
 
-        # Base UOM
         base_uom_options = ["— Select —", "g", "ml", "unit"]
         selected_base = edit_data.get("base_uom") if edit_mode else None
         base_index = base_uom_options.index(selected_base) if selected_base in base_uom_options else 0
