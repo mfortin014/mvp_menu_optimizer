@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 
 from utils.data import load_recipes_summary
-from utils.theme import get_primary_color, get_logo_path, 
+from utils.theme import get_primary_color, get_logo_path
 from utils.auth import require_auth
 require_auth()
 
