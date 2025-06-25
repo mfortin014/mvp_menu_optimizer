@@ -127,8 +127,9 @@ with st.sidebar:
                                        value=float(edit_data.get("package_cost", 0.0)) if edit_mode else 0.0)
 
         # Yield %
-        yield_pct = st.number_input("Yield (%)", min_value=0.0, max_value=100.0, step=1.0,
+        raw_yield = st.number_input("Yield (%)", min_value=0.0, max_value=200.0, step=1.0,
                                     value=float(edit_data.get("yield_pct", 100.0)) if edit_mode else 100.0)
+        yield_pct = raw_yield * 100 if 0 < raw_yield <= 2 else raw_yield
 
         # Status
         status_options = ["— Select —", "Active", "Inactive"]
