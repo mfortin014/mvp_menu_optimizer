@@ -4,7 +4,7 @@ from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="Recipes", layout="wide")
-st.title("📘 Recipes")
+st.title("\U0001F4D8 Recipes")
 
 # === Helper Functions ===
 def fetch_recipes():
@@ -13,6 +13,10 @@ def fetch_recipes():
 
 # === Fetch Data ===
 df = fetch_recipes()
+for col in ["base_yield_qty", "price"]:
+    if col in df.columns:
+        df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
+
 ordered_cols = [
     "recipe_code", "name", "status", "recipe_category",
     "base_yield_qty", "base_yield_uom", "price"
@@ -24,6 +28,13 @@ gb = GridOptionsBuilder.from_dataframe(display_df)
 grid_height = 600 if len(display_df) > 10 else None
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
+
+# Right-align formatted numeric columns
+decimal_columns = ["base_yield_qty", "price"]
+for col in decimal_columns:
+    if col in display_df.columns:
+        gb.configure_column(col, cellStyle={"textAlign": "right"})
+
 grid_options = gb.build()
 
 grid_response = AgGrid(
@@ -36,11 +47,11 @@ grid_response = AgGrid(
 )
 
 # === CSV Export Button ===
-st.markdown("### 📤 Export Recipes")
+st.markdown("### \U0001F4E4 Export Recipes")
 export_df = display_df.copy()
 for col in ["base_yield_qty", "price"]:
     if col in export_df.columns:
-        export_df[col] = export_df[col].round(6)
+        export_df[col] = export_df[col].astype(str)
 st.download_button(
     label="Download Recipes as CSV",
     data=export_df.to_csv(index=False),
