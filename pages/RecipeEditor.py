@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from utils.auth import require_auth
+require_auth()
 
 st.set_page_config(page_title="Recipe Editor", layout="wide")
 st.title("📝 Recipe Editor")

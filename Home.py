@@ -3,7 +3,8 @@ import pandas as pd
 import altair as alt
 
 from utils.data import load_recipes_summary
-from utils.theme import get_primary_color, get_logo_path
+from utils.theme import get_primary_color, get_logo_path, require_auth
+require_auth()
 
 # Setup
 st.set_page_config(page_title="Home", layout="wide")
