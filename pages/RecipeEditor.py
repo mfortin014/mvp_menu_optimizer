@@ -55,10 +55,15 @@ if summary_res.data:
     summ = summary_res.data[0]
     col1, col2, col3, col4 = st.columns([2, 2, 2, 4])
     col1.metric("Recipe", summ["recipe"])
-    col2.metric("Price", f"${summ['price']:.2f}")
-    col3.metric("Cost", f"${summ['cost']:.2f}")
-    pct = f"{summ['profitability']*100:.1f}%"
-    col4.metric("Margin", f"${summ['margin_dollar']:.2f} ({pct})")
+    price = summ["price"]
+    cost = summ["cost"]
+    cost_pct = (cost / price) * 100 if price else 0
+    margin = summ["margin_dollar"]
+
+    col2.metric("Price", f"${price:.2f}")
+    col3.metric("Cost (% of price)", f"{cost_pct:.1f}%")
+    col4.metric("Margin", f"${margin:.2f}")
+
 else:
     st.warning("No summary available for this recipe.")
 
@@ -83,6 +88,12 @@ else:
     df["note"] = df["recipe_line_id"].map(notes_map)
     df["unit_cost"] = df["ingredient_id"].map(unit_cost_map)
     display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"]]
+
+
+for col in ["qty", "unit_cost", "line_cost"]:
+    if col in display_df.columns:
+        display_df[col] = display_df[col].map(lambda x: f"{x:.2f}")
+
 
 # === AgGrid Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
