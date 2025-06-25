@@ -50,34 +50,49 @@ st.subheader("📊 Key Performance Indicators")
 if df.empty:
     st.info("No recipe data available.")
 else:
-    total_recipes = len(df)
-    total_units_sold = df['popularity'].sum()
-    avg_profitability = df['profitability'].mean()
-    avg_margin_dollar = df['margin_dollar'].mean()
+    avg_price = df["price"].mean()
+    avg_cost_pct = (df["cost"] / df["price"]).replace([float("inf"), -float("inf")], None).dropna().mean() * 100
+    avg_margin_dollar = df["margin_dollar"].mean()
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Recipes", total_recipes)
-    col2.metric("Total Units Sold", int(total_units_sold))
-    col3.metric("Avg Margin (%)", f"{avg_profitability:.0%}")
-    col4.metric("Avg Margin ($)", f"${avg_margin_dollar:.2f}")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Avg Price", f"${avg_price:.2f}")
+    col2.metric("Avg Cost (% of Price)", f"{avg_cost_pct:.1f}%")
+    col3.metric("Avg Margin ($)", f"${avg_margin_dollar:.2f}")
+
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- SECTION 3: Recipe Table ---
 st.subheader("📋 Recipe Portfolio with Metrics")
 if df.empty:
     st.info("No recipe data available to display.")
 else:
-    display_df = df[[
-        'recipe', 'price', 'cost', 'margin_dollar', 'profitability', 'popularity'
-    ]].copy()
+    df["Cost (% of Price)"] = (df["cost"] / df["price"]) * 100
+    display_df = df[["recipe", "price", "Cost (% of Price)", "margin_dollar"]].copy()
 
     display_df.rename(columns={
-        'recipe': 'Recipe',
-        'price': 'Price ($)',
-        'cost': 'Cost ($)',
-        'margin_dollar': 'Margin ($)',
-        'profitability': 'Margin (%)',
-        'popularity': 'Units Sold'
+        "recipe": "Recipe",
+        "price": "Price ($)",
+        "margin_dollar": "Margin ($)"
     }, inplace=True)
 
-    display_df['Margin (%)'] = (display_df['Margin (%)'] * 100).round(1)
-    st.dataframe(display_df, use_container_width=True)
+    # Round values
+    for col in ["Price ($)", "Cost (% of Price)", "Margin ($)"]:
+        display_df[col] = display_df[col].round(2)
+
+    # Configure AgGrid
+    gb = GridOptionsBuilder.from_dataframe(display_df)
+    gb.configure_default_column(editable=False, filter=True, sortable=True)
+
+    # Right-align numeric columns
+    for col in ["Price ($)", "Cost (% of Price)", "Margin ($)"]:
+        gb.configure_column(col, type=["numericColumn", "rightAligned"], valueFormatter="x.toFixed(2)")
+
+    grid_options = gb.build()
+
+    AgGrid(
+        display_df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.NO_UPDATE,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True
+    )
