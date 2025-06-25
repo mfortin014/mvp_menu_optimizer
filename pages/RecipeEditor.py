@@ -29,6 +29,12 @@ def fetch_uoms():
         .execute()
     return sorted({r["from_uom"] for r in (res.data or [])})
 
+def fetch_unit_costs():
+    res = supabase.table("ingredient_costs") \
+        .select("ingredient_id, unit_cost") \
+        .execute()
+    return {row["ingredient_id"]: row["unit_cost"] for row in (res.data or [])}
+
 # === Recipe Selection ===
 recipes = fetch_recipes()
 name_to_id = {r["name"]: r["id"] for r in recipes}
@@ -47,10 +53,10 @@ summary_res = supabase.table("recipe_summary") \
     .execute()
 if summary_res.data:
     summ = summary_res.data[0]
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 4])
     col1.metric("Recipe", summ["recipe"])
-    col2.metric("Cost", f"${summ['cost']:.2f}")
-    col3.metric("Price", f"${summ['price']:.2f}")
+    col2.metric("Price", f"${summ['price']:.2f}")
+    col3.metric("Cost", f"${summ['cost']:.2f}")
     pct = f"{summ['profitability']*100:.1f}%"
     col4.metric("Margin", f"${summ['margin_dollar']:.2f} ({pct})")
 else:
@@ -67,14 +73,16 @@ notes_res = supabase.table("recipe_lines") \
     .eq("recipe_id", recipe_id) \
     .execute()
 notes_map = {row["id"]: row["note"] for row in (notes_res.data or [])}
+unit_cost_map = fetch_unit_costs()
 
 if df.empty:
-    display_df = pd.DataFrame(columns=["ingredient", "qty", "qty_uom", "line_cost", "note"])
+    display_df = pd.DataFrame(columns=["ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"])
 else:
     ingredients_lookup = fetch_ingredients_lookup()
     df["ingredient"] = df["ingredient_id"].map(ingredients_lookup)
     df["note"] = df["recipe_line_id"].map(notes_map)
-    display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "line_cost", "note"]]
+    df["unit_cost"] = df["ingredient_id"].map(unit_cost_map)
+    display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"]]
 
 # === AgGrid Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
@@ -132,6 +140,9 @@ with st.sidebar:
         uom_index = uom_opts.index(default_uom) if default_uom in uom_opts else 0
         qty_uom = st.selectbox("UOM", uom_opts, index=uom_index)
 
+        unit_cost_display = unit_cost_map.get(ingredient_id)
+        st.text_input("Unit Cost", value=f"{unit_cost_display:.6f}" if unit_cost_display else "", disabled=True)
+
         note = st.text_area("Note", value=edit_data.get("note", "") if edit_mode else "")
 
         submit_label = "Save" if edit_mode else "Add Ingredient"
@@ -172,7 +183,7 @@ with st.sidebar:
 # === CSV Export ===
 st.markdown("### 📥 Export Recipe Lines")
 exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
-exp_df["line_cost"] = exp_df["line_cost"].round(6)
+exp_df[["line_cost", "unit_cost"]] = exp_df[["line_cost", "unit_cost"]].round(6)
 st.download_button(
     label="Download Lines as CSV",
     data=exp_df.to_csv(index=False),
