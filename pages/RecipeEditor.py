@@ -94,7 +94,7 @@ else:
 
 for col in ["qty", "unit_cost", "line_cost"]:
     if col in display_df.columns:
-        display_df[col] = display_df[col].map(lambda x: f"{x:.2f}")
+        display_df[col] = display_df[col].map(lambda x: f"{x:.5f}" if pd.notnull(x) else "")
 
 
 # === AgGrid Table ===
@@ -195,7 +195,11 @@ with st.sidebar:
 
 # === CSV Export ===
 st.markdown("### 📥 Export Recipe Lines")
-exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
+if "recipe_line_id" in display_df.columns:
+    exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
+else:
+    exp_df = display_df.copy()
+
 exp_df[["line_cost", "unit_cost"]] = exp_df[["line_cost", "unit_cost"]].round(6)
 st.download_button(
     label="Download Lines as CSV",
