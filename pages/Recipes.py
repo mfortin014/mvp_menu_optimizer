@@ -27,7 +27,7 @@ display_df = df[ordered_cols] if not df.empty else pd.DataFrame(columns=ordered_
 
 # === AgGrid Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
-grid_height = 600 if len(display_df) > 10 else None
+grid_height = 600
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
 
