@@ -195,7 +195,11 @@ with st.sidebar:
 
 # === CSV Export ===
 st.markdown("### 📥 Export Recipe Lines")
-exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
+if "recipe_line_id" in display_df.columns:
+    exp_df = display_df.drop(columns=["recipe_line_id"]).copy()
+else:
+    exp_df = display_df.copy()
+
 exp_df[["line_cost", "unit_cost"]] = exp_df[["line_cost", "unit_cost"]].round(6)
 st.download_button(
     label="Download Lines as CSV",
