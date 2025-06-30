@@ -8,6 +8,50 @@ require_auth()
 st.set_page_config(page_title="⚙️ Settings", layout="wide")
 st.title("⚙️ Settings")
 
+st.header("🔧 Backfill Missing Base UOMs")
+
+def fetch_base_uom_map():
+    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    return {
+        row["from_uom"]: row["to_uom"]
+        for row in res.data
+        if row["to_uom"] in ["g", "ml"]
+    } if res.data else {}
+
+# Run only when button clicked
+if st.button("Run Maintenance"):
+    st.info("Fetching ingredients...")
+    res = supabase.table("ingredients").select("id, package_uom, base_uom").execute()
+    rows = res.data if res.data else []
+
+    base_uom_map = fetch_base_uom_map()
+    updates = []
+
+    for row in rows:
+        if row["base_uom"]:
+            continue  # already set
+
+        package_uom = row.get("package_uom", "")
+        norm_uom = package_uom.lower()
+
+        if norm_uom in ["each", "unit"]:
+            inferred = "unit"
+        elif package_uom in base_uom_map:
+            inferred = base_uom_map[package_uom]
+        else:
+            inferred = None
+
+        if inferred:
+            updates.append({"id": row["id"], "base_uom": inferred})
+
+    if updates:
+        for u in updates:
+            supabase.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
+
+        st.success(f"✅ Updated {len(updates)} ingredients with inferred base_uom.")
+    else:
+        st.info("Nothing to update — all ingredients already have base_uom.")
+
 # === Import Section ===
 st.header("📥 Import Data from CSV")
 object_type = st.selectbox("Select object to import", ["Ingredients", "Recipes"])
