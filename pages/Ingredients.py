@@ -44,9 +44,9 @@ df["category"] = df["category_id"].map(category_lookup)
 df["storage_type"] = df["storage_type_id"].map(storage_lookup)
 df["unit_cost"] = df["ingredient_code"].map(cost_lookup)
 
-for col in ["package_qty", "package_cost", "yield_pct", "unit_cost"]:
-    if col in df.columns:
-        df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
+df["package_cost"] = df["package_cost"].apply(lambda x: f"${x: .2f}" if pd.notnull(x) else "")
+df["yield_pct"] = df["yield_pct"].apply(lambda x: f"{x: .1f}%" if pd.notnull(x) else "")
+df["unit_cost"] = df["unit_cost"].apply(lambda x: f"${x: .5f}" if pd.notnull(x) else "")
 
 column_order = [
     "name", "ingredient_code", "ingredient_type", "package_qty", "package_uom",

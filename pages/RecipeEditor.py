@@ -91,8 +91,7 @@ else:
     df["unit_cost"] = df["ingredient_id"].map(unit_cost_map)
     display_df = df[["recipe_line_id", "ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"]]
 
-
-for col in ["qty", "unit_cost", "line_cost"]:
+for col in ["unit_cost", "line_cost"]:
     if col in display_df.columns:
         display_df[col] = display_df[col].map(lambda x: f"{x:.5f}" if pd.notnull(x) else "")
 
