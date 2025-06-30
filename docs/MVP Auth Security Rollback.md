@@ -1,103 +1,122 @@
-# MVP Authentication & Security: RLS Rollback Recap
+# 🔐 Authentication Troubleshooting & Resolution Log
 
-## 🧭 Context
-
-This document summarizes the authentication and security adjustments made to the Menu Optimizer MVP during late June 2025. The goal was to ensure Chef could access and test the MVP in a secure yet minimal-friction environment.
+This document chronicles the debugging process undertaken to secure and restore functionality to the Menu Optimizer MVP after an authentication refactor and API key leak. It is intended to serve both as a reference and a cautionary record.
 
 ---
 
-## ⚠️ Initial Trigger
+## 1. 🔓 Problem Overview
 
-* The Supabase `anon` public key was accidentally committed to GitHub.
-* Concern: Unauthorized users could potentially write to the database since RLS (Row-Level Security) was disabled.
-
----
-
-## 🚧 Attempted Secure Setup
-
-1. **Enabled RLS** on core tables.
-2. **Set up Supabase Auth** with email/password login.
-3. Implemented `require_login()` flow to redirect users to the login page.
-4. Refactored multiple pages to rely on `st.session_state.access_token`.
-5. Created login UI with `sign_in_with_password()` (later tried `sign_up()` too).
-
-### Major Problems Encountered
-
-* Could not generate new `anon` public key easily.
-* Magic link redirect led to MVP’s login form (no password setup).
-* Could not login even after user was marked as confirmed in Supabase.
-* Circular redirects and `Not authenticated` errors persisted.
-* Frustrating dev loop and loss of execution focus.
+* The original `secrets.toml` was accidentally pushed to GitHub, leaking the Supabase anon public key.
+* Supabase Role Level Security (RLS) was enabled mid-MVP but without the full user/role-based infrastructure to support it.
+* A series of back-and-forth iterations over authentication (including Supabase's `auth.sign_in_with_password`) failed to produce a reliable working login due to missing JWT configs, misaligned Supabase project setup, and incorrect redirect behaviors.
 
 ---
 
-## 🧹 Rollback Strategy
+## 2. 🧼 GitHub Secret Leak Scrubbing
 
-**Objective:** Remove all Auth/RLS complexity and go back to a working MVP.
+To prevent misuse of the exposed anon key, we scrubbed the git history:
 
-### Actions Taken
+### ✅ Steps Taken:
 
-* Reverted `dev_require_login` branch.
-* Restored `main` branch (which used the simple password auth with `st.secrets`).
-* Disabled RLS via Supabase GUI for all affected tables.
-* Regenerated Supabase keys (`anon` and `service`) and updated:
+1. **Install BFG Repo-Cleaner**: Used [BFG Repo-Cleaner](https://rtyley.github.io/bfg-repo-cleaner/) to remove secrets from git history.
 
-  * `secrets.toml` (local dev)
-  * Streamlit Cloud project secrets (production)
-* Restarted the local Streamlit app (important!) to refresh secrets.
+2. **Delete the leaked secrets file**:
 
-### Result
+   ```bash
+   git rm --cached -r .streamlit/secrets.toml
+   echo ".streamlit/secrets.toml" >> .gitignore
+   git commit -m "Remove secrets.toml from repo"
+   ```
 
-✅ MVP works again with the original simple login system.
-✅ Chef can now access the app.
-✅ Database writes are controlled by limiting the `anon` key to a single known user.
+3. **Run BFG to scrub history**:
 
----
+   ```bash
+   java -jar bfg.jar --delete-files secrets.toml
+   ```
 
-## 🔐 Current Security Status (Post-Rollback)
+4. **Clean and force-push the scrubbed repo**:
 
-| Feature               | Status                    |
-| --------------------- | ------------------------- |
-| Supabase RLS          | **Disabled**              |
-| Supabase Auth (email) | Not in use                |
-| Login via `secrets`   | ✅ Active                  |
-| `anon` key exposure   | ✅ Regenerated and safe    |
-| Write access scope    | ✅ Limited to app use only |
+   ```bash
+   git reflog expire --expire=now --all
+   git gc --prune=now --aggressive
+   git push --force
+   ```
 
----
-
-## 🗂️ Lessons Learned
-
-* Supabase Auth + RLS is **not trivial** to bolt onto a running MVP.
-* `st.switch_page()` has major limitations (must point to registered page names).
-* Streamlit does **not reload secrets** automatically — restart the app.
-* Regenerating the **service key** also regenerates the **anon** key.
-* MVP execution speed matters more than over-securing in early testing.
+5. **Verify**: Confirmed the secrets file was no longer present in any commit via `git log` and GitHub history.
 
 ---
 
-## 📌 Next Steps
+## 3. 🔑 Regenerating Supabase Keys
 
-* ✅ Let Chef test the MVP as-is.
-* 🧪 After validation, plan RLS + Auth from scratch with better tooling.
-* 🛠️ Migrate to proper infra (React + Supabase + secure auth) in later phase.
+To invalidate the compromised anon key:
 
----
+* Navigated to **Project Settings → API → Service Role & JWT Secrets**.
+* Clicked **"Generate new JWT secret"**.
+* This automatically regenerated **both** the `anon` and `service_role` keys.
+* Updated the new `anon` key in:
 
-## 📁 File Reference
+  * Local `.streamlit/secrets.toml`
+  * Streamlit Cloud app secrets
 
-This rollback affects:
-
-* `Login.py`
-* `utils/auth.py`
-* All pages that had `require_login()` or token-based data fetching
+⚠️ **Note**: This step was not clearly documented in Supabase, and was a source of major confusion and delay.
 
 ---
 
-## ✅ Final State Summary
+## 4. 🔁 Reverting to Pre-RLS Simplicity
 
-The MVP now runs with simple, contained auth. Chef can test. Dev can resume.
+After hours of failed attempts to implement secure Supabase login via RLS + JWT, we:
 
-No more spirals.
+* **Reverted back to the original MVP architecture** using `st.secrets["SUPABASE_KEY"]` and `create_client()` from Supabase Python SDK.
+* **Manually disabled all RLS policies** in the Supabase GUI.
+* **Switched back to Chef-only login** using a hardcoded password in `.streamlit/secrets.toml`.
 
-We move forward. 🏁
+Example:
+
+```toml
+CHEF_PASSWORD = "mysupersecret"
+```
+
+In `auth.py`:
+
+```python
+if password == st.secrets.get("CHEF_PASSWORD"):
+    st.session_state.authenticated = True
+```
+
+---
+
+## 5. 🧠 Lessons Learned
+
+### ✅ What Worked
+
+* Reverting to a simplified, hardcoded login model.
+* Manually disabling RLS to restore API access.
+* Regenerating keys to invalidate the leak.
+* Git scrub using BFG.
+
+### ❌ What Didn’t
+
+* Attempting to layer full Supabase user auth + RLS without proper frontend handling or API claims propagation.
+* Using `st.switch_page()` as a redirect workaround – led to infinite loops.
+
+---
+
+## 6. ✅ Current State (Post-Restore)
+
+* 🟢 MVP works again with a Chef-only login model.
+* 🟢 `.streamlit/secrets.toml` now excluded from git and git history scrubbed.
+* 🟢 Supabase keys rotated and updated.
+* 🔴 No RLS or multi-user auth implemented yet.
+
+---
+
+## 7. 🪪 Next Steps (Future Hardening)
+
+* ✅ Create a proper `users` table and implement a tiered RLS model.
+* ✅ Only enable RLS once all session management + row ownership logic is ready.
+* ⚠️ Investigate switching to a real framework (e.g., Next.js + Supabase or App Router stack).
+* 🔒 Always verify secrets management before sharing repos or demos.
+
+---
+
+**Document last updated:** 2025-06-30
