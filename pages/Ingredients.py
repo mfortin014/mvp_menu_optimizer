@@ -29,6 +29,16 @@ def fetch_storage_types():
     res = supabase.table("ref_storage_type").select("id, name").eq("status", "Active").execute()
     return res.data if res.data else []
 
+# Build from_uom → to_uom (only for g/ml targets)
+def fetch_base_uom_map():
+    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    return {
+        row["from_uom"]: row["to_uom"]
+        for row in res.data
+        if row["to_uom"] in ["g", "ml"]
+    } if res.data else {}
+
+
 # === Fetch data ===
 uom_options = fetch_uoms()
 categories = fetch_categories()
@@ -36,6 +46,7 @@ storage_types = fetch_storage_types()
 category_lookup = {c["id"]: c["name"] for c in categories}
 storage_lookup = {s["id"]: s["name"] for s in storage_types}
 category_reverse_lookup = {v: k for k, v in category_lookup.items()}
+base_uom_map = fetch_base_uom_map()
 
 cost_lookup = fetch_ingredient_costs()
 
@@ -43,10 +54,6 @@ df = fetch_ingredients()
 df["category"] = df["category_id"].map(category_lookup)
 df["storage_type"] = df["storage_type_id"].map(storage_lookup)
 df["unit_cost"] = df["ingredient_code"].map(cost_lookup)
-
-df["package_cost"] = df["package_cost"].apply(lambda x: f"${x: .2f}" if pd.notnull(x) else "")
-df["yield_pct"] = df["yield_pct"].apply(lambda x: f"{x: .1f}%" if pd.notnull(x) else "")
-df["unit_cost"] = df["unit_cost"].apply(lambda x: f"${x: .5f}" if pd.notnull(x) else "")
 
 column_order = [
     "name", "ingredient_code", "ingredient_type", "package_qty", "package_uom",
@@ -59,6 +66,11 @@ gb = GridOptionsBuilder.from_dataframe(display_df)
 grid_height = 600 if len(display_df) > 10 else None
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
+
+display_df["package_cost"] = df["package_cost"].apply(lambda x: f"${x: .2f}" if pd.notnull(x) else "")
+display_df["yield_pct"] = df["yield_pct"].apply(lambda x: f"{x: .1f}%" if pd.notnull(x) else "")
+display_df["unit_cost"] = df["unit_cost"].apply(lambda x: f"${x: .5f}" if pd.notnull(x) else "")
+
 
 # Right-align formatted numeric columns
 decimal_columns = ["package_qty", "package_cost", "yield_pct", "unit_cost"]
@@ -163,6 +175,12 @@ with st.sidebar:
         base_index = base_uom_options.index(selected_base) if selected_base in base_uom_options else 0
         base_uom = st.selectbox("Base UOM (optional, will be inferred if left blank)", base_uom_options, index=base_index)
         base_uom = base_uom if base_uom != "— Select —" else None
+        if not base_uom and package_uom:
+            normalized_uom = package_uom.lower()
+            if normalized_uom in ["each", "unit"]:
+                base_uom = "unit"
+            elif package_uom in base_uom_map:
+                base_uom = base_uom_map[package_uom]
 
         submitted = st.form_submit_button("Save Ingredient")
         errors = []
