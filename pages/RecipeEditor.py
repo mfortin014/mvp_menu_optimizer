@@ -93,7 +93,7 @@ else:
 
 for col in ["unit_cost", "line_cost"]:
     if col in display_df.columns:
-        display_df[col] = display_df[col].map(lambda x: f"{x:.5f}" if pd.notnull(x) else "")
+        display_df[col] = display_df[col].map(lambda x: f"${x:.5f}" if pd.notnull(x) else "")
 
 
 # === AgGrid Table ===
