@@ -22,6 +22,7 @@ To outline the current scope, phases, and decisions guiding the MVP build of the
 * Reference Data Page with direct table editors (no forms).
 * Ingredient form includes: validation, duplication check, dropdowns.
 * Recipe form includes: text-based category and yield UOM (not ref-validated).
+* Recipes can be flagged as menu items or ingredients (v0.1.3).
 * Ingredient and Recipe import logic with:
 
   * CSV field validation
@@ -45,7 +46,6 @@ To outline the current scope, phases, and decisions guiding the MVP build of the
 
 ## 🔁 Post-MVP Features (Planned)
 
-* Multi-level BOM support (recipe-as-ingredient, yield integration)
 * Client layer: isolate data sets per client
 * UOM Packaging Structure per ingredient (multi-tiered)
 * Ingredient/Recipe archiving and history (SCD-style tracking)

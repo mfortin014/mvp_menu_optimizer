@@ -50,6 +50,11 @@
 - Replace Streamlit `st.experimental_rerun` with `st.rerun` universally
 - Add full audit trail logging (SCDs and change tracking)
 
+## v0.1.3 – Recipes as Ingredients
+- Added `is_menu_item` and `is_ingredient` flags to `recipes` table
+- Recipe form updated with checkbox validation
+- Ingredient dropdown now lists recipe options (stub)
+
 ---
 
 _Last updated: 2025-06-12_
