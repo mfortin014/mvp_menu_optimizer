@@ -31,9 +31,11 @@ This data dictionary defines all the core tables and columns used in the Menu Op
 | recipe\_category | text        | Optional freeform category                                    |
 | base\_yield\_qty | numeric     | Number of portions or units this recipe yields                |
 | base\_yield\_uom | text        | UOM for yield (can be free text, disconnected from UOM table) |
-| price            | numeric     | Selling price                                                 |
-| status           | text        | 'Active' or 'Inactive'                                        |
-| updated\_at      | timestamptz | Auto-updated via trigger                                      |
+| price            | numeric     | Selling price |
+| status           | text        | 'Active' or 'Inactive' |
+| is_menu_item     | boolean     | True if recipe is sold directly |
+| is_ingredient    | boolean     | True if recipe can be used in another recipe |
+| updated_at       | timestamptz | Auto-updated via trigger |
 
 ## 🧾 Table: `ref_ingredient_categories`
 

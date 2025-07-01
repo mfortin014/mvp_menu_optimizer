@@ -138,7 +138,7 @@ This MVP will be built in Streamlit for rapid iteration and will later be migrat
 ## 🚧 Future Considerations (Post-MVP)
 
 * Add Client layer for multi-client data management
-* Enable recipe-to-ingredient nesting (multi-level BOMs)
+* Enable recipe-to-ingredient nesting (multi-level BOMs) — see [Feature Spec: Recipes as Ingredients v0.1.3](../Feature%20Spec:%20Recipes%20as%20Ingredients%20v0.1.3.md)
 * Versioning for ingredient packaging changes
 * Rework UOM tables for tiered packaging and tracking
 * Proper reference table for Recipe Categories

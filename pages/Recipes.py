@@ -103,6 +103,17 @@ with st.sidebar:
         price = st.number_input("Price", min_value=0.0, step=0.01,
                                 value=float(edit_data.get("price", 0.0)) if edit_mode else 0.0)
 
+        is_menu_item = st.checkbox(
+            "Is Menu Item",
+            value=edit_data.get("is_menu_item", True) if edit_mode else True,
+            help="Recipe sold directly to customers"
+        )
+        is_ingredient = st.checkbox(
+            "Is Ingredient",
+            value=edit_data.get("is_ingredient", False) if edit_mode else False,
+            help="Recipe used inside another recipe"
+        )
+
         submitted = st.form_submit_button("Save Recipe")
         errors = []
 
@@ -114,6 +125,8 @@ with st.sidebar:
             errors.append("Base Yield UOM")
         if not status:
             errors.append("Status")
+        if not is_menu_item and not is_ingredient:
+            errors.append("Menu/Ingredient Flag")
 
         if submitted:
             if errors:
@@ -130,7 +143,9 @@ with st.sidebar:
                         "base_yield_uom": yield_uom,
                         "price": round(price, 6),
                         "status": status,
-                        "recipe_category": recipe_category
+                        "recipe_category": recipe_category,
+                        "is_menu_item": is_menu_item,
+                        "is_ingredient": is_ingredient
                     }
                     if edit_mode:
                         supabase.table("recipes").update(data).eq("id", edit_data["id"]).execute()

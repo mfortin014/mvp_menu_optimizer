@@ -14,6 +14,7 @@ This MVP supports Chef's culinary consulting work by allowing them to manage and
 - Ingredient categories (linked to `ref_ingredient_categories`)
 - Clean layout with editable form sidebar and data editor
 - Radio-style selection behavior in the ingredient table
+- Recipes can be flagged as **menu items** or **ingredients** for nesting
 
 ### 📄 Recipe Summary & Breakdown
 - View recipe performance from `recipe_summary`

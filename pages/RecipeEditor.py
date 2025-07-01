@@ -17,13 +17,29 @@ def fetch_recipes():
         .execute()
     return res.data or []
 
-def fetch_ingredients_lookup():
-    res = supabase.table("ingredients") \
-        .select("id, name") \
+def fetch_line_item_options():
+    ing_res = supabase.table("ingredients") \
+        .select("id, ingredient_code, name") \
         .eq("status", "Active") \
         .order("name") \
         .execute()
-    return {row["id"]: row["name"] for row in (res.data or [])}
+    recipe_res = supabase.table("recipes") \
+        .select("id, recipe_code, name, is_ingredient, status") \
+        .eq("status", "Active") \
+        .eq("is_ingredient", True) \
+        .order("name") \
+        .execute()
+
+    options = []
+    for row in (ing_res.data or []):
+        label = f"[{row['ingredient_code']}] {row['name']} (Ingredient)"
+        options.append({"label": label, "id": row["id"], "source": "ingredient"})
+
+    for row in (recipe_res.data or []):
+        label = f"[{row['recipe_code']}] {row['name']} (Recipe)"
+        options.append({"label": label, "id": row["id"], "source": "recipe"})
+
+    return options
 
 def fetch_uoms():
     res = supabase.table("ref_uom_conversion") \
@@ -85,7 +101,7 @@ unit_cost_map = fetch_unit_costs()
 if df.empty:
     display_df = pd.DataFrame(columns=["ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"])
 else:
-    ingredients_lookup = fetch_ingredients_lookup()
+    ingredients_lookup = {o["id"]: o["label"] for o in fetch_line_item_options() if o["source"] == "ingredient"}
     df["ingredient"] = df["ingredient_id"].map(ingredients_lookup)
     df["note"] = df["recipe_line_id"].map(notes_map)
     df["unit_cost"] = df["ingredient_id"].map(unit_cost_map)
@@ -136,12 +152,15 @@ edit_mode = edit_data is not None
 with st.sidebar:
     st.subheader("➕ Add or Edit Recipe Line")
     with st.form("line_form"):
-        ingr_lookup = fetch_ingredients_lookup()
-        ingr_names = ["— Select —"] + list(ingr_lookup.values())
-        default_ingr = ingr_lookup.get(edit_data.get("ingredient_id")) if edit_mode else None
-        ingr_index = ingr_names.index(default_ingr) if default_ingr in ingr_names else 0
-        selected_ingr = st.selectbox("Ingredient", ingr_names, index=ingr_index)
-        ingredient_id = next((k for k, v in ingr_lookup.items() if v == selected_ingr), None)
+        options = fetch_line_item_options()
+        option_labels = ["— Select —"] + [o["label"] for o in options]
+        default_label = next((o["label"] for o in options if o["id"] == edit_data.get("ingredient_id")), None) if edit_mode else None
+        default_index = option_labels.index(default_label) if default_label in option_labels else 0
+        selected_label = st.selectbox("Ingredient", option_labels, index=default_index)
+        selected = next((o for o in options if o["label"] == selected_label), None)
+        ingredient_id = selected["id"] if selected and selected["source"] == "ingredient" else None
+        if selected and selected["source"] == "recipe":
+            st.info("Recipe-as-ingredient saving not yet supported")
 
         qty = st.number_input(
             "Quantity", min_value=0.0, step=0.1,
