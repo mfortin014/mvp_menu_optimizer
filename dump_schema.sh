@@ -1,41 +1,24 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# Ensure dependencies
-command -v pg_dump >/dev/null || { echo "❌ pg_dump not found in PATH."; exit 1; }
+#!/bin/bash
+set -e
 
 # Ensure .env file exists
-if [[ ! -f .env ]]; then
+if [ ! -f .env ]; then
   echo "❌ .env file not found. Please create it with your SUPABASE_URL."
   exit 1
 fi
 
-# Load env (supports quoted values)
-set -a
-# shellcheck source=/dev/null
-source .env
-set +a
-
-: "${SUPABASE_URL:?❌ SUPABASE_URL not set in .env}"
+# Load SUPABASE_URL from .env
+source <(grep SUPABASE_URL .env)
 
 # Create schema directory if it doesn't exist
 mkdir -p schema
 
-# Build dated, incremented filename
-today="$(date +%F)"             # e.g. 2025-09-04
-idx=1
-outfile="$(printf "schema/supabase_schema_%s_%02d.sql" "$today" "$idx")"
-while [[ -e "$outfile" ]]; do
-  ((idx++))
-  outfile="$(printf "schema/supabase_schema_%s_%02d.sql" "$today" "$idx")"
-done
-
-echo "🔄 Dumping Supabase schema to $outfile ..."
+# Dump schema to file
+echo "🔄 Dumping Supabase schema to schema/supabase_schema.sql..."
 pg_dump "$SUPABASE_URL" \
   --schema-only \
   --no-owner \
   --no-privileges \
-  --file="$outfile"
+  --file=schema/supabase_schema.sql
 
 echo "✅ Schema successfully exported."
-echo "📄 File: $outfile"

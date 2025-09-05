@@ -1,86 +1,39 @@
 import streamlit as st
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-
 from utils.supabase import supabase
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.auth import require_auth
-
 require_auth()
 
 st.set_page_config(page_title="Recipes", layout="wide")
-st.title("📘 Recipes")
+st.title("\U0001F4D8 Recipes")
 
-# -----------------------------
-# Helpers
-# -----------------------------
-
-def fetch_recipes_df() -> pd.DataFrame:
-    """
-    Load recipes for display & editing.
-    Uses the new schema fields: yield_qty, yield_uom, recipe_type.
-    """
+# === Helper Functions ===
+def fetch_recipes():
     res = supabase.table("recipes").select("*").order("name").execute()
-    df = pd.DataFrame(res.data or [])
-    if df.empty:
-        return pd.DataFrame(columns=[
-            "recipe_code", "name", "status", "recipe_type", "recipe_category",
-            "yield_qty", "yield_uom", "price"
-        ])
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-    # Numeric formatting helpers (for display/export only)
-    if "yield_qty" in df.columns:
-        df["yield_qty"] = df["yield_qty"].astype(float)
+# === Fetch Data ===
+df = fetch_recipes()
+for col in ["base_yield_qty", "price"]:
+    if col in df.columns:
+        df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
 
-    if "price" in df.columns:
-        df["price"] = df["price"].astype(float)
+ordered_cols = [
+    "recipe_code", "name", "status", "recipe_category",
+    "base_yield_qty", "base_yield_uom", "price"
+]
+display_df = df[ordered_cols] if not df.empty else pd.DataFrame(columns=ordered_cols)
 
-    # Ensure expected columns exist (graceful if DB is slightly behind)
-    for col in ("recipe_type", "recipe_category", "yield_qty", "yield_uom"):
-        if col not in df.columns:
-            df[col] = None
-
-    return df
-
-
-def format_for_grid(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Format a display DataFrame for AgGrid without mutating the raw DB values.
-    """
-    if df.empty:
-        return df
-
-    display = df.copy()
-
-    # Format decimals as strings for right alignment control
-    if "yield_qty" in display.columns:
-        display["yield_qty"] = display["yield_qty"].map(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
-
-    if "price" in display.columns:
-        display["price"] = display["price"].map(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
-
-    ordered_cols = [
-        "recipe_code", "name", "status", "recipe_type", "recipe_category",
-        "yield_qty", "yield_uom", "price"
-    ]
-    # Keep only existing columns in that order
-    ordered_cols = [c for c in ordered_cols if c in display.columns]
-
-    return display[ordered_cols]
-
-
-# -----------------------------
-# Fetch & Display
-# -----------------------------
-
-df = fetch_recipes_df()
-display_df = format_for_grid(df)
-
+# === AgGrid Table ===
 gb = GridOptionsBuilder.from_dataframe(display_df)
+grid_height = 600
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
 
-# Right-align numeric-looking columns
-for col in ("yield_qty", "price"):
+# Right-align formatted numeric columns
+decimal_columns = ["base_yield_qty", "price"]
+for col in decimal_columns:
     if col in display_df.columns:
         gb.configure_column(col, cellStyle={"textAlign": "right"})
 
@@ -91,16 +44,16 @@ grid_response = AgGrid(
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=True,
-    height=600,
+    height=grid_height,
     allow_unsafe_jscode=True
 )
 
-# -----------------------------
-# CSV Export
-# -----------------------------
-
-st.markdown("### 📤 Export Recipes")
+# === CSV Export Button ===
+st.markdown("### \U0001F4E4 Export Recipes")
 export_df = display_df.copy()
+for col in ["base_yield_qty", "price"]:
+    if col in export_df.columns:
+        export_df[col] = export_df[col].astype(str)
 st.download_button(
     label="Download Recipes as CSV",
     data=export_df.to_csv(index=False),
@@ -108,15 +61,11 @@ st.download_button(
     mime="text/csv"
 )
 
-# -----------------------------
-# Handle Selection
-# -----------------------------
-
+# === Handle Selection ===
 selected_row = grid_response["selected_rows"]
 edit_data = None
 
 if selected_row is not None:
-    # AgGrid can return a list (dicts) or a DataFrame depending on configuration
     if isinstance(selected_row, pd.DataFrame) and not selected_row.empty:
         selected_code = selected_row.iloc[0].get("recipe_code")
     elif isinstance(selected_row, list) and len(selected_row) > 0:
@@ -131,13 +80,9 @@ if selected_row is not None:
 
 edit_mode = edit_data is not None
 
-# -----------------------------
-# Sidebar Form (Add / Edit)
-# -----------------------------
-
+# === Sidebar Form ===
 with st.sidebar:
     st.subheader("➕ Add or Edit Recipe")
-
     with st.form("recipe_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
@@ -148,76 +93,57 @@ with st.sidebar:
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
 
-        # NEW: recipe_type (required)
-        type_options = ["— Select —", "service", "prep"]
-        selected_type = edit_data.get("recipe_type") if edit_mode else None
-        type_index = type_options.index(selected_type) if selected_type in type_options else 0
-        recipe_type = st.selectbox(
-            "Recipe Type",
-            type_options,
-            index=type_index,
-            help="Prep recipes are used as ingredients in other recipes. Service recipes are sold to customers."
-        )
-        recipe_type = recipe_type if recipe_type != "— Select —" else None
-
         recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
 
-        # Renamed fields: yield_qty / yield_uom
-        yield_qty = st.number_input(
-            "Yield Quantity",
-            min_value=0.0, step=0.1,
-            value=float(edit_data.get("yield_qty", 1.0)) if edit_mode and edit_data.get("yield_qty") is not None else 1.0
-        )
-        yield_uom = st.text_input("Yield UOM", value=edit_data.get("yield_uom", "") if edit_mode else "")
+        yield_qty = st.number_input("Base Yield Quantity", min_value=0.0, step=0.1,
+                                    value=float(edit_data.get("base_yield_qty", 1.0)) if edit_mode else 1.0)
 
-        price = st.number_input(
-            "Price",
-            min_value=0.0, step=0.01,
-            value=float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
-        )
+        yield_uom = st.text_input("Base Yield UOM", value=edit_data.get("base_yield_uom", "") if edit_mode else "")
+
+        price = st.number_input("Price", min_value=0.0, step=0.01,
+                                value=float(edit_data.get("price", 0.0)) if edit_mode else 0.0)
 
         submitted = st.form_submit_button("Save Recipe")
         errors = []
+
         if not name:
             errors.append("Name")
         if not code:
             errors.append("Recipe Code")
+        if not yield_uom:
+            errors.append("Base Yield UOM")
         if not status:
             errors.append("Status")
-        if not recipe_type:
-            errors.append("Recipe Type")
-        if not yield_uom:
-            errors.append("Yield UOM")
 
         if submitted:
             if errors:
                 st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
             else:
-                # Uniqueness check on code for INSERT path
-                if not edit_mode:
-                    existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
-                    if existing.data:
-                        st.error("❌ Recipe code already exists.")
-                        st.stop()
-
-                payload = {
-                    "name": name,
-                    "recipe_code": code,
-                    "status": status,
-                    "recipe_category": recipe_category or None,
-                    "yield_qty": round(float(yield_qty), 6),
-                    "yield_uom": yield_uom,
-                    "price": round(float(price), 6),
-                    "recipe_type": recipe_type
-                }
-
-                try:
+                existing_check = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
+                if not edit_mode and existing_check.data:
+                    st.error("❌ Recipe code already exists.")
+                else:
+                    data = {
+                        "name": name,
+                        "recipe_code": code,
+                        "base_yield_qty": round(yield_qty, 6),
+                        "base_yield_uom": yield_uom,
+                        "price": round(price, 6),
+                        "status": status,
+                        "recipe_category": recipe_category
+                    }
                     if edit_mode:
-                        supabase.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
+                        supabase.table("recipes").update(data).eq("id", edit_data["id"]).execute()
                         st.success("Recipe updated.")
                     else:
-                        supabase.table("recipes").insert(payload).execute()
+                        supabase.table("recipes").insert(data).execute()
                         st.success("Recipe added.")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to save recipe: {e}")
+
+    if edit_mode:
+        if st.button("Cancel"):
+            st.rerun()
+        if st.button("Delete"):
+            supabase.table("recipes").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+            st.success("Recipe inactivated.")
+            st.rerun()
