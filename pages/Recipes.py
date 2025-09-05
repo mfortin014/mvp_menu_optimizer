@@ -1,223 +1,202 @@
+# pages/Recipes.py
 import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 from utils.supabase import supabase
-from utils.auth import require_auth
 
-require_auth()
+# Optional auth guard for your environment
+try:
+    from utils.auth import require_auth
+    require_auth()
+except Exception:
+    pass
 
 st.set_page_config(page_title="Recipes", layout="wide")
-st.title("📘 Recipes")
+st.title("📒 Recipes")
 
 # -----------------------------
 # Helpers
 # -----------------------------
 
-def fetch_recipes_df() -> pd.DataFrame:
-    """
-    Load recipes for display & editing.
-    Uses the new schema fields: yield_qty, yield_uom, recipe_type.
-    """
-    res = supabase.table("recipes").select("*").order("name").execute()
-    df = pd.DataFrame(res.data or [])
-    if df.empty:
-        return pd.DataFrame(columns=[
-            "recipe_code", "name", "status", "recipe_type", "recipe_category",
-            "yield_qty", "yield_uom", "price"
-        ])
+def get_uom_options() -> list[str]:
+    """Collect unique UOMs from ref_uom_conversion (both from_uom and to_uom)."""
+    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    rows = res.data or []
+    uoms = set()
+    for r in rows:
+        if r.get("from_uom"): uoms.add(r["from_uom"])
+        if r.get("to_uom"): uoms.add(r["to_uom"])
+    # sensible fallbacks if table is sparse
+    if not uoms:
+        uoms = {"g", "ml", "unit"}
+    return sorted(uoms)
 
-    # Numeric formatting helpers (for display/export only)
-    if "yield_qty" in df.columns:
-        df["yield_qty"] = df["yield_qty"].astype(float)
+def fetch_recipes(status_filter: str = "Active") -> list[dict]:
+    q = supabase.table("recipes").select(
+        "id, recipe_code, name, status, recipe_type, yield_qty, yield_uom, price"
+    )
+    if status_filter == "Active":
+        q = q.eq("status", "Active")
+    q = q.order("name")
+    return q.execute().data or []
 
-    if "price" in df.columns:
-        df["price"] = df["price"].astype(float)
+def upsert_recipe(editing: bool, recipe_id: str | None, payload: dict):
+    t = supabase.table("recipes")
+    if editing and recipe_id:
+        t.update(payload).eq("id", recipe_id).execute()
+    else:
+        t.insert(payload).execute()
 
-    # Ensure expected columns exist (graceful if DB is slightly behind)
-    for col in ("recipe_type", "recipe_category", "yield_qty", "yield_uom"):
-        if col not in df.columns:
-            df[col] = None
-
-    return df
-
-
-def format_for_grid(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Format a display DataFrame for AgGrid without mutating the raw DB values.
-    """
-    if df.empty:
-        return df
-
-    display = df.copy()
-
-    # Format decimals as strings for right alignment control
-    if "yield_qty" in display.columns:
-        display["yield_qty"] = display["yield_qty"].map(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
-
-    if "price" in display.columns:
-        display["price"] = display["price"].map(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
-
-    ordered_cols = [
-        "recipe_code", "name", "status", "recipe_type", "recipe_category",
-        "yield_qty", "yield_uom", "price"
-    ]
-    # Keep only existing columns in that order
-    ordered_cols = [c for c in ordered_cols if c in display.columns]
-
-    return display[ordered_cols]
-
+def soft_delete_recipe(recipe_id: str):
+    supabase.table("recipes").update({"status": "Inactive"}).eq("id", recipe_id).execute()
 
 # -----------------------------
-# Fetch & Display
+# Filters & table
 # -----------------------------
 
-df = fetch_recipes_df()
-display_df = format_for_grid(df)
+left, right = st.columns([3, 1])
+with right:
+    scope = st.radio("Scope", options=["Active", "All"], index=0, horizontal=True)
 
-gb = GridOptionsBuilder.from_dataframe(display_df)
+rows = fetch_recipes(scope)
+df = pd.DataFrame(rows)
+
+# Ensure table columns exist even if empty
+for c in ["id", "recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price"]:
+    if c not in df.columns:
+        df[c] = None
+
+display_cols = ["recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price"]
+table_df = df.reindex(columns=display_cols).copy()
+
+gb = GridOptionsBuilder.from_dataframe(table_df)
 gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
-
-# Right-align numeric-looking columns
-for col in ("yield_qty", "price"):
-    if col in display_df.columns:
-        gb.configure_column(col, cellStyle={"textAlign": "right"})
-
 grid_options = gb.build()
 
-grid_response = AgGrid(
-    display_df,
+grid = AgGrid(
+    table_df,
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=True,
-    height=600,
-    allow_unsafe_jscode=True
+    height=420,
 )
 
-# -----------------------------
-# CSV Export
-# -----------------------------
+# Map selected row back to full df to get the id
+sel = grid.get("selected_rows", [])
+sel_df = pd.DataFrame(sel)
+selected_id = None
+if not sel_df.empty:
+    # match on a stable column; recipe_code+name is often unique, but safest is index to original df
+    key_cols = ["recipe_code", "name"]
+    mask = pd.Series([True] * len(df))
+    for c in key_cols:
+        if c in df.columns and c in sel_df.columns:
+            mask &= (df[c] == sel_df.iloc[0].get(c))
+    match = df[mask]
+    if not match.empty:
+        selected_id = match.iloc[0].get("id")
 
-st.markdown("### 📤 Export Recipes")
-export_df = display_df.copy()
-st.download_button(
-    label="Download Recipes as CSV",
-    data=export_df.to_csv(index=False),
-    file_name="recipes_export.csv",
-    mime="text/csv"
-)
-
-# -----------------------------
-# Handle Selection
-# -----------------------------
-
-selected_row = grid_response["selected_rows"]
-edit_data = None
-
-if selected_row is not None:
-    # AgGrid can return a list (dicts) or a DataFrame depending on configuration
-    if isinstance(selected_row, pd.DataFrame) and not selected_row.empty:
-        selected_code = selected_row.iloc[0].get("recipe_code")
-    elif isinstance(selected_row, list) and len(selected_row) > 0:
-        selected_code = selected_row[0].get("recipe_code")
-    else:
-        selected_code = None
-
-    if selected_code:
-        match = df[df["recipe_code"] == selected_code]
-        if not match.empty:
-            edit_data = match.iloc[0].to_dict()
-
-edit_mode = edit_data is not None
+st.divider()
 
 # -----------------------------
-# Sidebar Form (Add / Edit)
+# Sidebar form (Add / Update / Delete / Clear)
 # -----------------------------
+
+uom_options = ["— Select —"] + get_uom_options()
+status_options = ["Active", "Inactive"]
+type_options = ["service", "prep"]
 
 with st.sidebar:
-    st.subheader("➕ Add or Edit Recipe")
+    st.subheader("✏️ Add or Edit Recipe")
 
-    with st.form("recipe_form"):
-        name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
-        code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
+    # If a recipe is selected, preload values
+    editing = selected_id is not None
+    if editing:
+        current = df[df["id"] == selected_id].iloc[0].to_dict()
+    else:
+        current = {
+            "recipe_code": "",
+            "name": "",
+            "status": "Active",
+            "recipe_type": "service",
+            "yield_qty": 1.0,
+            "yield_uom": None,
+            "price": 0.0,
+        }
 
-        status_options = ["— Select —", "Active", "Inactive"]
-        selected_status = edit_data.get("status") if edit_mode else None
-        status_index = status_options.index(selected_status) if selected_status in status_options else 0
-        status = st.selectbox("Status", status_options, index=status_index)
-        status = status if status != "— Select —" else None
+    with st.form("recipe_form", clear_on_submit=False):
+        recipe_code = st.text_input("Code", value=current.get("recipe_code") or "")
+        name = st.text_input("Name", value=current.get("name") or "")
+        status_val = st.selectbox("Status", options=status_options, index=status_options.index(current.get("status", "Active")))
+        recipe_type = st.selectbox("Recipe Type", options=type_options, index=type_options.index(current.get("recipe_type", "service")))
+        col_a, col_b = st.columns(2)
+        yield_qty = col_a.number_input("Yield Qty", min_value=0.0, step=0.1, value=float(current.get("yield_qty") or 1.0))
+        # UOM is dropdown from conversion table
+        default_uom = current.get("yield_uom")
+        if default_uom not in uom_options:
+            default_uom = "— Select —"
+        yield_uom = col_b.selectbox("Yield UOM", options=uom_options, index=uom_options.index(default_uom))
 
-        # NEW: recipe_type (required)
-        type_options = ["— Select —", "service", "prep"]
-        selected_type = edit_data.get("recipe_type") if edit_mode else None
-        type_index = type_options.index(selected_type) if selected_type in type_options else 0
-        recipe_type = st.selectbox(
-            "Recipe Type",
-            type_options,
-            index=type_index,
-            help="Prep recipes are used as ingredients in other recipes. Service recipes are sold to customers."
-        )
-        recipe_type = recipe_type if recipe_type != "— Select —" else None
+        price_val = st.number_input("Price (only relevant for service recipes)", min_value=0.0, step=0.25, value=float(current.get("price") or 0.0))
 
-        recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
+        # Buttons: Add (no selection) or Update/Delete/Clear (editing)
+        add_btn = update_btn = delete_btn = clear_btn = False
+        if editing:
+            col1, col2, col3 = st.columns(3)
+            update_btn = col1.form_submit_button("Update")
+            delete_btn = col2.form_submit_button("Delete (soft)")
+            clear_btn  = col3.form_submit_button("Clear")
+        else:
+            add_btn = st.form_submit_button("Add Recipe")
 
-        # Renamed fields: yield_qty / yield_uom
-        yield_qty = st.number_input(
-            "Yield Quantity",
-            min_value=0.0, step=0.1,
-            value=float(edit_data.get("yield_qty", 1.0)) if edit_mode and edit_data.get("yield_qty") is not None else 1.0
-        )
-        yield_uom = st.text_input("Yield UOM", value=edit_data.get("yield_uom", "") if edit_mode else "")
+        # Actions
+        def _validate():
+            errs = []
+            if not recipe_code:
+                errs.append("Code")
+            if not name:
+                errs.append("Name")
+            if yield_uom == "— Select —":
+                errs.append("Yield UOM")
+            return errs
 
-        price = st.number_input(
-            "Price",
-            min_value=0.0, step=0.01,
-            value=float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
-        )
+        if delete_btn and editing:
+            soft_delete_recipe(selected_id)
+            st.success("Recipe archived (status = Inactive).")
+            st.experimental_rerun()
 
-        submitted = st.form_submit_button("Save Recipe")
-        errors = []
-        if not name:
-            errors.append("Name")
-        if not code:
-            errors.append("Recipe Code")
-        if not status:
-            errors.append("Status")
-        if not recipe_type:
-            errors.append("Recipe Type")
-        if not yield_uom:
-            errors.append("Yield UOM")
+        if clear_btn and editing:
+            st.experimental_rerun()
 
-        if submitted:
-            if errors:
-                st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
+        if add_btn or (update_btn and editing):
+            missing = _validate()
+            if missing:
+                st.error(f"Please complete: {', '.join(missing)}")
             else:
-                # Uniqueness check on code for INSERT path
-                if not edit_mode:
-                    existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
-                    if existing.data:
-                        st.error("❌ Recipe code already exists.")
-                        st.stop()
-
                 payload = {
-                    "name": name,
-                    "recipe_code": code,
-                    "status": status,
-                    "recipe_category": recipe_category or None,
-                    "yield_qty": round(float(yield_qty), 6),
-                    "yield_uom": yield_uom,
-                    "price": round(float(price), 6),
-                    "recipe_type": recipe_type
+                    "recipe_code": recipe_code.strip(),
+                    "name": name.strip(),
+                    "status": status_val,
+                    "recipe_type": recipe_type,
+                    "yield_qty": round(float(yield_qty), 3),
+                    "yield_uom": None if yield_uom == "— Select —" else yield_uom,
+                    "price": round(float(price_val), 2),
                 }
+                upsert_recipe(editing and update_btn, selected_id, payload)
+                st.success("Recipe saved.")
+                st.experimental_rerun()
 
-                try:
-                    if edit_mode:
-                        supabase.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
-                        st.success("Recipe updated.")
-                    else:
-                        supabase.table("recipes").insert(payload).execute()
-                        st.success("Recipe added.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to save recipe: {e}")
+# -----------------------------
+# CSV export (table view)
+# -----------------------------
+
+st.markdown("### 📥 Export recipes")
+export_df = table_df.copy()
+st.download_button(
+    label="Download CSV",
+    data=export_df.to_csv(index=False),
+    file_name=f"recipes_{scope.lower()}.csv",
+    mime="text/csv",
+)
