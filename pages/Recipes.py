@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  # DataReturnMode not used (we pass string)
 
 from utils.supabase import supabase
 
@@ -109,8 +109,8 @@ def _kpi_for(rid, price, rtype):
     return f"{cost_pct:.1f}%", f"${margin:.2f}"
 
 if df.empty:
-    df["Cost (% of price)"] = []
-    df["Margin"] = []
+    df["Cost (% of price)"] = pd.Series(dtype="object")
+    df["Margin"] = pd.Series(dtype="object")
 else:
     df["Cost (% of price)"], df["Margin"] = zip(*[
         _kpi_for(row.get("id"), row.get("price"), row.get("recipe_type"))
@@ -131,7 +131,7 @@ grid = AgGrid(
     table_df,
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
-    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,  # honor client filters/sorts
+    data_return_mode="FILTERED_AND_SORTED",   # pass string (workaround for JSON serialization issue)
     fit_columns_on_grid_load=True,
     height=460,
     key=f"recipes_grid_{st.session_state['recipes_grid_key']}",
@@ -168,7 +168,9 @@ with st.sidebar:
             "price": 0.0,
         }
 
-    with st.form("recipe_form", clear_on_submit=False):
+    # Clearing widgets in Streamlit forms needs a rerun *and* fresh widget state.
+    # We keep stateless widgets (no explicit `key`) and simply rerun + reset grid key.
+    with st.form("recipe_form", clear_on_submit=True):
         recipe_code = st.text_input("Code", value=current.get("recipe_code") or "")
         name = st.text_input("Name", value=current.get("name") or "")
         status_val = st.selectbox("Status", options=status_options, index=status_options.index(current.get("status", "Active")))
@@ -210,12 +212,11 @@ with st.sidebar:
         if delete_btn and editing:
             soft_delete_recipe(selected_id)
             st.success("Recipe archived.")
-            # clear selection by bumping grid key
             st.session_state["recipes_grid_key"] += 1
             st.experimental_rerun()
 
         if clear_btn:
-            # clear selection & reset form
+            # clear selection & reset form (grid selection is what drives edit-mode)
             st.session_state["recipes_grid_key"] += 1
             st.experimental_rerun()
 
@@ -243,7 +244,7 @@ with st.sidebar:
 # -----------------------------
 
 st.markdown("### 📥 Export recipes")
-# Use the grid's filtered/sorted data when available
+# Prefer the grid's filtered/sorted data when available
 export_df = pd.DataFrame(grid.get("data", []))
 if export_df.empty:
     export_df = table_df.copy()
