@@ -1,7 +1,8 @@
 # pages/Recipes.py
 import streamlit as st
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from datetime import datetime
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 from utils.supabase import supabase
 
@@ -69,11 +70,17 @@ def soft_delete_recipe(recipe_id: str):
     supabase.table("recipes").update({"status": "Inactive"}).eq("id", recipe_id).execute()
 
 # -----------------------------
+# Session keys for grid reset
+# -----------------------------
+
+if "recipes_grid_key" not in st.session_state:
+    st.session_state["recipes_grid_key"] = 0
+
+# -----------------------------
 # Filters & table
 # -----------------------------
 
-colA, colB, colC = st.columns([1.2, 1, 1])
-
+colA, colB = st.columns([1.2, 1])
 with colA:
     scope = st.radio("Status", options=["All", "Active", "Inactive"], index=1, horizontal=True)
 with colB:
@@ -82,31 +89,35 @@ with colB:
 rows = fetch_recipes(scope, type_scope)
 df = pd.DataFrame(rows)
 
-# Always ensure columns exist
+# Ensure columns exist even if empty
 for c in ["id", "recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price"]:
     if c not in df.columns:
         df[c] = None
 
-# Enrich with KPIs for service recipes (left join to recipe_summary)
+# Enrich with KPIs (service only)
 summary_map = fetch_summary_map(df["id"].dropna().tolist())
 def _kpi_for(rid, price, rtype):
     if rtype != "service":
-        return "", ""  # KPIs not applicable for prep on this page
+        return "", ""
     s = summary_map.get(rid)
     if not s:
-        return "", ""  # no summary row yet
+        return "", ""
     price = float(price or s["price"])
     cost = float(s["total_cost"])
     margin = float(s["margin"])
     cost_pct = (cost / price * 100.0) if price else 0.0
     return f"{cost_pct:.1f}%", f"${margin:.2f}"
 
-df["Cost (% of price)"], df["Margin"] = zip(*[
-    _kpi_for(row.get("id"), row.get("price"), row.get("recipe_type"))
-    for _, row in df.iterrows()
-])
+if df.empty:
+    df["Cost (% of price)"] = []
+    df["Margin"] = []
+else:
+    df["Cost (% of price)"], df["Margin"] = zip(*[
+        _kpi_for(row.get("id"), row.get("price"), row.get("recipe_type"))
+        for _, row in df.iterrows()
+    ])
 
-# Build table view (keep id hidden but present so selection is reliable)
+# Build table view (keep id hidden for selection)
 display_cols = ["id", "recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price", "Cost (% of price)", "Margin"]
 table_df = df.reindex(columns=display_cols).copy()
 
@@ -120,8 +131,10 @@ grid = AgGrid(
     table_df,
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
+    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,  # honor client filters/sorts
     fit_columns_on_grid_load=True,
     height=460,
+    key=f"recipes_grid_{st.session_state['recipes_grid_key']}",
 )
 
 sel = grid.get("selected_rows", [])
@@ -164,36 +177,24 @@ with st.sidebar:
         c1, c2 = st.columns(2)
         yield_qty = c1.number_input("Yield Qty", min_value=0.0, step=0.1, value=float(current.get("yield_qty") or 1.0))
 
-        # Yield UOM — correctly preselect if present
         default_uom = current.get("yield_uom")
         if default_uom is None or default_uom not in uom_options:
             default_uom = "— Select —"
         yield_uom = c2.selectbox("Yield UOM", options=uom_options, index=uom_options.index(default_uom))
 
-        # Price — disabled when recipe_type == 'prep'
         price_disabled = (recipe_type == "prep")
-        price_help = None
         price_val = st.number_input(
             "Price",
             min_value=0.0, step=0.25,
             value=float(current.get("price") or 0.0),
             disabled=price_disabled,
-            help=price_help
         )
 
-        # Buttons: Add OR Update, plus Delete and Clear always shown (Delete disabled unless editing)
-        add_btn = update_btn = delete_btn = clear_btn = False
-        if editing:
-            col1, col2, col3 = st.columns(3)
-            update_btn = col1.form_submit_button("Update")
-            delete_btn = col2.form_submit_button("Delete", disabled=not editing)
-            clear_btn  = col3.form_submit_button("Clear")
-        else:
-            col1, col2 = st.columns(2)
-            add_btn = col1.form_submit_button("Add Recipe")
-            # Show disabled Delete even when nothing selected + Clear to reset
-            delete_btn = col2.form_submit_button("Delete", disabled=True)
-            clear_btn  = st.form_submit_button("Clear")
+        # Buttons: always show three side-by-side
+        col1, col2, col3 = st.columns(3)
+        add_or_update = col1.form_submit_button("Update" if editing else "Add Recipe")
+        delete_btn    = col2.form_submit_button("Delete", disabled=(not editing))
+        clear_btn     = col3.form_submit_button("Clear")
 
         # Actions
         def _validate():
@@ -209,12 +210,16 @@ with st.sidebar:
         if delete_btn and editing:
             soft_delete_recipe(selected_id)
             st.success("Recipe archived.")
+            # clear selection by bumping grid key
+            st.session_state["recipes_grid_key"] += 1
             st.experimental_rerun()
 
         if clear_btn:
+            # clear selection & reset form
+            st.session_state["recipes_grid_key"] += 1
             st.experimental_rerun()
 
-        if add_btn or (update_btn and editing):
+        if add_or_update:
             missing = _validate()
             if missing:
                 st.error(f"Please complete: {', '.join(missing)}")
@@ -228,8 +233,9 @@ with st.sidebar:
                     "yield_uom": None if yield_uom == "— Select —" else yield_uom,
                     "price": 0.0 if recipe_type == "prep" else round(float(price_val), 2),
                 }
-                upsert_recipe(editing and update_btn, selected_id, payload)
+                upsert_recipe(editing, selected_id, payload)
                 st.success("Recipe saved.")
+                st.session_state["recipes_grid_key"] += 1
                 st.experimental_rerun()
 
 # -----------------------------
@@ -237,10 +243,16 @@ with st.sidebar:
 # -----------------------------
 
 st.markdown("### 📥 Export recipes")
-export_df = table_df.drop(columns=["id"], errors="ignore").copy()
+# Use the grid's filtered/sorted data when available
+export_df = pd.DataFrame(grid.get("data", []))
+if export_df.empty:
+    export_df = table_df.copy()
+export_df = export_df.drop(columns=["id"], errors="ignore")
+
+ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
 st.download_button(
     label="Download CSV",
     data=export_df.to_csv(index=False),
-    file_name=f"recipes_{scope.lower()}_{type_scope.lower()}.csv",
+    file_name=f"recipes_{scope.lower()}_{type_scope.lower()}_{ts}.csv",
     mime="text/csv",
 )
