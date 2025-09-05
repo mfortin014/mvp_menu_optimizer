@@ -2,8 +2,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  # DataReturnMode not used (we pass string)
 
+from st_aggrid import AgGrid  # keep it minimal; avoid passing Enums/builders
 from utils.supabase import supabase
 
 # Optional auth guard
@@ -21,7 +21,6 @@ st.title("📒 Recipes")
 # -----------------------------
 
 def get_uom_options() -> list[str]:
-    """Collect unique UOMs from ref_uom_conversion (both from_uom and to_uom)."""
     res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     rows = res.data or []
     uoms = set()
@@ -44,10 +43,11 @@ def fetch_recipes(status_filter: str = "Active", type_filter: str = "All") -> li
     return q.execute().data or []
 
 def fetch_summary_map(recipe_ids: list[str]) -> dict:
-    """Return {recipe_id: {'total_cost': x, 'price': y, 'margin': z}} for service recipes present in recipe_summary."""
     if not recipe_ids:
         return {}
-    res = supabase.table("recipe_summary").select("recipe_id, total_cost, price, margin").in_("recipe_id", recipe_ids).execute()
+    res = supabase.table("recipe_summary").select(
+        "recipe_id, total_cost, price, margin"
+    ).in_("recipe_id", recipe_ids).execute()
     rows = res.data or []
     out = {}
     for r in rows:
@@ -89,13 +89,13 @@ with colB:
 rows = fetch_recipes(scope, type_scope)
 df = pd.DataFrame(rows)
 
-# Ensure columns exist even if empty
 for c in ["id", "recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price"]:
     if c not in df.columns:
         df[c] = None
 
-# Enrich with KPIs (service only)
+# KPIs for service recipes
 summary_map = fetch_summary_map(df["id"].dropna().tolist())
+
 def _kpi_for(rid, price, rtype):
     if rtype != "service":
         return "", ""
@@ -117,29 +117,39 @@ else:
         for _, row in df.iterrows()
     ])
 
-# Build table view (keep id hidden for selection)
-display_cols = ["id", "recipe_code", "name", "status", "recipe_type", "yield_qty", "yield_uom", "price", "Cost (% of price)", "Margin"]
+display_cols = [
+    "id", "recipe_code", "name", "status", "recipe_type",
+    "yield_qty", "yield_uom", "price", "Cost (% of price)", "Margin"
+]
 table_df = df.reindex(columns=display_cols).copy()
 
-gb = GridOptionsBuilder.from_dataframe(table_df)
-gb.configure_default_column(editable=False, filter=True, sortable=True)
-gb.configure_selection("single", use_checkbox=False)
-gb.configure_column("id", hide=True)
-grid_options = gb.build()
+# ---- PLAIN JSON gridOptions (no Python functions/enums) ----
+grid_options = {
+    "defaultColDef": {
+        "sortable": True,
+        "filter": True,
+        "resizable": True,
+        "floatingFilter": True,
+    },
+    "columnDefs": [{"field": c} for c in table_df.columns],
+    "rowSelection": "single",
+    "suppressRowClickSelection": False,
+}
 
 grid = AgGrid(
     table_df,
     gridOptions=grid_options,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
-    data_return_mode="FILTERED_AND_SORTED",   # pass string (workaround for JSON serialization issue)
+    update_mode="SELECTION_CHANGED",        # pass strings (not Enums)
+    data_return_mode="FILTERED_AND_SORTED", # pass strings (not Enums)
     fit_columns_on_grid_load=True,
     height=460,
     key=f"recipes_grid_{st.session_state['recipes_grid_key']}",
+    allow_unsafe_jscode=False,              # keep clean
+    enable_enterprise_modules=False,
 )
 
 sel = grid.get("selected_rows", [])
-sel_df = pd.DataFrame(sel)
-selected_id = sel_df.iloc[0]["id"] if not sel_df.empty and "id" in sel_df.columns else None
+selected_id = sel[0]["id"] if sel and "id" in sel[0] else None
 
 st.divider()
 
@@ -168,8 +178,6 @@ with st.sidebar:
             "price": 0.0,
         }
 
-    # Clearing widgets in Streamlit forms needs a rerun *and* fresh widget state.
-    # We keep stateless widgets (no explicit `key`) and simply rerun + reset grid key.
     with st.form("recipe_form", clear_on_submit=True):
         recipe_code = st.text_input("Code", value=current.get("recipe_code") or "")
         name = st.text_input("Name", value=current.get("name") or "")
@@ -184,21 +192,18 @@ with st.sidebar:
             default_uom = "— Select —"
         yield_uom = c2.selectbox("Yield UOM", options=uom_options, index=uom_options.index(default_uom))
 
-        price_disabled = (recipe_type == "prep")
         price_val = st.number_input(
             "Price",
             min_value=0.0, step=0.25,
             value=float(current.get("price") or 0.0),
-            disabled=price_disabled,
+            disabled=(recipe_type == "prep"),
         )
 
-        # Buttons: always show three side-by-side
         col1, col2, col3 = st.columns(3)
         add_or_update = col1.form_submit_button("Update" if editing else "Add Recipe")
         delete_btn    = col2.form_submit_button("Delete", disabled=(not editing))
         clear_btn     = col3.form_submit_button("Clear")
 
-        # Actions
         def _validate():
             errs = []
             if not recipe_code:
@@ -216,7 +221,6 @@ with st.sidebar:
             st.experimental_rerun()
 
         if clear_btn:
-            # clear selection & reset form (grid selection is what drives edit-mode)
             st.session_state["recipes_grid_key"] += 1
             st.experimental_rerun()
 
@@ -248,8 +252,8 @@ st.markdown("### 📥 Export recipes")
 export_df = pd.DataFrame(grid.get("data", []))
 if export_df.empty:
     export_df = table_df.copy()
-export_df = export_df.drop(columns=["id"], errors="ignore")
 
+export_df = export_df.drop(columns=["id"], errors="ignore")
 ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
 st.download_button(
     label="Download CSV",
