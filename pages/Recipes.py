@@ -124,11 +124,50 @@ grid = AgGrid(
     height=460,
 )
 
+# Robust selection parse (AgGrid returns list or DataFrame)
 sel = grid.get("selected_rows", [])
-sel_df = pd.DataFrame(sel)
-selected_id = sel_df.iloc[0]["id"] if not sel_df.empty and "id" in sel_df.columns else None
+if isinstance(sel, list):
+    sel_df = pd.DataFrame(sel)
+elif isinstance(sel, pd.DataFrame):
+    sel_df = sel
+else:
+    sel_df = pd.DataFrame()
+selected_id = sel_df.iloc[0]["id"] if (not sel_df.empty and "id" in sel_df.columns) else None
 
 st.divider()
+
+# -----------------------------
+# Form state (decoupled from grid)
+# -----------------------------
+
+FORM_DEFAULTS = {
+    "rf_recipe_code": "",
+    "rf_name": "",
+    "rf_status": "Active",
+    "rf_type": "service",
+    "rf_yield_qty": 1.0,
+    "rf_yield_uom": "— Select —",
+    "rf_price": 0.0,
+}
+
+def reset_form_to_defaults():
+    st.session_state["rf_edit_id"] = None
+    for k, v in FORM_DEFAULTS.items():
+        st.session_state[k] = v
+
+def load_form_from_current(current: dict):
+    st.session_state["rf_edit_id"] = current.get("id")
+    st.session_state["rf_recipe_code"] = current.get("recipe_code") or ""
+    st.session_state["rf_name"] = current.get("name") or ""
+    st.session_state["rf_status"] = current.get("status") or "Active"
+    st.session_state["rf_type"] = current.get("recipe_type") or "service"
+    st.session_state["rf_yield_qty"] = float(current.get("yield_qty") or 1.0)
+    st.session_state["rf_yield_uom"] = current.get("yield_uom") or "— Select —"
+    st.session_state["rf_price"] = float(current.get("price") or 0.0)
+
+# Initialize state
+if "rf_edit_id" not in st.session_state:
+    reset_form_to_defaults()
 
 # -----------------------------
 # Sidebar form (Add / Update / Delete / Clear)
@@ -141,8 +180,9 @@ type_options = ["service", "prep"]
 with st.sidebar:
     st.subheader("✏️ Add or Edit Recipe")
 
-    editing = selected_id is not None
-    if editing:
+    # --- Keep your row→form loader block (but now it seeds session state once)
+    editing_via_selection = selected_id is not None
+    if editing_via_selection:
         current = df[df["id"] == selected_id].iloc[0].to_dict()
     else:
         current = {
@@ -155,33 +195,40 @@ with st.sidebar:
             "price": 0.0,
         }
 
+    # Seed session state only when selection CHANGES
+    if editing_via_selection and st.session_state.get("rf_edit_id") != selected_id:
+        load_form_from_current({**current, "id": selected_id})
+
+    # Coerce UOM in state to a valid option
+    if st.session_state["rf_yield_uom"] not in uom_options:
+        st.session_state["rf_yield_uom"] = "— Select —"
+
+    # True editing mode is based on form state (not grid)
+    editing = st.session_state.get("rf_edit_id") is not None
+
     with st.form("recipe_form", clear_on_submit=False):
-        recipe_code = st.text_input("Code", value=current.get("recipe_code") or "")
-        name = st.text_input("Name", value=current.get("name") or "")
-        status_val = st.selectbox("Status", options=status_options, index=status_options.index(current.get("status", "Active")))
-        recipe_type = st.selectbox("Recipe Type", options=type_options, index=type_options.index(current.get("recipe_type", "service")))
+        recipe_code = st.text_input("Code", key="rf_recipe_code")
+        name = st.text_input("Name", key="rf_name")
+
+        # Selectboxes use state values through keys
+        status_val = st.selectbox("Status", options=status_options, key="rf_status")
+        recipe_type = st.selectbox("Recipe Type", options=type_options, key="rf_type")
 
         c1, c2 = st.columns(2)
-        yield_qty = c1.number_input("Yield Qty", min_value=0.0, step=0.1, value=float(current.get("yield_qty") or 1.0))
-
-        # Yield UOM — correctly preselect if present
-        default_uom = current.get("yield_uom")
-        if default_uom is None or default_uom not in uom_options:
-            default_uom = "— Select —"
-        yield_uom = c2.selectbox("Yield UOM", options=uom_options, index=uom_options.index(default_uom))
+        yield_qty = c1.number_input("Yield Qty", min_value=0.0, step=0.1, key="rf_yield_qty")
+        yield_uom = c2.selectbox("Yield UOM", options=uom_options, key="rf_yield_uom")
 
         # Price — disabled when recipe_type == 'prep'
-        price_disabled = (recipe_type == "prep")
-        price_help = None
+        price_disabled = (st.session_state["rf_type"] == "prep")
         price_val = st.number_input(
             "Price",
             min_value=0.0, step=0.25,
-            value=float(current.get("price") or 0.0),
+            key="rf_price",
             disabled=price_disabled,
-            help=price_help
+            help=None
         )
 
-        # Buttons: Add OR Update, plus Delete and Clear always shown (Delete disabled unless editing)
+        # Buttons: Add OR Update, plus Delete and Clear (Delete disabled unless editing)
         add_btn = update_btn = delete_btn = clear_btn = False
         if editing:
             col1, col2, col3 = st.columns(3)
@@ -191,28 +238,32 @@ with st.sidebar:
         else:
             col1, col2 = st.columns(2)
             add_btn = col1.form_submit_button("Add Recipe")
-            # Show disabled Delete even when nothing selected + Clear to reset
             delete_btn = col2.form_submit_button("Delete", disabled=True)
             clear_btn  = st.form_submit_button("Clear")
 
-        # Actions
+        # Validation
         def _validate():
             errs = []
-            if not recipe_code:
+            if not st.session_state["rf_recipe_code"]:
                 errs.append("Code")
-            if not name:
+            if not st.session_state["rf_name"]:
                 errs.append("Name")
-            if yield_uom == "— Select —":
+            if st.session_state["rf_yield_uom"] == "— Select —":
                 errs.append("Yield UOM")
             return errs
 
+        # Actions
         if delete_btn and editing:
-            soft_delete_recipe(selected_id)
+            soft_delete_recipe(st.session_state["rf_edit_id"])
             st.success("Recipe archived.")
-            st.experimental_rerun()
+            # Reset form; do not touch grid selection
+            reset_form_to_defaults()
+            st.rerun()
 
         if clear_btn:
-            st.experimental_rerun()
+            # Reset form only; grid selection remains intact
+            reset_form_to_defaults()
+            st.rerun()
 
         if add_btn or (update_btn and editing):
             missing = _validate()
@@ -220,17 +271,19 @@ with st.sidebar:
                 st.error(f"Please complete: {', '.join(missing)}")
             else:
                 payload = {
-                    "recipe_code": recipe_code.strip(),
-                    "name": name.strip(),
-                    "status": status_val,
-                    "recipe_type": recipe_type,
-                    "yield_qty": round(float(yield_qty), 3),
-                    "yield_uom": None if yield_uom == "— Select —" else yield_uom,
-                    "price": 0.0 if recipe_type == "prep" else round(float(price_val), 2),
+                    "recipe_code": st.session_state["rf_recipe_code"].strip(),
+                    "name": st.session_state["rf_name"].strip(),
+                    "status": st.session_state["rf_status"],
+                    "recipe_type": st.session_state["rf_type"],
+                    "yield_qty": round(float(st.session_state["rf_yield_qty"]), 3),
+                    "yield_uom": None if st.session_state["rf_yield_uom"] == "— Select —" else st.session_state["rf_yield_uom"],
+                    "price": 0.0 if st.session_state["rf_type"] == "prep" else round(float(st.session_state["rf_price"]), 2),
                 }
-                upsert_recipe(editing and update_btn, selected_id, payload)
+                upsert_recipe(editing and update_btn, st.session_state.get("rf_edit_id"), payload)
                 st.success("Recipe saved.")
-                st.experimental_rerun()
+                # Back to "new" mode; grid selection untouched
+                reset_form_to_defaults()
+                st.rerun()
 
 # -----------------------------
 # CSV export (table view)
