@@ -209,10 +209,10 @@ with st.sidebar:
         if delete_btn and editing:
             soft_delete_recipe(selected_id)
             st.success("Recipe archived.")
-            st.experimental_rerun()
+            st.rerun()
 
         if clear_btn:
-            st.experimental_rerun()
+            st.rerun()
 
         if add_btn or (update_btn and editing):
             missing = _validate()
@@ -230,7 +230,7 @@ with st.sidebar:
                 }
                 upsert_recipe(editing and update_btn, selected_id, payload)
                 st.success("Recipe saved.")
-                st.experimental_rerun()
+                st.rerun()
 
 # -----------------------------
 # CSV export (table view)
