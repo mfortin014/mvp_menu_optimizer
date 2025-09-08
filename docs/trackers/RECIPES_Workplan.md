@@ -1,40 +1,139 @@
-# Recipes Page – Workplan & Checklist
+# Recipes.py – Feature Release Workplan (MVP R1)
 
-> Feature branch: `dev_featClean`
-
-## Group A — Table, filters, CSV
-- [ ] Status filter: All / Active / Inactive (empty-safe)
-- [ ] Type filter: All / Service / Prep (empty-safe)
-- [ ] Columns: Cost (% of price), Margin ($)
-- [ ] CSV export mirrors current grid (filters + order)
-- [ ] CSV filename includes status/type and timestamp
-
-## Group B — Form UX & UOM
-- [ ] UOM dropdown from `ref_uom_conversion` (unique set)
-- [ ] When type=prep: exclude "service" UOM
-- [ ] When type=service: default UOM to "Serving" (fallback "unit")
-- [ ] Selecting a row loads yield_uom correctly
-- [ ] Price disabled for prep
-- [ ] Buttons always inline: Save / Delete / Clear
-- [ ] Delete visible always, disabled when nothing loaded
-
-## Group C — Clear behavior (spike → pick → finalize)
-- [ ] Wire clear button to safe placeholder (no crash)
-- [ ] Spike Option 1: page bounce via `st.switch_page`
-- [ ] Spike Option 2: dummy-record reset
-- [ ] Decide & implement final approach in a follow-up commit
-
-## Group D — CSV & Docs
-- [ ] Export uses exact grid snapshot and timestamped filename
-- [ ] This checklist committed and kept up to date
+**Base branch:** `dev_featClean`  
+**Commit policy:** One commit per group (full-file drop), then merge `--no-ff` into `dev_featClean`.  
+**Owner:** Math (with AI copilot)  
+**Scope guardrails:** Only items listed here. Anything else goes to “Out-of-scope / Later”.
 
 ---
 
-## Testing notes (each checkbox verified)
-- Filters: selecting “Inactive” on an all-active dataset shows info state; CSV disabled.
-- Type filter: switching to “Prep” shows only prep rows; no errors when none exist.
-- UOM logic: type flip changes choices/defaults immediately.
-- Row selection: UOM loads correctly every time.
-- Price locked for prep; editable for service.
-- Clear never throws; chosen approach clears form as specified in the three cases.
-- CSV rows/order match the grid exactly.
+## ✅ Definition of Done (this release)
+- [ ] Filters work: Status (All/Active/Inactive), Type (All/Service/Prep) with empty-safe UI
+- [ ] Table shows **Cost (% of price)** and **Margin ($)**; matches Editor/Home math
+- [ ] CSV export mirrors visible grid (filters + sort) with timestamped filename
+- [ ] Form uses UOM dropdown; type-aware behavior (Prep excludes “service”; Service defaults “Serving”)
+- [ ] Selecting a row loads **yield_uom** correctly
+- [ ] Price disabled for **prep**
+- [ ] Buttons inline: **Save / Delete / Clear**; Delete visible but disabled when no selection
+- [ ] Clear button present and **does not crash**; final behavior chosen & implemented
+- [ ] Soft delete = `status='Inactive'` (no hard deletes)
+
+---
+
+## Group A — Table, Filters, CSV
+**Branch:** `feat/recipes-filters-kpis-csv`  
+**Files:** `pages/Recipes.py`
+
+### Features
+- Status filter: **All / Active / Inactive** (empty-safe UI; export disabled if empty)
+- Type filter: **All / Service / Prep** (empty-safe)
+- Columns: **Cost (% of price)** and **Margin ($)**
+- CSV export mirrors **current grid** (filters + sort)
+- CSV filename: `recipes_<status>_<type>_<YYYYMMDD-HHMM>.csv`
+
+### Commit
+- [ ] `feat(recipes): Group A — filters + KPIs + CSV export [aigen]`
+
+### Testing
+- [ ] Inactive on all-active dataset → info state; Export disabled
+- [ ] Type=Prep → only prep rows; toggling back to All restores list
+- [ ] Cost% & Margin match Recipe Editor for sampled rows
+- [ ] Sort by Margin desc → export → CSV order matches grid; filename includes filters + timestamp
+
+### Feedback
+- Notes here…
+
+### Decisions
+- Rounding: Cost% to 1 decimal (match Editor/Home)
+- Export disabled when table empty
+
+---
+
+## Group B — Form UX & UOM behavior
+**Branch:** `feat/recipes-form-uom-dropdown-and-behavior`  
+**Files:** `pages/Recipes.py`
+
+### Features
+- UOM dropdown from `ref_uom_conversion` (unique union of from_uom/to_uom)
+- When **prep**: exclude `"service"` UOM
+- When **service**: default UOM `"Serving"` (fallback `"unit"` if absent)
+- Selecting row always loads **yield_uom**
+- Price input **disabled** for prep (remove “only relevant…” copy)
+- Buttons always inline: **Save / Delete / Clear**
+- Delete visible always, **disabled** unless a recipe is loaded
+
+### Commit
+- [ ] `feat(recipes): Group B — UOM dropdown + type-aware behavior + form UX [aigen]`
+
+### Testing
+- [ ] Flip type service↔prep → UOM choices update; service defaults to “Serving”
+- [ ] Select several rows (service & prep) → yield_uom loads correctly
+- [ ] Price disabled for prep; editable for service
+- [ ] Change UOM, save, reselect → persists
+
+### Feedback
+- Notes here…
+
+### Decisions
+- Fallback UOM for service is `"unit"` if “Serving” missing
+- Delete is soft (status flip)
+
+---
+
+## Group C — “Clear” behavior (spike → pick → finalize)
+**Branch (spike):** `spike/recipes-clear` → **Branch (final):** `feat/recipes-clear-final`  
+**Files:** `pages/Recipes.py`
+
+### Features (phase 1 – spike)
+- Clear button present; safe placeholder (sentinel + `st.rerun()`)
+- Toggle constant to try:
+  - Option 1: page-bounce (`st.switch_page("Home.py")` then back)
+  - Option 2: dummy-record reset (hidden from table)
+- No crash, no auth prompt
+
+### Commit (spike)
+- [ ] `spike(recipes): Group C — Clear button placeholder + option switch [aigen]`
+
+### Testing (spike)
+- [ ] Case 1: typing new recipe → Clear resets to default empty
+- [ ] Case 2: after Save → form clears; grid unchanged
+- [ ] Case 3: selected row → Clear resets; grid selection irrelevant
+
+### Decision
+- Pick Option 1 or 2 and note why
+
+### Commit (finalize)
+- [ ] `feat(recipes): Group C — Clear behavior finalized (remove spike toggle) [aigen]`
+
+### Testing (final)
+- [ ] Re-run Cases 1–3 with final behavior
+
+---
+
+## Group D — Docs & Export polish
+**Branch:** `chore/recipes-docs-and-export`  
+**Files:** `pages/Recipes.py`, `docs/trackers/RECIPES_Workplan.md`
+
+### Features
+- CSV uses **exact grid snapshot** at click time
+- CHANGELOG header + WHY comments added to code where non-obvious
+- Workplan updated (checkboxes + short notes)
+
+### Commit
+- [ ] `chore(recipes): Group D — export snapshot correctness + docs/comments [aigen]`
+
+### Testing
+- [ ] Complex sort+filter → export → CSV matches grid exactly
+
+### Feedback
+- Notes here…
+
+### Decisions
+- Notes here…
+
+---
+
+## Out-of-scope / Later
+- Multi-tenant project picker (`feat/multitenant-project-picker`)
+- Settings CSV overhaul beyond Recipes (will come with task 3D)
+- Any new KPIs not listed above
