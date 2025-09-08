@@ -10,7 +10,7 @@
 ## ✅ Definition of Done (this release)
 - [x] Filters work: Status (All/Active/Inactive), Type (All/Service/Prep) with empty-safe UI
 - [x] Table shows **Cost (% of price)** and **Margin ($)**; matches Editor/Home math
-- [ ] CSV export mirrors visible grid (filters + sort) with timestamped filename
+- [x] CSV export mirrors visible grid (filters + sort) with timestamped filename
 - [ ] Form uses UOM dropdown; type-aware behavior (Prep excludes “service”; Service defaults “Serving”)
 - [ ] Selecting a row loads **yield_uom** correctly
 - [ ] Price disabled for **prep**
@@ -32,15 +32,16 @@
 - CSV filename: `recipes_<status>_<type>_<YYYYMMDD-HHMM>.csv`
 
 ### Commit
-- [ ] `feat(recipes): Group A — filters + KPIs + CSV export [aigen]`
+- [x] `feat(recipes): Group A — filters + KPIs + mirror-the-grid CSV [aigen]`
+- [x] `feat(recipes): Group A — horizontal filters + formatted columns [aigen]`
 
 ### Testing
 - [x] Inactive on all-active dataset → info state; Export disabled
 - [x] Type=Prep → only prep rows; toggling back to All restores list
 - [x] Cost% & Margin match Recipe Editor for sampled rows
-- [ ] Sort by Margin desc → export → CSV order matches grid; filename includes filters + timestamp
+- [x] Sort by Margin desc → export → CSV order matches grid; filename includes filters + timestamp
 
-### Feedback
+### Feedback Round 1
 - Status & Type filter:
   - display should horizontal
   - no need for the "?" tooltip
@@ -66,11 +67,26 @@
   - Export disabled when table empty
     - When this is the case, can you show a message under the disabled button indicating that?
 
+### Feedback Round 2
+- Status & Type filter:
+  - intially were still showing on multiple rows (2 instead of 3 previously)
+    - I modified the line: 
+        ```
+        f1, f2, _ = st.columns([1,1,6])
+        ```
+        with
+        ```
+        f1, f2, _ = st.columns([1,1,1])
+        ```
+- column formats are good
+- csv export doesn't maintain grid sort
+
 ### Decisions
 - Rounding: Cost% to 1 decimal (match Editor/Home)
   - yes
 - Export disabled when table empty
   - good idea
+- We'll let go of csv export maintaining grid sort order. This is not important.
 
 ---
 
