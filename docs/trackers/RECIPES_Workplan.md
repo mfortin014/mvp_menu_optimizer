@@ -94,26 +94,31 @@
 **Branch:** `feat/recipes-form-uom-dropdown-and-behavior`  
 **Files:** `pages/Recipes.py`
 
-### Features
-- UOM dropdown from `ref_uom_conversion` (unique union of from_uom/to_uom)
-- When **prep**: exclude `"service"` UOM
-- When **service**: default UOM `"Serving"` (fallback `"unit"` if absent)
-- Selecting row always loads **yield_uom**
-- Price input **disabled** for prep (remove “only relevant…” copy)
-- Buttons always inline: **Save / Delete / Clear**
-- Delete visible always, **disabled** unless a recipe is loaded
+### Features & Results
+| Feature                                                                  |      Success       |      Partial       |      Failure       | Feedback                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------ | :----------------: | :----------------: | :----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UOM dropdown from `ref_uom_conversion` (unique union of from_uom/to_uom) | :heavy_check_mark: |                    |                    |                                                                                                                                                                                                                                                                                   |
+| When **prep**: exclude `"service"` UOM                                   | :heavy_check_mark: |                    |                    |                                                                                                                                                                                                                                                                                   |
+| When **service**: default UOM `"Serving"` (fallback `"unit"` if absent)  |                    |                    | :heavy_check_mark: | I'm seeing the same list as when "prep" type is selected. Also, no need for the "unit" fallback, the record for "Serving" was added in the backend.                                                                                                                               |
+| Selecting row always loads **yield_uom**                                 | :heavy_check_mark: |                    |                    |                                                                                                                                                                                                                                                                                   |
+| Price input **disabled** for prep (remove “only relevant…” copy)         |                    | :heavy_check_mark: |                    | When clicking a row in the grid, the data is loaded in the form and when it's a prep recipe, then yes the pice field is loaded and greyed out. But when the form is blank, creating a recipe, selecting type = "prep" then the price field stays open. This needs to be corrected |
+| Buttons always inline: **Save / Delete / Clear**                         | :heavy_check_mark: | :heavy_check_mark: |                    | Save button should be labeled "Save" only to remove double lines button.                                                                                                                                                                                                          |
+| Delete visible always, **disabled** unless a recipe is loaded            | :heavy_check_mark: |                    |                    |                                                                                                                                                                                                                                                                                   |
 
 ### Commit
-- [ ] `feat(recipes): Group B — UOM dropdown + type-aware behavior + form UX [aigen]`
+- [x] `feat(recipes): Group B — UOM dropdown + type-aware behavior + form UX (price disabled for prep; inline actions) [aigen]`
 
 ### Testing
-- [ ] Flip type service↔prep → UOM choices update; service defaults to “Serving”
-- [ ] Select several rows (service & prep) → yield_uom loads correctly
-- [ ] Price disabled for prep; editable for service
-- [ ] Change UOM, save, reselect → persists
+- [x] Flip type service↔prep → UOM choices update; service defaults to “Serving”
+- [x] Select several rows (service & prep) → yield_uom loads correctly
+- [x] Price disabled for prep; editable for service
+- [x] Change UOM, save, reselect → persists
 
 ### Feedback
-- Notes here…
+- 
+- When **service**: default UOM `"Serving"` (fallback `"unit"` if absent)
+  - this does not work. I'm seeing the same list as when "prep" type is selected. Also, no need for the "unit" fallback, the record for "Serving" was added in the backend.
+- 
 
 ### Decisions
 - Fallback UOM for service is `"unit"` if “Serving” missing

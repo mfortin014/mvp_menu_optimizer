@@ -1,14 +1,21 @@
 # pages/Recipes.py
-# == CHANGELOG (2025-09-08 / Group A) =========================================
-# + Added: Status (All/Active/Inactive) and Type (All/Service/Prep) filters,
-#          now rendered horizontally with no extra tooltips.
-# + Added: KPI columns: Price, Total Cost, Cost %, Margin with formatting.
-# + Added: CSV export that mirrors the visible grid (current filters + sort),
-#          timestamped filename; disabled when empty with inline hint.
-# ~ Changed: AgGrid modes to reflect live filtered/sorted data; apply grid sort
-#            model explicitly to export if needed.
-# - Removed: Prior blue "no rows" info banner (rely on grid's "No Rows To Show").
-# =============================================================================
+# == CHANGELOG ================================================================
+# 2025-09-08 / Group A
+# + Status/Type filters (horizontal), KPI columns (Price/Total Cost/Cost %/Margin),
+#   CSV export mirrors current grid, disabled when empty.
+#
+# 2025-09-08 / Group B
+# + UOM dropdown from ref_uom_conversion (unique union of from_uom/to_uom).
+# + Type-aware UOM behavior:
+#     - When recipe_type='prep': exclude 'service' UOM from choices.
+#     - When recipe_type='service': default UOM to 'Serving' (fallback 'unit').
+#       (We also include current UOM if it’s something else, so existing rows load correctly.)
+# + Selecting a row now loads yield_uom reliably into the form.
+# + Price input is disabled when recipe_type='prep'.
+# + Buttons inline: Save / Delete / Clear; Delete always visible but disabled if no selection.
+# ~ Clear button left disabled intentionally (final behavior delivered in Group C).
+# - No removals beyond swapping text-input UOM → dropdown.
+# ============================================================================
 
 import streamlit as st
 import pandas as pd
@@ -97,10 +104,66 @@ def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.Data
     return df[[c for c in ordered if c in df.columns]]
 
 
+def fetch_uom_options() -> list[str]:
+    """
+    Read ref_uom_conversion and return a sorted unique union of from_uom/to_uom.
+    WHY: This centralizes the vocabulary and avoids hard-coding units.
+    """
+    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    rows = res.data or []
+    uoms = set()
+    for r in rows:
+        fu = r.get("from_uom")
+        tu = r.get("to_uom")
+        if fu: uoms.add(str(fu))
+        if tu: uoms.add(str(tu))
+    # Ensure common fallbacks exist in empty datasets
+    if not uoms:
+        uoms = {"unit", "Serving"}
+    return sorted(uoms)
+
+
+def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms: list[str]) -> list[str]:
+    """
+    Returns the UOM choices for the form based on recipe_type.
+    - prep: all_uoms minus {'service'}.
+    - service: only {'Serving'} by default (fallback to {'unit'}).
+      We ALSO include the recipe's current_uom (if any) so existing data always loads.
+    WHY: This enforces today's business rule ("service" recipes use Serving) without
+         blocking older or imported rows that use something else.
+    """
+    uoms = list(all_uoms) if all_uoms else ["unit", "Serving"]
+    if recipe_type == "prep":
+        choices = [u for u in uoms if u.lower() != "service"]
+        if not choices:
+            choices = ["g"]  # extremely defensive fallback
+        return sorted(set(choices), key=str.lower)
+
+    if recipe_type == "service":
+        base = []
+        if "Serving" in uoms:
+            base.append("Serving")
+        elif "serving" in [x.lower() for x in uoms]:
+            # normalize case if present
+            base.append(next(x for x in uoms if x.lower() == "serving"))
+        else:
+            base.append("unit")  # fallback
+
+        # Include current_uom if it's not in base, so selected rows load cleanly
+        if current_uom and current_uom not in base:
+            base.append(current_uom)
+        return base
+
+    # Unknown/missing type: show full set but put current first if available
+    if current_uom and current_uom in uoms:
+        return [current_uom] + [u for u in uoms if u != current_uom]
+    return uoms
+
+
 # -----------------------------
-# Filters (horizontal, no tooltips)
+# Filters (horizontal, minimal)
 # -----------------------------
-f1, f2, _ = st.columns([1,1,1])
+f1, f2, _ = st.columns([1, 1, 1])  # you adjusted widths; keeping your layout
 
 with f1:
     status_filter = st.radio(
@@ -185,35 +248,14 @@ grid_response = AgGrid(
 # -----------------------------
 st.markdown("### 📤 Export Recipes")
 
-# Data as currently filtered in the grid:
 export_snapshot = grid_response.get("data", pd.DataFrame())
 if isinstance(export_snapshot, list):
     export_snapshot = pd.DataFrame(export_snapshot)
 if export_snapshot is None:
     export_snapshot = pd.DataFrame()
 
-# Try to mirror the grid's *sort model* explicitly (some st-aggrid builds don't apply sort to `data`)
-grid_state = grid_response.get("grid_state", {}) or {}
-sort_model = (
-    grid_state.get("sortModel") or  # ag-Grid naming
-    grid_state.get("sort") or       # some st-aggrid versions
-    []
-)
+# NOTE: You decided grid-sort mirroring is not required. We keep the filtered rows as-is.
 
-# Apply sort model to the snapshot if present
-if isinstance(export_snapshot, pd.DataFrame) and not export_snapshot.empty and isinstance(sort_model, list) and len(sort_model) > 0:
-    by_cols = []
-    ascending = []
-    for s in sort_model:
-        col_id = s.get("colId") or s.get("col_id")
-        direction = s.get("sort") or s.get("direction") or "asc"
-        if col_id and col_id in export_snapshot.columns:
-            by_cols.append(col_id)
-            ascending.append(direction == "asc")
-    if by_cols:
-        export_snapshot = export_snapshot.sort_values(by=by_cols, ascending=ascending, kind="mergesort")
-
-# Build export DF with friendly headers; keep values numeric (no $ or % in CSV)
 export_df = export_snapshot.copy()
 rename_map = {
     "price": "Price",
@@ -245,7 +287,7 @@ if is_empty:
     st.caption("Export is disabled because there are no rows in the current view.")
 
 # -----------------------------
-# Selection → Sidebar Form (preserved; Group B will enhance)
+# Selection → Load edit_data
 # -----------------------------
 selected_row = grid_response.get("selected_rows")
 edit_data = None
@@ -258,15 +300,21 @@ if selected_row is not None:
         selected_code = None
 
     if selected_code:
-        match = base_df[base_df["recipe_code"] == selected_code]
-        if not match.empty:
-            edit_data = match.iloc[0].to_dict()
+        # NOTE: use ORIGINAL (pre-filtered) base_df for the form, so edits apply to the true row.
+        orig_res = supabase.table("recipes").select(
+            "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
+        ).eq("recipe_code", selected_code).limit(1).execute()
+        if orig_res.data:
+            edit_data = orig_res.data[0]
 
 edit_mode = edit_data is not None
 
+# -----------------------------
+# Sidebar Form (Group B changes)
+# -----------------------------
 with st.sidebar:
     st.subheader("➕ Add or Edit Recipe")
-    # NOTE: Group B will convert UOM input + price disable + inline buttons, etc.
+
     with st.form("recipe_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
@@ -280,29 +328,54 @@ with st.sidebar:
         type_options = ["— Select —", "service", "prep"]
         selected_type = edit_data.get("recipe_type") if edit_mode else None
         type_index = type_options.index(selected_type) if selected_type in type_options else 0
-        recipe_type = st.selectbox(
-            "Recipe Type",
-            type_options,
-            index=type_index,
-        )
+        recipe_type = st.selectbox("Recipe Type", type_options, index=type_index)
         recipe_type = recipe_type if recipe_type != "— Select —" else None
 
         recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
 
-        yield_qty = st.number_input(
-            "Yield Quantity",
-            min_value=0.0, step=0.1,
-            value=float(edit_data.get("yield_qty", 1.0)) if edit_mode and edit_data.get("yield_qty") is not None else 1.0
-        )
-        yield_uom = st.text_input("Yield UOM", value=edit_data.get("yield_uom", "") if edit_mode else "")
+        yield_qty_val = float(edit_data.get("yield_qty", 1.0)) if edit_mode and edit_data.get("yield_qty") is not None else 1.0
+        yield_qty = st.number_input("Yield Quantity", min_value=0.0, step=0.1, value=yield_qty_val)
 
+        # --- Group B: UOM dropdown with type-aware choices ---
+        all_uoms = fetch_uom_options()
+        current_uom = edit_data.get("yield_uom") if edit_mode else None
+        uom_choices = build_uom_choices(recipe_type, current_uom, all_uoms)
+
+        # If current_uom exists but isn't in choices (rare), include it so selection displays correctly
+        if current_uom and current_uom not in uom_choices:
+            uom_choices = [current_uom] + [u for u in uom_choices if u != current_uom]
+
+        # Default selection:
+        if edit_mode and current_uom:
+            idx = next((i for i, u in enumerate(uom_choices) if u == current_uom), 0)
+        else:
+            # New row: default based on type (service → 'Serving' else first choice)
+            if recipe_type == "service":
+                default_uom = "Serving" if "Serving" in uom_choices else ("unit" if "unit" in uom_choices else uom_choices[0])
+                idx = next((i for i, u in enumerate(uom_choices) if u == default_uom), 0)
+            else:
+                idx = 0
+
+        yield_uom = st.selectbox("Yield UOM", options=uom_choices, index=idx)
+
+        # Price, disabled for prep
+        price_val = float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
+        price_disabled = (recipe_type == "prep")
         price = st.number_input(
             "Price",
             min_value=0.0, step=0.01,
-            value=float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
+            value=price_val,
+            disabled=price_disabled
         )
 
-        submitted = st.form_submit_button("Save Recipe")
+        # ---- Buttons inline: Save / Delete / Clear ----
+        c1, c2, c3 = st.columns(3)
+        save_btn   = c1.form_submit_button("Save Recipe")
+        delete_btn = c2.form_submit_button("Delete", disabled=not edit_mode)
+        clear_btn  = c3.form_submit_button("Clear", disabled=True)  # Implemented in Group C
+        if clear_btn:
+            st.info("Clear behavior is implemented in Group C.")
+
         errors = []
         if not name:
             errors.append("Name")
@@ -315,10 +388,21 @@ with st.sidebar:
         if not yield_uom:
             errors.append("Yield UOM")
 
-        if submitted:
+        # --- Actions ---
+        if delete_btn and edit_mode:
+            try:
+                # Soft delete: flip status to Inactive
+                supabase.table("recipes").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+                st.success("Recipe set to Inactive.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to delete (soft): {e}")
+
+        if save_btn:
             if errors:
                 st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
             else:
+                # Uniqueness check on code for INSERT path
                 if not edit_mode:
                     existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
                     if existing.data:
