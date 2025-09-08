@@ -1,19 +1,20 @@
 # pages/Recipes.py
 # == CHANGELOG (2025-09-08 / Group A) =========================================
-# + Added: Status (All/Active/Inactive) and Type (All/Service/Prep) filters.
-# + Added: KPI columns in the grid: Cost (% of price) and Margin ($).
-# + Added: CSV export that mirrors the current grid (filters + sort) with
-#          a timestamped filename and empty-state safeguards.
-# ~ Changed: AgGrid update/data-return modes so export uses the live grid data.
-# ~ Changed: Data assembly to merge recipe rows with recipe_summary for KPIs.
-# - Removed: Nothing. Form code and previous layout kept intact by design.
+# + Added: Status (All/Active/Inactive) and Type (All/Service/Prep) filters,
+#          now rendered horizontally with no extra tooltips.
+# + Added: KPI columns: Price, Total Cost, Cost %, Margin with formatting.
+# + Added: CSV export that mirrors the visible grid (current filters + sort),
+#          timestamped filename; disabled when empty with inline hint.
+# ~ Changed: AgGrid modes to reflect live filtered/sorted data; apply grid sort
+#            model explicitly to export if needed.
+# - Removed: Prior blue "no rows" info banner (rely on grid's "No Rows To Show").
 # =============================================================================
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from utils.supabase import supabase
 
 # Auth (kept as-is)
@@ -31,38 +32,28 @@ st.title("📘 Recipes")
 # -----------------------------
 
 def fetch_recipes_df() -> pd.DataFrame:
-    """
-    Load base recipe rows from DB. Uses new schema fields: yield_qty, yield_uom, recipe_type.
-    """
+    """Load base recipes using new schema fields."""
     res = supabase.table("recipes").select(
         "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
     ).order("name").execute()
     df = pd.DataFrame(res.data or [])
-    # Ensure expected columns exist even if DB lags; keeps UI resilient.
     must_have = ["id", "recipe_code", "name", "status", "recipe_type",
                  "recipe_category", "yield_qty", "yield_uom", "price"]
     for c in must_have:
         if c not in df.columns:
             df[c] = None
-    # Normalize numerics
     if not df.empty:
         for c in ("yield_qty", "price"):
-            try:
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-            except Exception:
-                pass
+            df[c] = pd.to_numeric(df[c], errors="coerce")
     return df
 
 
 def fetch_recipe_summary_map() -> pd.DataFrame:
     """
-    Pulls summary rows (by recipe_id) so we can compute KPIs on the grid.
-    View shape may vary; we only rely on: recipe_id, total_cost.
-    If cost_pct/margin exist, we still recompute to keep math consistent.
+    Pull summary rows (by recipe_id) for cost aggregation.
+    We rely only on: recipe_id, total_cost (view may evolve).
     """
-    res = supabase.table("recipe_summary").select(
-        "recipe_id, total_cost"
-    ).execute()
+    res = supabase.table("recipe_summary").select("recipe_id, total_cost").execute()
     s = pd.DataFrame(res.data or [])
     if "total_cost" not in s.columns:
         s["total_cost"] = None
@@ -71,139 +62,114 @@ def fetch_recipe_summary_map() -> pd.DataFrame:
 
 def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge base recipes with summary costs, compute KPIs.
-    - cost_pct: (total_cost / price) * 100  (rounded to 1 decimal)
-    - margin:   price - total_cost          (rounded to 2 decimals)
+    Merge base recipes with summary costs, compute KPIs as numerics:
+      cost_pct  = (total_cost/price)*100  (1 decimal)
+      margin    = price - total_cost      (2 decimals)
+    Keep numerics numeric for proper sorting; we add display formatting via AG Grid.
     """
     if base_df.empty:
         return pd.DataFrame(columns=[
-            "recipe_code", "name", "status", "recipe_type", "recipe_category",
-            "yield_qty", "yield_uom", "price", "total_cost", "cost_pct", "margin"
+            "recipe_code","name","status","recipe_type","recipe_category",
+            "yield_qty","yield_uom","price","total_cost","cost_pct","margin"
         ])
 
     df = base_df.copy()
-    s = summary_df.copy()
+    s  = summary_df.rename(columns={"recipe_id": "id"}).copy()
+    df = df.merge(s, on="id", how="left")
 
-    # Merge summary on id -> recipe_id
-    df = df.merge(
-        s.rename(columns={"recipe_id": "id"}),
-        on="id", how="left"
-    )
-
-    # Compute KPIs safely
     def safe_ratio(cost, price):
         if pd.isna(cost) or pd.isna(price) or price is None or price <= 0:
             return None
-        try:
-            return round((float(cost) / float(price)) * 100.0, 1)
-        except Exception:
-            return None
+        return round(float(cost) / float(price) * 100.0, 1)
 
     def safe_margin(cost, price):
         if pd.isna(cost) or pd.isna(price):
             return None
-        try:
-            return round(float(price) - float(cost), 2)
-        except Exception:
-            return None
+        return round(float(price) - float(cost), 2)
 
     df["cost_pct"] = df.apply(lambda r: safe_ratio(r.get("total_cost"), r.get("price")), axis=1)
     df["margin"]   = df.apply(lambda r: safe_margin(r.get("total_cost"), r.get("price")), axis=1)
 
-    # Display order (we keep numerics as numerics for proper sorting)
-    ordered_cols = [
-        "recipe_code", "name", "status", "recipe_type", "recipe_category",
-        "yield_qty", "yield_uom", "price", "total_cost", "cost_pct", "margin"
+    ordered = [
+        "recipe_code","name","status","recipe_type","recipe_category",
+        "yield_qty","yield_uom","price","total_cost","cost_pct","margin"
     ]
-    # Keep only what exists
-    ordered_cols = [c for c in ordered_cols if c in df.columns]
-    return df[ordered_cols]
-
-
-def empty_info(message="No recipes match the current filters."):
-    st.info(message)
+    return df[[c for c in ordered if c in df.columns]]
 
 
 # -----------------------------
-# Filters (Group A)
+# Filters (horizontal, no tooltips)
 # -----------------------------
-# Default behavior: show Active by default; type defaults to All.
-filters_col1, filters_col2, filters_col3 = st.columns([1, 1, 6])
+f1, f2, _ = st.columns([1,1,1])
 
-with filters_col1:
+with f1:
     status_filter = st.radio(
         "Status",
-        options=["Active", "All", "Inactive"],  # default Active
-        index=0,
-        horizontal=False,
-        help="Show recipes by status. Export is disabled on empty results."
+        options=["All", "Active", "Inactive"],
+        index=1,  # default Active
+        horizontal=True,
     )
 
-with filters_col2:
+with f2:
     type_filter = st.radio(
         "Type",
         options=["All", "service", "prep"],
         index=0,
-        horizontal=False,
-        help="Filter by recipe type (service/prep)."
+        horizontal=True,
     )
-
-with filters_col3:
-    st.markdown(" ")  # spacer for layout
-
 
 # -----------------------------
 # Fetch & Filter
 # -----------------------------
-base_df = fetch_recipes_df()
+base_df    = fetch_recipes_df()
 summary_df = fetch_recipe_summary_map()
 
-# Apply status filter
 if status_filter != "All":
     base_df = base_df[base_df["status"] == status_filter]
-
-# Apply type filter
 if type_filter != "All":
     base_df = base_df[base_df["recipe_type"] == type_filter]
 
 grid_source_df = assemble_grid_df(base_df, summary_df)
-
-# Empty-safe handling up front
-if grid_source_df.empty:
-    empty_info()
-    # We still render an empty grid so UI layout stays stable
-    display_df = pd.DataFrame(columns=[
-        "recipe_code", "name", "status", "recipe_type", "recipe_category",
-        "yield_qty", "yield_uom", "price", "total_cost", "cost_pct", "margin"
-    ])
-else:
-    display_df = grid_source_df.copy()
+display_df = grid_source_df.copy()  # may be empty; grid will show "No Rows To Show"
 
 # -----------------------------
-# AgGrid Table
+# Grid config (formatting via valueFormatter, sorting stays numeric)
 # -----------------------------
 gb = GridOptionsBuilder.from_dataframe(display_df)
 gb.configure_default_column(editable=False, filter=True, sortable=True)
-
-# Single selection (kept as-is for integration with the sidebar form below)
 gb.configure_selection("single", use_checkbox=False)
 
-# Right-align numeric-looking columns
-for col in ("yield_qty", "price", "total_cost", "cost_pct", "margin"):
+# Right-align numerics
+for col in ("yield_qty","price","total_cost","cost_pct","margin"):
     if col in display_df.columns:
         gb.configure_column(col, cellStyle={"textAlign": "right"})
 
-# Friendly headers for KPI columns
+# Friendly headers + value formatters (keep underlying dtype numeric)
+fmt_currency_2 = JsCode("""function(params){ 
+    if(params.value===null || params.value===undefined) return '';
+    return '$' + Number(params.value).toFixed(2);
+}""")
+fmt_currency_5 = JsCode("""function(params){ 
+    if(params.value===null || params.value===undefined) return '';
+    return '$' + Number(params.value).toFixed(5);
+}""")
+fmt_percent_1 = JsCode("""function(params){ 
+    if(params.value===null || params.value===undefined) return '';
+    return Number(params.value).toFixed(1) + '%';
+}""")
+
+if "price" in display_df.columns:
+    gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
+if "total_cost" in display_df.columns:
+    gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
 if "cost_pct" in display_df.columns:
-    gb.configure_column("cost_pct", header_name="Cost (% of price)")
+    gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
 if "margin" in display_df.columns:
-    gb.configure_column("margin", header_name="Margin ($)")
+    gb.configure_column("margin", header_name="Margin", valueFormatter=fmt_currency_2)
 
 grid_options = gb.build()
 
-# IMPORTANT for CSV mirroring:
-# - DataReturnMode.FILTERED ensures grid_response["data"] reflects the visible rows (filters).
-# - GridUpdateMode.MODEL_CHANGED so the returned data updates on sort/filter changes.
+# Return filtered data; update on filter/sort model changes
 grid_response = AgGrid(
     display_df,
     gridOptions=grid_options,
@@ -211,54 +177,78 @@ grid_response = AgGrid(
     update_mode=GridUpdateMode.MODEL_CHANGED,
     fit_columns_on_grid_load=True,
     height=600,
-    allow_unsafe_jscode=True
+    allow_unsafe_jscode=True,
 )
 
 # -----------------------------
-# CSV Export (mirror the grid)
+# Export (mirror filters + sort)
 # -----------------------------
 st.markdown("### 📤 Export Recipes")
 
-# grid_response["data"] mirrors the current grid (filtered + current sort if provided by ag-grid)
+# Data as currently filtered in the grid:
 export_snapshot = grid_response.get("data", pd.DataFrame())
-is_empty = export_snapshot is None or (isinstance(export_snapshot, pd.DataFrame) and export_snapshot.empty)
-
 if isinstance(export_snapshot, list):
     export_snapshot = pd.DataFrame(export_snapshot)
+if export_snapshot is None:
+    export_snapshot = pd.DataFrame()
 
-# Build a tidy export frame with readable headers
+# Try to mirror the grid's *sort model* explicitly (some st-aggrid builds don't apply sort to `data`)
+grid_state = grid_response.get("grid_state", {}) or {}
+sort_model = (
+    grid_state.get("sortModel") or  # ag-Grid naming
+    grid_state.get("sort") or       # some st-aggrid versions
+    []
+)
+
+# Apply sort model to the snapshot if present
+if isinstance(export_snapshot, pd.DataFrame) and not export_snapshot.empty and isinstance(sort_model, list) and len(sort_model) > 0:
+    by_cols = []
+    ascending = []
+    for s in sort_model:
+        col_id = s.get("colId") or s.get("col_id")
+        direction = s.get("sort") or s.get("direction") or "asc"
+        if col_id and col_id in export_snapshot.columns:
+            by_cols.append(col_id)
+            ascending.append(direction == "asc")
+    if by_cols:
+        export_snapshot = export_snapshot.sort_values(by=by_cols, ascending=ascending, kind="mergesort")
+
+# Build export DF with friendly headers; keep values numeric (no $ or % in CSV)
 export_df = export_snapshot.copy()
+rename_map = {
+    "price": "Price",
+    "total_cost": "Total Cost",
+    "cost_pct": "Cost %",
+    "margin": "Margin",
+    "recipe_code": "Recipe Code",
+    "recipe_type": "Recipe Type",
+    "recipe_category": "Recipe Category",
+    "yield_qty": "Yield Quantity",
+    "yield_uom": "Yield UOM",
+    "status": "Status",
+    "name": "Name",
+}
+export_df.rename(columns={k: v for k, v in rename_map.items() if k in export_df.columns}, inplace=True)
 
-# NOTE: keep numerics numeric so CSV is machine-friendly; headers are friendly via rename:
-rename_map = {}
-if "cost_pct" in export_df.columns:
-    rename_map["cost_pct"] = "cost_pct_of_price"
-if "margin" in export_df.columns:
-    rename_map["margin"] = "margin_dollar"
-
-export_df.rename(columns=rename_map, inplace=True)
-
-# Filename encodes filter state and timestamp
 ts = datetime.now().strftime("%Y%m%d-%H%M")
 fname = f"recipes_{status_filter.lower()}_{type_filter.lower()}_{ts}.csv"
 
-st.download_button(
+is_empty = export_df.empty
+btn = st.download_button(
     label="⬇️ Download CSV (matches grid)",
     data=(export_df.to_csv(index=False) if not is_empty else "".encode("utf-8")),
     file_name=fname,
     mime="text/csv",
-    disabled=is_empty,   # Disable when no rows to avoid confusion
-    help="Exports exactly what you see in the grid (current filters & sort)."
+    disabled=is_empty,
 )
+if is_empty:
+    st.caption("Export is disabled because there are no rows in the current view.")
 
 # -----------------------------
-# Selection → Sidebar Form (kept from prior behavior; no Group A changes below)
+# Selection → Sidebar Form (preserved; Group B will enhance)
 # -----------------------------
-
-# NOTE: AgGrid may return selected rows as list[dict] or as DataFrame
 selected_row = grid_response.get("selected_rows")
 edit_data = None
-
 if selected_row is not None:
     if isinstance(selected_row, pd.DataFrame) and not selected_row.empty:
         selected_code = selected_row.iloc[0].get("recipe_code")
@@ -274,12 +264,9 @@ if selected_row is not None:
 
 edit_mode = edit_data is not None
 
-# -----------------------------
-# Sidebar Form (Add / Edit) — preserved for Group A
-# -----------------------------
 with st.sidebar:
     st.subheader("➕ Add or Edit Recipe")
-
+    # NOTE: Group B will convert UOM input + price disable + inline buttons, etc.
     with st.form("recipe_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
@@ -290,7 +277,6 @@ with st.sidebar:
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
 
-        # recipe_type (required) — kept as-is for now (Group B will add UOM logic)
         type_options = ["— Select —", "service", "prep"]
         selected_type = edit_data.get("recipe_type") if edit_mode else None
         type_index = type_options.index(selected_type) if selected_type in type_options else 0
@@ -298,13 +284,11 @@ with st.sidebar:
             "Recipe Type",
             type_options,
             index=type_index,
-            help="Prep recipes are used as ingredients in other recipes. Service recipes are sold to customers."
         )
         recipe_type = recipe_type if recipe_type != "— Select —" else None
 
         recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
 
-        # Renamed fields: yield_qty / yield_uom (Group B will convert this to a dropdown)
         yield_qty = st.number_input(
             "Yield Quantity",
             min_value=0.0, step=0.1,
@@ -335,7 +319,6 @@ with st.sidebar:
             if errors:
                 st.error(f"⚠️ Please complete the following fields: {', '.join(errors)}")
             else:
-                # Uniqueness check on code for INSERT path
                 if not edit_mode:
                     existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
                     if existing.data:
