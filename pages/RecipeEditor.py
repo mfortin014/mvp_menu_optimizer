@@ -64,23 +64,39 @@ def compute_ancestor_recipes(current_recipe_id, all_lines, all_recipe_ids):
 
 def fetch_summary(recipe_id):
     """
-    Make no assumptions about recipe_summary column names.
-    Map to a common structure for the header metrics.
+    Be flexible: recipe_summary has rows only for service recipes.
+    For prep recipes (or if summary row is missing), fall back to prep_costs/zeros.
     """
-    res = supabase.table("recipe_summary").select("*").eq("recipe_id", recipe_id).single().execute()
-    row = res.data if res.data else None
-    if not row:
-        return {"recipe": "", "price": 0.0, "cost": 0.0, "margin_dollar": 0.0, "profitability": 0.0}
+    # 1) Get base recipe
+    base = supabase.table("recipes") \
+        .select("name, price, recipe_type") \
+        .eq("id", recipe_id).single().execute()
+    rname = (base.data or {}).get("name", "")
+    price = float((base.data or {}).get("price") or 0.0)
+    rtype = (base.data or {}).get("recipe_type", "service")
 
-    price = float(row.get("price") or 0.0)
-    # cost may be named total_cost in your view
-    cost = float(row.get("total_cost") or row.get("cost") or 0.0)
-    margin = float(row.get("margin") or row.get("margin_dollar") or (price - cost))
-    profitability = (margin / price) if price else 0.0
-    recipe_name = row.get("recipe") or row.get("name") or row.get("recipe_name") or ""
+    # 2) Try recipe_summary (may be 0 rows)
+    sres = supabase.table("recipe_summary").select("*").eq("recipe_id", recipe_id).execute()
+    row = (sres.data or [None])[0]
+
+    if row:
+        cost = float(row.get("total_cost") or row.get("cost") or 0.0)
+        margin = float(row.get("margin") or row.get("margin_dollar") or (price - cost))
+        profitability = (margin / price) if price else 0.0
+        rlabel = row.get("recipe") or row.get("name") or rname
+    else:
+        # 3) Fallbacks when no summary row (common for prep)
+        if rtype == "prep":
+            pc = supabase.table("prep_costs").select("total_cost").eq("recipe_id", recipe_id).execute()
+            cost = float((pc.data or [{}])[0].get("total_cost") or 0.0)
+        else:
+            cost = 0.0
+        margin = price - cost
+        profitability = (margin / price) if price else 0.0
+        rlabel = rname
 
     return {
-        "recipe": recipe_name,
+        "recipe": rlabel,
         "price": price,
         "cost": cost,
         "margin_dollar": margin,
@@ -165,6 +181,13 @@ st.divider()
 
 line_rows = fetch_recipe_line_costs(recipe_id)
 df = pd.DataFrame(line_rows)
+
+# Always have these columns for the grid, even if empty
+base_cols = ["recipe_line_id", "ingredient_id", "qty", "qty_uom", "line_cost"]
+for c in base_cols:
+    if c not in df.columns:
+        df[c] = None
+
 notes_map = fetch_notes_map(recipe_id)
 
 # Catalog for labels (ingredients + prep recipes)
@@ -174,19 +197,19 @@ df["ingredient"] = df["ingredient_id"].map(id_to_label).fillna("— missing or i
 df["note"] = df["recipe_line_id"].map(notes_map)
 
 # Unit cost for the referenced input (ingredient or prep)
-unit_costs = rpc_unit_cost_map(list({r["ingredient_id"] for r in line_rows}))
+unit_costs = rpc_unit_cost_map(list({rid for rid in df["ingredient_id"].dropna().unique()}))
 df["unit_cost"] = df["ingredient_id"].map(unit_costs)
 
 # Order columns for display (keep id hidden)
 display_cols = ["recipe_line_id", "ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"]
-for col in ["unit_cost", "line_cost", "qty"]:
-    if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
 display_df = df.reindex(columns=[c for c in display_cols if c in df.columns]).copy()
 
+# Format money
 for col in ["unit_cost", "line_cost"]:
     if col in display_df.columns:
-        display_df[col] = display_df[col].map(lambda x: f"${x:.6f}" if pd.notnull(x) else "")
+        display_df[col] = pd.to_numeric(display_df[col], errors="coerce").map(
+            lambda x: f"${x:.6f}" if pd.notnull(x) else ""
+        )
 
 # -----------------------------
 # AgGrid table + selection
@@ -322,6 +345,7 @@ with st.sidebar:
 # -----------------------------
 
 st.markdown("### 📥 Export Recipe Lines")
+display_df = display_df if 'display_df' in locals() else pd.DataFrame(columns=["ingredient","qty","qty_uom","unit_cost","line_cost","note"])
 export_df = display_df.drop(columns=["recipe_line_id"], errors="ignore").copy()
 
 def _strip_money(x):
