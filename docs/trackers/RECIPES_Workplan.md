@@ -8,8 +8,8 @@
 ---
 
 ## ✅ Definition of Done (this release)
-- [ ] Filters work: Status (All/Active/Inactive), Type (All/Service/Prep) with empty-safe UI
-- [ ] Table shows **Cost (% of price)** and **Margin ($)**; matches Editor/Home math
+- [x] Filters work: Status (All/Active/Inactive), Type (All/Service/Prep) with empty-safe UI
+- [x] Table shows **Cost (% of price)** and **Margin ($)**; matches Editor/Home math
 - [ ] CSV export mirrors visible grid (filters + sort) with timestamped filename
 - [ ] Form uses UOM dropdown; type-aware behavior (Prep excludes “service”; Service defaults “Serving”)
 - [ ] Selecting a row loads **yield_uom** correctly
@@ -35,17 +35,42 @@
 - [ ] `feat(recipes): Group A — filters + KPIs + CSV export [aigen]`
 
 ### Testing
-- [ ] Inactive on all-active dataset → info state; Export disabled
-- [ ] Type=Prep → only prep rows; toggling back to All restores list
-- [ ] Cost% & Margin match Recipe Editor for sampled rows
+- [x] Inactive on all-active dataset → info state; Export disabled
+- [x] Type=Prep → only prep rows; toggling back to All restores list
+- [x] Cost% & Margin match Recipe Editor for sampled rows
 - [ ] Sort by Margin desc → export → CSV order matches grid; filename includes filters + timestamp
 
 ### Feedback
-- Notes here…
+- Status & Type filter:
+  - display should horizontal
+  - no need for the "?" tooltip
+  - when no results, no need for the blue message. The "No Rows To Show" message inside the table itself is enough
+- Columns
+  - price
+    - Format: currency
+    - rename: Price
+  - margin
+    - Format: currency
+    - rename: Margin
+  - total cost
+    - format: currency with 5 decimal
+    - rename: Total Cost
+  - Cost (% of margin)
+    - format: percent with 1 decimal
+    - rename: Cost %
+  - CSV export mirrors **current grid** (filters + sort)
+    - radio style filters and in-table filters are mirrored in export
+    - column sorting (I referred to it as order previously, maybe you though column order, my bad) is not reflected in the export.
+  - CSV filename
+    - all good here
+  - Export disabled when table empty
+    - When this is the case, can you show a message under the disabled button indicating that?
 
 ### Decisions
 - Rounding: Cost% to 1 decimal (match Editor/Home)
+  - yes
 - Export disabled when table empty
+  - good idea
 
 ---
 
