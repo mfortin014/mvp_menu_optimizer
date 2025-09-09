@@ -166,10 +166,10 @@
 - [ ] `chore(recipes): Group D — export snapshot correctness + docs/comments [aigen]`
 
 ### Testing
-- [ ] Complex sort+filter → export → CSV matches grid exactly
+- [x] Complex sort+filter → export → CSV matches grid exactly
 
 ### Feedback
-- Notes here…
+- This method works!
 
 ### Decisions
 - Notes here…
