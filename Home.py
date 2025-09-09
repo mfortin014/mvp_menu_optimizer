@@ -1,3 +1,27 @@
+
+# ==== TENANT SWITCHER (MVP) ====
+import os
+import streamlit as st
+from utils.supabase import create_client
+from utils.tenancy import ensure_tenant, set_current_tenant
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", st.secrets.get("SUPABASE_URL", ""))
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", ""))
+_sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+tenant_id, tenant_name = ensure_tenant(_sb)
+
+with st.sidebar:
+    st.markdown("### Client")
+    tenants = _sb.table("tenants").select("id,name").is_("deleted_at","null").order("name").execute().data or []
+    if tenants:
+        names = [t["name"] for t in tenants]
+        ids = [t["id"] for t in tenants]
+        idx = ids.index(tenant_id) if tenant_id in ids else 0
+        choice = st.selectbox("Select active client", names, index=idx, key="tenant_selectbox")
+        new_id = tenants[names.index(choice)]["id"]
+        if new_id != tenant_id:
+            set_current_tenant(new_id, choice); st.rerun()
+
 import streamlit as st
 import pandas as pd
 import altair as alt

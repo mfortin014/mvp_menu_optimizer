@@ -1,3 +1,77 @@
+
+# ==== TENANT-AWARE INGREDIENTS WITH SOFT DELETE ====
+import os
+import streamlit as st
+from utils.tenancy import get_current_tenant_id, soft_delete_payload, restore_payload
+from utils.supabase import create_client, tenant_filter, insert_with_tenant, update_with_tenant
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", st.secrets.get("SUPABASE_URL", ""))
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", ""))
+sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+tenant_id = get_current_tenant_id()
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_ingredients(_tenant_id):
+    q = sb.table("ingredients").select("*")
+    q = tenant_filter(q, _tenant_id)
+    return q.order("name").execute().data or []
+
+st.title("Ingredients")
+rows = load_ingredients(tenant_id)
+
+selected = st.session_state.get("selected_ingredient_id")
+names = [f"{r['ingredient_code']} – {r['name']}" for r in rows]
+ids = [r["id"] for r in rows]
+idx = ids.index(selected) if selected in ids else (0 if ids else None)
+
+col_table, col_form = st.columns([2,1])
+
+with col_table:
+    st.subheader("List")
+    selected_label = st.selectbox("Select", names, index=idx if idx is not None else None, placeholder="Pick…")
+    if selected_label:
+        selected = ids[names.index(selected_label)]
+        st.session_state["selected_ingredient_id"] = selected
+
+with col_form:
+    st.subheader("Edit / Add")
+    with st.form("ingredient_form"):
+        code = st.text_input("Ingredient Code")
+        name = st.text_input("Name")
+        ing_type = st.selectbox("Type", ["Bought","Prepped"])
+        pkg_qty = st.number_input("Package Qty", min_value=0.0, step=0.1)
+        pkg_uom = st.text_input("Package UOM", value="g")
+        pkg_cost = st.number_input("Package Cost", min_value=0.0, step=0.01)
+        yield_pct = st.number_input("Yield %", min_value=0.0, max_value=100.0, value=100.0, step=0.1)
+        submitted = st.form_submit_button("Save")
+
+    if st.button("Clear"):
+        for k in list(st.session_state.keys()):
+            if k.startswith("ingredient_") or k in ["selected_ingredient_id"]:
+                del st.session_state[k]
+        st.rerun()
+
+    colA, colB = st.columns(2)
+    if colA.button("Delete (soft)", type="secondary", disabled=not selected):
+        sb.table("ingredients").update(soft_delete_payload()).eq("id", selected).eq("tenant_id", tenant_id).execute()
+        st.success("Soft-deleted"); st.rerun()
+    if colB.button("Restore", type="primary", disabled=not selected):
+        sb.table("ingredients").update(restore_payload()).eq("id", selected).eq("tenant_id", tenant_id).execute()
+        st.success("Restored"); st.rerun()
+
+if 'submitted' in locals() and submitted:
+    payload = dict(
+        ingredient_code=code, name=name, ingredient_type=ing_type,
+        package_qty=pkg_qty, package_uom=pkg_uom, package_cost=pkg_cost, yield_pct=yield_pct
+    )
+    if selected:
+        update_with_tenant(sb, "ingredients", "id", selected, payload, tenant_id).execute()
+        st.success("Updated")
+    else:
+        insert_with_tenant(sb, "ingredients", payload, tenant_id).execute()
+        st.success("Created")
+    st.rerun()
+
 import streamlit as st
 import pandas as pd
 from utils.supabase import supabase

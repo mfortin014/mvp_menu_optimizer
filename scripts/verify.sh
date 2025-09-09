@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${DATABASE_URL:?Set DATABASE_URL}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$PROJECT_ROOT/.env" ]; then set -a; . "$PROJECT_ROOT/.env"; set +a; fi
+: "${DATABASE_URL:?Set DATABASE_URL in .env or environment to your Postgres connection string}"
 echo "Verifying key invariants..."
 psql "$DATABASE_URL" -c "select 'tenants' tbl, count(*) from public.tenants;"
 psql "$DATABASE_URL" -c "select table_name, column_name from information_schema.columns where table_schema='public' and column_name='tenant_id' order by table_name;"

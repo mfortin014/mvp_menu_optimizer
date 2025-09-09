@@ -1,10 +1,9 @@
--- V003__soft_delete.sql
 alter table public.ingredients add column if not exists deleted_at timestamptz null;
-alter table public.ref_uom_conversion add column if not exists deleted_at timestamptz null;
 alter table public.recipes add column if not exists deleted_at timestamptz null;
 alter table public.recipe_lines add column if not exists deleted_at timestamptz null;
 alter table public.ref_ingredient_categories add column if not exists deleted_at timestamptz null;
 alter table public.ref_storage_type add column if not exists deleted_at timestamptz null;
+alter table public.ref_uom_conversion add column if not exists deleted_at timestamptz null;
 alter table public.sales add column if not exists deleted_at timestamptz null;
 alter table public.tenants add column if not exists deleted_at timestamptz null;
 alter table public.user_tenant_memberships add column if not exists deleted_at timestamptz null;

@@ -1,3 +1,24 @@
+
+# ==== TENANT FILTER ====
+import os
+import streamlit as st
+from utils.tenancy import get_current_tenant_id
+from utils.supabase import create_client, tenant_filter
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", st.secrets.get("SUPABASE_URL", ""))
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", ""))
+sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+tenant_id = get_current_tenant_id()
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_recipes(_tenant_id):
+    q = sb.table("recipes").select("*")
+    q = tenant_filter(q, _tenant_id)
+    return q.order("name").execute().data or []
+
+st.title("Recipes")
+st.dataframe(load_recipes(tenant_id))
+
 # pages/Recipes.py
 # == CHANGELOG ================================================================
 # 2025-09-08 / Group A

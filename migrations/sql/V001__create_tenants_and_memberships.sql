@@ -1,9 +1,6 @@
 
--- V001__create_tenants_and_memberships.sql
--- Creates tenants and user_tenant_memberships. Uses existing public.profiles as users.
 create extension if not exists pgcrypto;
 create extension if not exists "uuid-ossp";
-
 create table if not exists public.tenants (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -12,7 +9,6 @@ create table if not exists public.tenants (
   created_at timestamptz not null default now(),
   deleted_at timestamptz null
 );
-
 create table if not exists public.user_tenant_memberships (
   user_id uuid not null references public.profiles(id) on delete cascade,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -22,8 +18,6 @@ create table if not exists public.user_tenant_memberships (
   deleted_at timestamptz null,
   primary key (user_id, tenant_id)
 );
-
--- seed default tenant if absent
 insert into public.tenants (name, code)
 select 'Sur Le Feu', 'SLF'
 where not exists (select 1 from public.tenants where code = 'SLF');
