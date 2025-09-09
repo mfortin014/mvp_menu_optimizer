@@ -11,9 +11,9 @@
 - [x] Filters work: Status (All/Active/Inactive), Type (All/Service/Prep) with empty-safe UI
 - [x] Table shows **Cost (% of price)** and **Margin ($)**; matches Editor/Home math
 - [x] CSV export mirrors visible grid (filters + sort) with timestamped filename
-- [ ] Form uses UOM dropdown; type-aware behavior (Prep excludes “service”; Service defaults “Serving”)
-- [ ] Selecting a row loads **yield_uom** correctly
-- [ ] Price disabled for **prep**
+- [x] Form uses UOM dropdown; type-aware behavior (Prep excludes “service”; Service defaults “Serving”)
+- [x] Selecting a row loads **yield_uom** correctly
+- [x] Price disabled for **prep**
 - [ ] Buttons inline: **Save / Delete / Clear**; Delete visible but disabled when no selection
 - [ ] Clear button present and **does not crash**; final behavior chosen & implemented
 - [ ] Soft delete = `status='Inactive'` (no hard deletes)
@@ -138,22 +138,18 @@
   - Option 2: dummy-record reset (hidden from table)
 - No crash, no auth prompt
 
-### Commit (spike)
-- [ ] `spike(recipes): Group C — Clear button placeholder + option switch [aigen]`
-
-### Testing (spike)
-- [ ] Case 1: typing new recipe → Clear resets to default empty
-- [ ] Case 2: after Save → form clears; grid unchanged
-- [ ] Case 3: selected row → Clear resets; grid selection irrelevant
+### Feedback
+- I did notice that the form currently allows to save recipes with Yield Quantity = 0 which is not ideal. I don't see a reason to allow this. @ChatGPT, let me know what you think in the next feature group.
 
 ### Decision
-- Pick Option 1 or 2 and note why
+- After testing with option 1 and deciding option 2 was not viable, we decided to drop the 3 buttons feature as multiple buttons for one form lead to inconsistent results.
+- Delete = setting status to inactive, we can do it manually and save (the delete button was a shortcut)
+- Clear = we have a relatively simple work around with manually clicking on Home and back to recipe to clear.
 
 ### Commit (finalize)
-- [ ] `feat(recipes): Group C — Clear behavior finalized (remove spike toggle) [aigen]`
+- [x] `feat(recipes): simplify to Save-only form; reliable submit + rerun; remove Delete/Clear [aigen]`
 
 ### Testing (final)
-- [ ] Re-run Cases 1–3 with final behavior
 
 ---
 
