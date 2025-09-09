@@ -9,7 +9,12 @@
 # 2025-09-08 / Group C (simplified)
 # ~ Removed: Delete and Clear buttons (manual actions instead).
 # + Save-only form; reliable submit; st.rerun() after success to refresh grid/summary.
-# + Optional DEBUG sidebar logs (set DEBUG=True).
+#
+# 2025-09-08 / Group D (docs & export polish)
+# + CSV now mirrors the *exact grid snapshot* (filters + sort) at click time.
+#   Implementation prefers DataReturnMode.FILTERED_AND_SORTED when available,
+#   and falls back to FILTERED + manual sortModel apply (from grid_state).
+# + Added WHY comments where behavior isn’t obvious to reduce future head-scratching.
 # ============================================================================
 
 import streamlit as st
@@ -22,7 +27,7 @@ from utils.supabase import supabase
 st.set_page_config(page_title="Recipes", layout="wide")
 
 # ── Debug switch ──────────────────────────────────────────────────────────────
-DEBUG = False
+DEBUG = False  # Flip to True to see sidebar logs during Save
 def dlog(msg):
     if DEBUG:
         st.sidebar.write(f"🛠️ {msg}")
@@ -162,7 +167,7 @@ for col in ("yield_qty","price","total_cost","cost_pct","margin"):
     if col in display_df.columns:
         gb.configure_column(col, cellStyle={"textAlign": "right"})
 
-# Formatters
+# Value formatters (display-only; underlying data remains numeric for export)
 fmt_currency_2 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(2);}""")
 fmt_currency_5 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(5);}""")
 fmt_percent_1  = JsCode("""function(p){ if(p.value==null) return ''; return Number(p.value).toFixed(1)+'%';}""")
@@ -174,10 +179,18 @@ if "margin" in display_df.columns:     gb.configure_column("margin", header_name
 
 grid_options = gb.build()
 
+# IMPORTANT: We want export to match the *visible grid* including sort.
+# On newer st-aggrid, DataReturnMode.FILTERED_AND_SORTED is available.
+# On older versions, we fall back to FILTERED and manually apply sortModel.
+try:
+    SNAPSHOT_MODE = DataReturnMode.FILTERED_AND_SORTED  # preferred
+except AttributeError:
+    SNAPSHOT_MODE = DataReturnMode.FILTERED             # fallback
+
 grid_response = AgGrid(
     display_df,
     gridOptions=grid_options,
-    data_return_mode=DataReturnMode.FILTERED,
+    data_return_mode=SNAPSHOT_MODE,
     update_mode=GridUpdateMode.MODEL_CHANGED,
     fit_columns_on_grid_load=True,
     height=600,
@@ -185,28 +198,54 @@ grid_response = AgGrid(
 )
 
 # -----------------------------
-# Export (mirrors filters; sort order not required by decision)
+# Export (mirrors *filters + sort*; column reordering is intentionally ignored)
 # -----------------------------
 st.markdown("### 📤 Export Recipes")
+
+# NOTE: st-aggrid returns data as a list of dicts. We convert to DataFrame.
 export_snapshot = grid_response.get("data", pd.DataFrame())
 if isinstance(export_snapshot, list):
     export_snapshot = pd.DataFrame(export_snapshot)
 if export_snapshot is None:
     export_snapshot = pd.DataFrame()
 
+# If we were forced to use FILTERED (older builds), mirror sort via grid_state.sortModel
+if SNAPSHOT_MODE == DataReturnMode.FILTERED and not export_snapshot.empty:
+    grid_state = grid_response.get("grid_state", {}) or {}
+    sort_model = grid_state.get("sortModel") or []
+    if isinstance(sort_model, list) and sort_model:
+        by_cols = []
+        ascending = []
+        for s in sort_model:
+            col_id = s.get("colId") or s.get("col_id")
+            direction = (s.get("sort") or s.get("direction") or "asc").lower()
+            if col_id and col_id in export_snapshot.columns:
+                by_cols.append(col_id)
+                ascending.append(direction == "asc")
+        if by_cols:
+            export_snapshot = export_snapshot.sort_values(by=by_cols, ascending=ascending, kind="mergesort")
+
+# Build export DF with friendly headers (keep values numeric; formatting is for UI only)
 export_df = export_snapshot.copy()
 rename_map = {
-    "price": "Price", "total_cost": "Total Cost", "cost_pct": "Cost %",
-    "margin": "Margin", "recipe_code": "Recipe Code", "recipe_type": "Recipe Type",
-    "recipe_category": "Recipe Category", "yield_qty": "Yield Quantity",
-    "yield_uom": "Yield UOM", "status": "Status", "name": "Name",
+    "price": "Price",
+    "total_cost": "Total Cost",
+    "cost_pct": "Cost %",
+    "margin": "Margin",
+    "recipe_code": "Recipe Code",
+    "recipe_type": "Recipe Type",
+    "recipe_category": "Recipe Category",
+    "yield_qty": "Yield Quantity",
+    "yield_uom": "Yield UOM",
+    "status": "Status",
+    "name": "Name",
 }
-export_df.rename(columns={k:v for k,v in rename_map.items() if k in export_df.columns}, inplace=True)
+export_df.rename(columns={k: v for k, v in rename_map.items() if k in export_df.columns}, inplace=True)
 
 ts = datetime.now().strftime("%Y%m%d-%H%M")
 fname = f"recipes_{status_filter.lower()}_{type_filter.lower()}_{ts}.csv"
-is_empty = export_df.empty
 
+is_empty = export_df.empty
 st.download_button(
     label="⬇️ Download CSV (matches grid)",
     data=(export_df.to_csv(index=False) if not is_empty else "".encode("utf-8")),
@@ -218,7 +257,7 @@ if is_empty:
     st.caption("Export is disabled because there are no rows in the current view.")
 
 # -----------------------------
-# Determine selection (for edit)
+# Selection → load edit_data for Save-only form
 # -----------------------------
 selected_row = grid_response.get("selected_rows")
 edit_data = None
@@ -241,7 +280,7 @@ if selected_row is not None:
 edit_mode = edit_data is not None
 
 # -----------------------------
-# Sidebar — Recipe Type (OUTSIDE form so UI reacts instantly)
+# Sidebar — Recipe Type OUTSIDE the form (reactive; controls UOM & Price disable)
 # -----------------------------
 with st.sidebar:
     st.subheader("➕ Add or Edit Recipe")
