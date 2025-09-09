@@ -1,15 +1,15 @@
 # pages/Recipes.py
 # == CHANGELOG ================================================================
 # 2025-09-08 / Group A
-# + Status/Type filters (horizontal), KPI columns (Price/Total Cost/Cost %/Margin),
-#   CSV export mirrors current grid, disabled when empty.
+# + Filters, KPIs, CSV (mirrors grid).
 #
-# 2025-09-08 / Group B (fix pass)
-# + Recipe Type select moved OUTSIDE the form so UOM + Price disable react instantly.
-# + Service UOM list = ['Serving'] (still shows current non-Serving UOM for legacy rows).
-# + Prep UOM excludes 'service'.
-# + Price disables immediately when type='prep' (new or edit).
-# + Buttons inline: Save / Delete / Clear; Save label simplified to 'Save'.
+# 2025-09-08 / Group B
+# + UOM dropdown + type-aware behavior; price disabled for prep; type selector outside form.
+#
+# 2025-09-08 / Group C (simplified)
+# ~ Removed: Delete and Clear buttons (manual actions instead).
+# + Save-only form; reliable submit; st.rerun() after success to refresh grid/summary.
+# + Optional DEBUG sidebar logs (set DEBUG=True).
 # ============================================================================
 
 import streamlit as st
@@ -19,6 +19,15 @@ from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from utils.supabase import supabase
 
+st.set_page_config(page_title="Recipes", layout="wide")
+
+# ── Debug switch ──────────────────────────────────────────────────────────────
+DEBUG = False
+def dlog(msg):
+    if DEBUG:
+        st.sidebar.write(f"🛠️ {msg}")
+# ──────────────────────────────────────────────────────────────────────────────
+
 # Auth (kept as-is)
 try:
     from utils.auth import require_auth
@@ -26,13 +35,11 @@ try:
 except Exception:
     pass
 
-st.set_page_config(page_title="Recipes", layout="wide")
 st.title("📘 Recipes")
 
 # -----------------------------
 # Helpers
 # -----------------------------
-
 def fetch_recipes_df() -> pd.DataFrame:
     """Load base recipes using new schema fields."""
     res = supabase.table("recipes").select(
@@ -49,7 +56,6 @@ def fetch_recipes_df() -> pd.DataFrame:
             df[c] = pd.to_numeric(df[c], errors="coerce")
     return df
 
-
 def fetch_recipe_summary_map() -> pd.DataFrame:
     """Pull summary rows (by recipe_id) for cost aggregation (we rely on recipe_id, total_cost)."""
     res = supabase.table("recipe_summary").select("recipe_id, total_cost").execute()
@@ -57,7 +63,6 @@ def fetch_recipe_summary_map() -> pd.DataFrame:
     if "total_cost" not in s.columns:
         s["total_cost"] = None
     return s
-
 
 def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.DataFrame:
     """Merge base recipes with summary costs, compute KPIs as numerics."""
@@ -89,7 +94,6 @@ def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.Data
     ]
     return df[[c for c in ordered if c in df.columns]]
 
-
 def fetch_uom_options() -> list:
     """Return sorted unique union of from_uom/to_uom from ref_uom_conversion."""
     res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
@@ -100,9 +104,8 @@ def fetch_uom_options() -> list:
         if fu: uoms.add(str(fu))
         if tu: uoms.add(str(tu))
     if not uoms:
-        uoms = {"Serving"}  # minimal defensive fallback; you said Serving exists
+        uoms = {"Serving"}  # minimal defensive fallback
     return sorted(uoms)
-
 
 def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms: list) -> list:
     """
@@ -115,24 +118,19 @@ def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms
     if recipe_type == "prep":
         choices = [u for u in uoms if u.lower() != "service"]
         return sorted(set(choices), key=str.lower)
-
     if recipe_type == "service":
         base = ["Serving"]
         if current_uom and current_uom not in base:
             base.append(current_uom)
         return base
-
-    # Unknown / not chosen yet
     if current_uom and current_uom in uoms:
         return [current_uom] + [u for u in uoms if u != current_uom]
     return uoms
-
 
 # -----------------------------
 # Filters (horizontal)
 # -----------------------------
 f1, f2, _ = st.columns([1, 1, 1])
-
 with f1:
     status_filter = st.radio("Status", options=["All", "Active", "Inactive"], index=1, horizontal=True)
 with f2:
@@ -153,7 +151,7 @@ grid_source_df = assemble_grid_df(base_df, summary_df)
 display_df = grid_source_df.copy()
 
 # -----------------------------
-# Grid
+# Grid (AgGrid)
 # -----------------------------
 gb = GridOptionsBuilder.from_dataframe(display_df)
 gb.configure_default_column(editable=False, filter=True, sortable=True)
@@ -233,6 +231,7 @@ if selected_row is not None:
         selected_code = None
 
     if selected_code:
+        dlog(f"Selected row recipe_code={selected_code}")
         # Reload full row from DB for accurate edit payload
         orig_res = supabase.table("recipes").select(
             "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
@@ -252,9 +251,10 @@ with st.sidebar:
     type_index   = (type_options.index(default_type) if default_type in type_options else 1)
     selected_recipe_type = st.selectbox("Recipe Type", type_options, index=type_index, key="recipe_type_selector")
     selected_recipe_type = None if selected_recipe_type == "— Select —" else selected_recipe_type
+    dlog(f"type={selected_recipe_type} edit_mode={edit_mode}")
 
     # -------------------------
-    # Form (depends on selected_recipe_type)
+    # Save-only Form
     # -------------------------
     with st.form("recipe_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
@@ -276,7 +276,6 @@ with st.sidebar:
         current_uom = edit_data.get("yield_uom") if edit_mode else None
         uom_choices = build_uom_choices(selected_recipe_type, current_uom, all_uoms)
 
-        # Include current explicitly if not in choices (defensive)
         if current_uom and current_uom not in uom_choices:
             uom_choices = [current_uom] + [u for u in uom_choices if u != current_uom]
 
@@ -284,7 +283,6 @@ with st.sidebar:
         if edit_mode and current_uom:
             idx = next((i for i, u in enumerate(uom_choices) if u == current_uom), 0)
         else:
-            # New row default for service: 'Serving'; otherwise first choice
             if selected_recipe_type == "service":
                 desired = "Serving"
                 idx = next((i for i, u in enumerate(uom_choices) if u == desired), 0)
@@ -297,40 +295,28 @@ with st.sidebar:
         price_val = float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
         price = st.number_input("Price", min_value=0.0, step=0.01, value=price_val, disabled=(selected_recipe_type == "prep"))
 
-        # Buttons inline
-        c1, c2, c3 = st.columns(3)
-        save_btn   = c1.form_submit_button("Save")
-        delete_btn = c2.form_submit_button("Delete", disabled=not edit_mode)
-        clear_btn  = c3.form_submit_button("Clear", disabled=True)  # Group C will handle
-
-        if clear_btn:
-            st.info("Clear behavior will be implemented in Group C.")
-
-        # Validation
-        errors = []
-        if not name: errors.append("Name")
-        if not code: errors.append("Recipe Code")
-        if not status: errors.append("Status")
-        if not selected_recipe_type: errors.append("Recipe Type")
-        if not yield_uom: errors.append("Yield UOM")
-
-        # Actions
-        if delete_btn and edit_mode:
-            try:
-                supabase.table("recipes").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
-                st.success("Recipe set to Inactive.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Failed to delete (soft): {e}")
+        # Single, reliable submit button
+        save_btn = st.form_submit_button("Save")
 
         if save_btn:
+            dlog("Save clicked")
+            errors = []
+            if not name: errors.append("Name")
+            if not code: errors.append("Recipe Code")
+            if not status: errors.append("Status")
+            if not selected_recipe_type: errors.append("Recipe Type")
+            if not yield_uom: errors.append("Yield UOM")
+
             if errors:
                 st.error(f"⚠️ Please complete: {', '.join(errors)}")
+                dlog(f"validation errors: {errors}")
             else:
+                # Uniqueness check on INSERT
                 if not edit_mode:
                     existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
                     if existing.data:
                         st.error("❌ Recipe code already exists.")
+                        dlog("duplicate code on insert")
                         st.stop()
 
                 payload = {
@@ -347,10 +333,12 @@ with st.sidebar:
                 try:
                     if edit_mode:
                         supabase.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
-                        st.success("Recipe updated.")
+                        st.success("✅ Recipe updated.")
                     else:
                         supabase.table("recipes").insert(payload).execute()
-                        st.success("Recipe added.")
+                        st.success("✅ Recipe added.")
+                    # Refresh grid/summary so KPIs & row list are current
                     st.rerun()
                 except Exception as e:
                     st.error(f"Failed to save recipe: {e}")
+                    dlog(f"save exception: {e}")
