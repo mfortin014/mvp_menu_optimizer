@@ -6,7 +6,7 @@ command -v pg_dump >/dev/null || { echo "❌ pg_dump not found in PATH."; exit 1
 
 # Ensure .env file exists
 if [[ ! -f .env ]]; then
-  echo "❌ .env file not found. Please create it with your SUPABASE_URL."
+  echo "❌ .env file not found. Please create it with your DATABASE_URL."
   exit 1
 fi
 
@@ -16,7 +16,7 @@ set -a
 source .env
 set +a
 
-: "${SUPABASE_URL:?❌ SUPABASE_URL not set in .env}"
+: "${DATABASE_URL:?❌ DATABASE_URL not set in .env}"
 
 # Create schema directory if it doesn't exist
 mkdir -p schema
@@ -31,7 +31,7 @@ while [[ -e "$outfile" ]]; do
 done
 
 echo "🔄 Dumping Supabase schema to $outfile ..."
-pg_dump "$SUPABASE_URL" \
+pg_dump "$DATABASE_URL" \
   --schema-only \
   --no-owner \
   --no-privileges \
