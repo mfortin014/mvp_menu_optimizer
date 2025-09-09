@@ -1,0 +1,1 @@
+Note that while the plan was to use this folder for migrations. Lots of the schema changes were executed directly on the db side up to now.
