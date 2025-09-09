@@ -243,7 +243,7 @@ if not sel_df.empty:
         }
 
 # -----------------------------
-# Sidebar form (Add / Update / Delete / Clear)
+# Sidebar form — Save-only (handles add & update)
 # -----------------------------
 
 with st.sidebar:
@@ -296,28 +296,10 @@ with st.sidebar:
         note_val = edit_data["note"] if edit_data else ""
         note = st.text_area("Note (optional)", value=note_val)
 
-        # Buttons: Add (no selection) OR Update/Delete/Clear (when a row is selected)
-        add_btn = update_btn = delete_btn = clear_btn = False
-        if edit_data:
-            colA, colB, colC = st.columns(3)
-            update_btn = colA.form_submit_button("Update")
-            delete_btn = colB.form_submit_button("Delete")
-            clear_btn  = colC.form_submit_button("Clear")
-        else:
-            add_btn = st.form_submit_button("Add Line")
+        # Single button: Save (adds or updates depending on selection)
+        save_btn = st.form_submit_button("Save")
 
-        # Actions
-        if delete_btn and edit_data:
-            supabase.table("recipe_lines").delete().eq("id", edit_data["recipe_line_id"]).execute()
-            st.success("Line deleted.")
-            st.rerun()
-
-        if clear_btn and edit_data:
-            # Clear selection by reloading the page (no row selected)
-            st.rerun()
-
-        # Validate only for add/update
-        if add_btn or (update_btn and edit_data):
+        if save_btn:
             errors = []
             if not ingredient_id:
                 errors.append("Ingredient/Recipe")
@@ -333,7 +315,7 @@ with st.sidebar:
                     "qty_uom": qty_uom,
                     "note": note or None
                 }
-                upsert_recipe_line(edit_data is not None and update_btn, (edit_data or {}).get("recipe_line_id"), payload)
+                upsert_recipe_line(edit_data is not None, (edit_data or {}).get("recipe_line_id"), payload)
                 st.success("Line saved.")
                 st.rerun()
 
