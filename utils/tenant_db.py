@@ -48,7 +48,14 @@ def _tid() -> str:
     if t:
         return t
 
-    # Fall back to env default (ID first, then CODE), else first tenant by name
+    # 1) DB default (and active)
+    r = supabase.table("tenants").select("id").eq("is_default", True).eq("is_active", True).limit(1).execute()
+    if r.data:
+        tid = r.data[0]["id"]
+        set_active_tenant(tid)
+        return tid
+
+    # 2) ENV default (ID first, then CODE)
     want_id = os.getenv("DEFAULT_TENANT_ID", "").strip()
     if want_id:
         r = supabase.table("tenants").select("id").eq("id", want_id).limit(1).execute()
@@ -64,7 +71,7 @@ def _tid() -> str:
             set_active_tenant(tid)
             return tid
 
-    # Last-resort fallback
+    # 3) Fallback: first by name
     r = supabase.table("tenants").select("id").order("name").limit(1).execute()
     if not r.data:
         raise RuntimeError("No tenants provisioned.")
