@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.supabase import supabase
-from components.tenant_switcher import render as tenant_switcher
+from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
 from utils.cache import cache_by_tenant
 
@@ -17,7 +17,7 @@ except Exception:
 st.set_page_config(page_title="Recipe Editor", layout="wide")
 st.title("📝 Recipe Editor")
 
-tenant_switcher(in_sidebar=True)  # or False to place in the body
+client_badge(page_name="Ingredients")   # or False to place in the body
 
 # -----------------------------
 # Data helpers

@@ -3,7 +3,7 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 from utils.auth import require_auth
-from components.tenant_switcher import render as tenant_switcher
+from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
 
 require_auth()
@@ -11,7 +11,7 @@ st.set_page_config(page_title="Ingredients", layout="wide")
 st.title("🥦 Ingredients")
 
 # Always render switcher before any tenant-scoped queries
-tenant_switcher(in_sidebar=True)
+client_badge(page_name="Ingredients") 
 
 # ---------- Data loaders ----------
 def fetch_ingredients_df() -> pd.DataFrame:

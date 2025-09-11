@@ -4,7 +4,7 @@ from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import streamlit as st
 from utils.auth import require_auth
-from components.tenant_switcher import render as tenant_switcher
+from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
 
 require_auth()
@@ -12,7 +12,7 @@ require_auth()
 
 st.set_page_config(page_title="Ingredient Categories", layout="wide")
 st.title("📋 Ingredient Categories")
-tenant_switcher(in_sidebar=True)  # or False to place in the body
+client_badge(page_name="Ingredients")   # or False to place in the body
 
 # === Fetch Categories ===
 def fetch_categories():

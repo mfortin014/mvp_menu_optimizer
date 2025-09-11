@@ -20,7 +20,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from components.tenant_switcher import render as tenant_switcher
+from components.active_client_badge import render as client_badge
 
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
@@ -29,7 +29,7 @@ from utils import tenant_db as db
 
 st.set_page_config(page_title="Recipes", layout="wide")
 
-tenant_switcher(in_sidebar=True)  # or False to place in the body
+client_badge(page_name="Ingredients")   # or False to place in the body
 
 # ── Debug switch ──────────────────────────────────────────────────────────────
 DEBUG = False  # Flip to True to see sidebar logs during Save
