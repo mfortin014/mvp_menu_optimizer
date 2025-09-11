@@ -47,16 +47,18 @@ def render(in_sidebar: bool = True, label: str = "Active client"):
     id_by_name = {t["name"]: t["id"] for t in tenants}
     names = list(id_by_name.keys())
 
-    # Find the current name from the active id
+    # Resolve the current name from the active id
     current_name = next((n for n, tid in id_by_name.items() if tid == current), names[0])
 
-    # Pre-seed widget state so the selectbox shows the real active tenant on first render
-    if "tenant_select" not in st.session_state:
+    # 🔧 Always sync the widget state to the real active tenant before rendering
+    if st.session_state.get("tenant_select") != current_name:
         st.session_state["tenant_select"] = current_name
 
+    # Render selectbox bound to the synced session key
     chosen_name = container.selectbox(label, names, key="tenant_select")
     chosen_id = id_by_name[chosen_name]
 
     if chosen_id != current:
         set_active_tenant(chosen_id)
         st.rerun()
+
