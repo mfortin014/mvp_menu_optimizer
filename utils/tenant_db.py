@@ -2,6 +2,7 @@
 from typing import Any, Dict, List, Optional
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant
+from utils import tenant_db as db
 
 Json = Dict[str, Any]
 

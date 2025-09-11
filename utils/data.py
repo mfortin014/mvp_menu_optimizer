@@ -6,6 +6,7 @@ import streamlit as st
 from typing import Dict, List, Optional, Any
 
 from utils.supabase import supabase
+from utils import tenant_db as db
 
 
 # -----------------------------
@@ -31,7 +32,7 @@ def load_recipes_summary() -> pd.DataFrame:
       - popularity := 0 if absent (until sales upload exists)
     """
     try:
-        res = supabase.table("recipe_summary").select("*").execute()
+        res = db.table("recipe_summary").select("*").execute()
         df = _to_df(res)
 
         if df.empty:
@@ -70,12 +71,12 @@ def load_recipes_summary() -> pd.DataFrame:
 # -----------------------------
 
 def load_recipe_list() -> List[str]:
-    res = supabase.table("recipes").select("name").order("name").execute()
+    res = db.table("recipes").select("name").order("name").execute()
     return [r["name"] for r in (res.data or [])]
 
 
 def get_recipe_id_by_name(name: str) -> Optional[str]:
-    res = supabase.table("recipes").select("id").eq("name", name).single().execute()
+    res = db.table("recipes").select("id").eq("name", name).single().execute()
     return res.data["id"] if res.data else None
 
 
@@ -84,7 +85,7 @@ def load_recipe_details(recipe_name: str) -> pd.DataFrame:
     Uses existing get_recipe_details(rid uuid) RPC. We first resolve the recipe id by name,
     then call the RPC and augment it with selling_price for convenience.
     """
-    recipe = supabase.table("recipes").select("id, price").eq("name", recipe_name).single().execute()
+    recipe = db.table("recipes").select("id, price").eq("name", recipe_name).single().execute()
     if not recipe.data:
         return pd.DataFrame()
 
@@ -124,7 +125,7 @@ def add_recipe(
         if recipe_category:
             payload["recipe_category"] = recipe_category
 
-        res = supabase.table("recipes").insert(payload).execute()
+        res = db.insert("recipes", payload).execute()
         return getattr(res, "status_code", 400) in (200, 201)
     except Exception as e:
         print("Error adding recipe:", e)
@@ -187,7 +188,7 @@ def get_input_catalog() -> pd.DataFrame:
       Columns expected: id, source ('ingredient'|'recipe'), code, name, base_uom
     """
     try:
-        res = supabase.table("input_catalog").select("*").order("name").execute()
+        res = db.table("input_catalog").select("*").order("name").execute()
         df = _to_df(res)
         # Canonical display label for UI dropdowns
         if not df.empty:
@@ -249,7 +250,7 @@ def add_recipe_line(
         payload["note"] = note
 
     try:
-        res = supabase.table("recipe_lines").insert(payload).execute()
+        res = db.insert("recipe_lines", payload).execute()
         return getattr(res, "status_code", 400) in (200, 201)
     except Exception as e:
         print("Error adding recipe line:", e)
@@ -290,7 +291,7 @@ def get_unit_costs_for_inputs(inputs: List[Dict[str, str]]) -> pd.DataFrame:
 @st.cache_data(ttl=60)
 def load_ingredient_master() -> pd.DataFrame:
     try:
-        res = supabase.table("ingredients").select("*").execute()
+        res = db.table("ingredients").select("*").execute()
         return _to_df(res)
     except Exception as e:
         st.error(f"Failed to load ingredients: {e}")
@@ -298,7 +299,7 @@ def load_ingredient_master() -> pd.DataFrame:
 
 
 def get_ingredient_id_by_name(name: str) -> Optional[str]:
-    res = supabase.table("ingredients").select("id").eq("name", name).single().execute()
+    res = db.table("ingredients").select("id").eq("name", name).single().execute()
     return res.data["id"] if res.data else None
 
 
@@ -313,7 +314,7 @@ def get_uom_list() -> List[str]:
     Identity conversions should already exist (g->g, ml->ml, etc.).
     """
     try:
-        res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+        res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
         df = _to_df(res)
         if df.empty:
             return []
@@ -325,5 +326,5 @@ def get_uom_list() -> List[str]:
 
 @st.cache_data(ttl=60)
 def get_active_ingredient_categories() -> List[Dict[str, Any]]:
-    res = supabase.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
+    res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
     return res.data or []

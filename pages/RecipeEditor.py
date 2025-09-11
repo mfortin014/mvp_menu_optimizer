@@ -4,6 +4,7 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.supabase import supabase
 from components.tenant_switcher import render as tenant_switcher
+from utils import tenant_db as db
 
 
 # Auth wrapper (optional in MVP env)
@@ -32,14 +33,14 @@ def fetch_recipes_active():
 
 def fetch_recipe_core(recipe_id: str) -> dict:
     """Single base recipe row with name, price, type, yield."""
-    res = supabase.table("recipes").select(
+    res = db.table("recipes").select(
         "name, price, recipe_type, yield_qty, yield_uom"
     ).eq("id", recipe_id).single().execute()
     return res.data or {}
 
 def fetch_input_catalog():
     # Active ingredients + active prep recipes (backed by input_catalog view)
-    res = supabase.table("input_catalog").select("*").execute()
+    res = db.table("input_catalog").select("*").execute()
     rows = res.data or []
     for r in rows:
         r["label"] = f"{r.get('name','')} – {r.get('code','')}"
@@ -47,7 +48,7 @@ def fetch_input_catalog():
 
 def fetch_all_recipe_lines_pairs():
     # For dependency graph (edges among recipes only)
-    res = supabase.table("recipe_lines").select("recipe_id, ingredient_id").execute()
+    res = db.table("recipe_lines").select("recipe_id, ingredient_id").execute()
     return res.data or []
 
 def compute_ancestor_recipes(current_recipe_id, all_lines, all_recipe_ids):
@@ -75,12 +76,12 @@ def compute_ancestor_recipes(current_recipe_id, all_lines, all_recipe_ids):
 
 def fetch_recipe_summary_row(recipe_id: str):
     # Might return 0 rows (e.g., for prep recipes)
-    res = supabase.table("recipe_summary").select("*").eq("recipe_id", recipe_id).execute()
+    res = db.table("recipe_summary").select("*").eq("recipe_id", recipe_id).execute()
     rows = res.data or []
     return rows[0] if rows else None
 
 def fetch_prep_costs_row(recipe_id: str):
-    res = supabase.table("prep_costs").select("*").eq("recipe_id", recipe_id).execute()
+    res = db.table("prep_costs").select("*").eq("recipe_id", recipe_id).execute()
     rows = res.data or []
     return rows[0] if rows else None
 
@@ -99,7 +100,7 @@ def fetch_notes_map(recipe_id):
     return {r["id"]: r.get("note") for r in (res.data or [])}
 
 def fetch_uom_options():
-    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     rows = res.data or []
     uoms = set()
     for r in rows:

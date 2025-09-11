@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 import os
 from dotenv import load_dotenv
+from utils import tenant_db as db
 
 load_dotenv()
 

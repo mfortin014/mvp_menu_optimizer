@@ -5,6 +5,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import streamlit as st
 from utils.auth import require_auth
 from components.tenant_switcher import render as tenant_switcher
+from utils import tenant_db as db
 
 require_auth()
 
@@ -15,7 +16,7 @@ tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 # === Fetch Categories ===
 def fetch_categories():
-    res = supabase.table("ref_ingredient_categories").select("*").execute()
+    res = db.table("ref_ingredient_categories").select("*").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 df = fetch_categories()
@@ -83,7 +84,7 @@ with st.sidebar:
                     supabase.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Category updated.")
                 else:
-                    supabase.table("ref_ingredient_categories").insert(data).execute()
+                    db.insert("ref_ingredient_categories", data).execute()
                     st.success("Category added.")
                 st.rerun()
 

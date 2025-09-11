@@ -25,6 +25,7 @@ from components.tenant_switcher import render as tenant_switcher
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from utils.supabase import supabase
+from utils import tenant_db as db
 
 st.set_page_config(page_title="Recipes", layout="wide")
 
@@ -51,7 +52,7 @@ st.title("📘 Recipes")
 # -----------------------------
 def fetch_recipes_df() -> pd.DataFrame:
     """Load base recipes using new schema fields."""
-    res = supabase.table("recipes").select(
+    res = db.table("recipes").select(
         "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
     ).order("name").execute()
     df = pd.DataFrame(res.data or [])
@@ -67,7 +68,7 @@ def fetch_recipes_df() -> pd.DataFrame:
 
 def fetch_recipe_summary_map() -> pd.DataFrame:
     """Pull summary rows (by recipe_id) for cost aggregation (we rely on recipe_id, total_cost)."""
-    res = supabase.table("recipe_summary").select("recipe_id, total_cost").execute()
+    res = db.table("recipe_summary").select("recipe_id, total_cost").execute()
     s = pd.DataFrame(res.data or [])
     if "total_cost" not in s.columns:
         s["total_cost"] = None
@@ -105,7 +106,7 @@ def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.Data
 
 def fetch_uom_options() -> list:
     """Return sorted unique union of from_uom/to_uom from ref_uom_conversion."""
-    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     rows = res.data or []
     uoms = set()
     for r in rows:
@@ -276,7 +277,7 @@ if selected_row is not None:
     if selected_code:
         dlog(f"Selected row recipe_code={selected_code}")
         # Reload full row from DB for accurate edit payload
-        orig_res = supabase.table("recipes").select(
+        orig_res = db.table("recipes").select(
             "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
         ).eq("recipe_code", selected_code).limit(1).execute()
         if orig_res.data:
@@ -356,7 +357,7 @@ with st.sidebar:
             else:
                 # Uniqueness check on INSERT
                 if not edit_mode:
-                    existing = supabase.table("recipes").select("id").eq("recipe_code", code).execute()
+                    existing = db.table("recipes").select("id").eq("recipe_code", code).execute()
                     if existing.data:
                         st.error("❌ Recipe code already exists.")
                         dlog("duplicate code on insert")
@@ -378,7 +379,7 @@ with st.sidebar:
                         supabase.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
                         st.success("✅ Recipe updated.")
                     else:
-                        supabase.table("recipes").insert(payload).execute()
+                        db.insert("recipes", payload).execute()
                         st.success("✅ Recipe added.")
                     # Refresh grid/summary so KPIs & row list are current
                     st.rerun()

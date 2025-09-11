@@ -2,10 +2,11 @@
 import streamlit as st
 from utils.supabase import supabase
 from utils.tenant_state import set_active_tenant, get_active_tenant
+from utils import tenant_db as db
 
 @st.cache_data(ttl=60)
 def _load_tenants():
-    resp = supabase.table("tenants").select("id,name").order("name").execute()
+    resp = db.table("tenants").select("id,name").order("name").execute()
     return resp.data or []
 
 def render(in_sidebar: bool = True, label: str = "Active client"):

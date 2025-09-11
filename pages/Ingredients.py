@@ -4,6 +4,7 @@ from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.auth import require_auth
 from components.tenant_switcher import render as tenant_switcher
+from utils import tenant_db as db
 
 require_auth()
 
@@ -14,28 +15,28 @@ tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 # === Helper Functions ===
 def fetch_ingredients():
-    res = supabase.table("ingredients").select("*").order("name").execute()
+    res = db.table("ingredients").select("*").order("name").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 def fetch_ingredient_costs():
-    res = supabase.table("ingredient_costs").select("ingredient_code, unit_cost").execute()
+    res = db.table("ingredient_costs").select("ingredient_code, unit_cost").execute()
     return {row["ingredient_code"]: row["unit_cost"] for row in res.data} if res.data else {}
 
 def fetch_uoms():
-    res = supabase.table("ref_uom_conversion").select("from_uom").execute()
+    res = db.table("ref_uom_conversion").select("from_uom").execute()
     return sorted(set(row["from_uom"] for row in res.data)) if res.data else []
 
 def fetch_categories():
-    res = supabase.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
+    res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
     return res.data if res.data else []
 
 def fetch_storage_types():
-    res = supabase.table("ref_storage_type").select("id, name").eq("status", "Active").execute()
+    res = db.table("ref_storage_type").select("id, name").eq("status", "Active").execute()
     return res.data if res.data else []
 
 # Build from_uom → to_uom (only for g/ml targets)
 def fetch_base_uom_map():
-    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     return {
         row["from_uom"]: row["to_uom"]
         for row in res.data
@@ -223,7 +224,7 @@ with st.sidebar:
                     supabase.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Ingredient updated.")
                 else:
-                    supabase.table("ingredients").insert(data).execute()
+                    db.insert("ingredients", data).execute()
                     st.success("Ingredient added.")
                 st.rerun()
 
