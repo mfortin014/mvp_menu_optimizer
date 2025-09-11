@@ -10,7 +10,7 @@ fi
 
 DB_URL="${DB_URL:-${SUPABASE_DB_URL:-${DATABASE_URL:-}}}"
 
-MIGRATIONS_DIR="${MIGRATIONS_DIR:-migrations}"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-migrations/sql}"
 CMD="${1:-}"
 shift || true
 
