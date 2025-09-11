@@ -1,9 +1,9 @@
 # utils/tenant_db.py
+import os
 from typing import Any, Dict, List, Optional, Set
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 from utils import tenant_db as db
-import os
 
 Json = Dict[str, Any]
 
@@ -48,29 +48,29 @@ def _tid() -> str:
     if t:
         return t
 
-    # Preferred default via env
-    want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
-    want_id   = os.getenv("DEFAULT_TENANT_ID", "").strip()
-
+    # Fall back to env default (ID first, then CODE), else first tenant by name
+    want_id = os.getenv("DEFAULT_TENANT_ID", "").strip()
     if want_id:
         r = supabase.table("tenants").select("id").eq("id", want_id).limit(1).execute()
         if r.data:
-            set_active_tenant(r.data[0]["id"])
-            return r.data[0]["id"]
+            set_active_tenant(want_id)
+            return want_id
 
+    want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
     if want_code:
         r = supabase.table("tenants").select("id").eq("code", want_code).limit(1).execute()
         if r.data:
-            set_active_tenant(r.data[0]["id"])
-            return r.data[0]["id"]
+            tid = r.data[0]["id"]
+            set_active_tenant(tid)
+            return tid
 
-    # Fallback: first by name
-    resp = supabase.table("tenants").select("id").order("name").limit(1).execute()
-    rows = resp.data or []
-    if not rows:
-        raise RuntimeError("No tenants provisioned. Create one in DB first.")
-    set_active_tenant(rows[0]["id"])
-    return rows[0]["id"]
+    # Last-resort fallback
+    r = supabase.table("tenants").select("id").order("name").limit(1).execute()
+    if not r.data:
+        raise RuntimeError("No tenants provisioned.")
+    tid = r.data[0]["id"]
+    set_active_tenant(tid)
+    return tid
 
 
 
