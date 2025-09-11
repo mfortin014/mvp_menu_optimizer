@@ -14,6 +14,13 @@ TENANT_SCOPED: Set[str] = {
     "ref_ingredient_categories",
     "ref_storage_type",
     "sales",
+    "ingredient_costs",
+    "input_catalog",
+    "recipe_line_costs",
+    "recipe_line_costs_base",
+    "recipe_summary",
+    "prep_costs",
+    "missing_uom_conversions",
     # add more here as you tenant-scope them
 }
 
