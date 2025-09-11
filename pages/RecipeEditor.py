@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.supabase import supabase
+from components.tenant_switcher import render as tenant_switcher
+
 
 # Auth wrapper (optional in MVP env)
 try:
@@ -13,6 +15,8 @@ except Exception:
 
 st.set_page_config(page_title="Recipe Editor", layout="wide")
 st.title("📝 Recipe Editor")
+
+tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 # -----------------------------
 # Data helpers

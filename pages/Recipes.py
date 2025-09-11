@@ -20,11 +20,15 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from components.tenant_switcher import render as tenant_switcher
+
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from utils.supabase import supabase
 
 st.set_page_config(page_title="Recipes", layout="wide")
+
+tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 # ── Debug switch ──────────────────────────────────────────────────────────────
 DEBUG = False  # Flip to True to see sidebar logs during Save

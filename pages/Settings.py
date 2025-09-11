@@ -3,10 +3,14 @@ import pandas as pd
 from utils.supabase import supabase
 from datetime import datetime
 from utils.auth import require_auth
+from components.tenant_switcher import render as tenant_switcher
+
 require_auth()
 
 st.set_page_config(page_title="⚙️ Settings", layout="wide")
 st.title("⚙️ Settings")
+
+tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 st.header("🔧 Backfill Missing Base UOMs")
 

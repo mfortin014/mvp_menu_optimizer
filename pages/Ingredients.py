@@ -3,10 +3,14 @@ import pandas as pd
 from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.auth import require_auth
+from components.tenant_switcher import render as tenant_switcher
+
 require_auth()
 
 st.set_page_config(page_title="Ingredients", layout="wide")
 st.title("🥦 Ingredients")
+
+tenant_switcher(in_sidebar=True)  # or False to place in the body
 
 # === Helper Functions ===
 def fetch_ingredients():

@@ -5,10 +5,13 @@ import altair as alt
 from utils.data import load_recipes_summary
 from utils.theme import get_primary_color, get_logo_path
 from utils.auth import require_auth
+from components.tenant_switcher import render as tenant_switcher
+
 require_auth()
 
 # Setup
 st.set_page_config(page_title="Home", layout="wide")
+tenant_switcher(in_sidebar=True)  # or False to place in the body
 with st.sidebar:
     st.image(get_logo_path(), use_column_width=True)
 st.markdown(f"<h1 style='color:{get_primary_color()}'>🏠 Home</h1>", unsafe_allow_html=True)
