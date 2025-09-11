@@ -42,7 +42,7 @@ with switch_tab:
 
     col_load, _ = st.columns([1,3])
     with col_load:
-        if st.button("Load client"):
+        if st.button("Load client", key="btn_switch_load"):
             if chosen_id and chosen_id != cur_tid:
                 set_active_tenant(chosen_id)
                 st.success(f"Loaded: {chosen_name}")
@@ -69,8 +69,7 @@ with manage_tab:
             brand_primary = st.text_input("Primary color (hex)", value=sel_row.get("brand_primary","#111827"))
             brand_secondary = st.text_input("Secondary color (hex)", value=sel_row.get("brand_secondary","#6b7280"))
 
-            submitted = st.form_submit_button("Save client")
-            if submitted:
+            if st.form_submit_button("Save client"):
                 if not name or not code:
                     st.error("Name and Code are required.")
                 else:
@@ -95,22 +94,21 @@ with manage_tab:
 
         if sel_row.get("id"):
             c1, c2 = st.columns(2)
-            if c1.button("Load client"):
+            if c1.button("Load client", key="btn_manage_load"):
                 set_active_tenant(sel_row["id"])
                 st.success(f"Loaded: {sel_row['name']}")
                 st.rerun()
-            if c2.button("Clear selection"):
+            if c2.button("Clear selection", key="btn_manage_clear"):
                 st.session_state.pop("_clients_sel_row", None)
                 st.rerun()
 
     with right:
         st.subheader("Clients")
-        # Use full df but hide id in the grid
         table_df = df_all.copy()
         gb = GridOptionsBuilder.from_dataframe(table_df)
         gb.configure_default_column(editable=False, filter=True, sortable=True)
         gb.configure_selection("single", use_checkbox=False)
-        gb.configure_column("id", hide=True)
+        gb.configure_column("id", hide=True)  # hide id in UI
         grid = AgGrid(
             table_df,
             gridOptions=gb.build(),
@@ -120,7 +118,7 @@ with manage_tab:
             allow_unsafe_jscode=True,
         )
 
-        # Hydrate form state from exact selected row by id (works across reruns)
+        # Hydrate by id every run
         picked = grid["selected_rows"]
         picked_row = None
         if isinstance(picked, list) and picked:
@@ -129,8 +127,8 @@ with manage_tab:
             picked_row = picked.iloc[0].to_dict()
 
         if picked_row and picked_row.get("id"):
-            # Find the authoritative record from df_all by id
             full = df_all.loc[df_all["id"] == picked_row["id"]]
             if not full.empty:
                 st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+
 
