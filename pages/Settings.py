@@ -51,7 +51,7 @@ if st.button("Run Maintenance"):
 
     if updates:
         for u in updates:
-            supabase.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
+            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
 
         st.success(f"✅ Updated {len(updates)} ingredients with inferred base_uom.")
     else:
@@ -363,9 +363,9 @@ confirm = st.text_input("Type DELETE to confirm")
 if st.button("🧹 Scrub Dataset"):
     if confirm == "DELETE":
         try:
-            supabase.table("recipe_lines").delete().neq("id", "").execute()
-            supabase.table("recipes").delete().neq("id", "").execute()
-            supabase.table("ingredients").delete().neq("id", "").execute()
+            db.table("recipe_lines").delete().neq("id", "").execute()
+            db.table("recipes").delete().neq("id", "").execute()
+            db.table("ingredients").delete().neq("id", "").execute()
             st.success("✅ Dataset scrubbed successfully.")
         except Exception as e:
             st.error(f"❌ Failed to scrub dataset: {e}")

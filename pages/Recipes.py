@@ -376,7 +376,7 @@ with st.sidebar:
 
                 try:
                     if edit_mode:
-                        supabase.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
+                        db.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
                         st.success("✅ Recipe updated.")
                     else:
                         db.insert("recipes", payload).execute()

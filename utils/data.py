@@ -169,7 +169,7 @@ def update_recipe(
         return True  # nothing to do
 
     try:
-        res = supabase.table("recipes").update(data).eq("id", recipe_id).execute()
+        res = db.table("recipes").update(data).eq("id", recipe_id).execute()
         return getattr(res, "status_code", 400) in (200, 204)
     except Exception as e:
         print("Error updating recipe:", e)
@@ -259,7 +259,7 @@ def add_recipe_line(
 
 def delete_recipe_line(recipe_line_id: str) -> bool:
     try:
-        res = supabase.table("recipe_lines").delete().eq("id", recipe_line_id).execute()
+        res = db.table("recipe_lines").delete().eq("id", recipe_line_id).execute()
         return getattr(res, "status_code", 400) in (200, 204)
     except Exception as e:
         print("Error deleting recipe line:", e)

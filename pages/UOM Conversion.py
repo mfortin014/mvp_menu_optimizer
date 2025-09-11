@@ -93,7 +93,7 @@ with st.sidebar:
             else:
                 data = {"from_uom": from_uom, "to_uom": to_uom, "factor": factor}
                 if edit_mode:
-                    supabase.table("ref_uom_conversion").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ref_uom_conversion").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Conversion updated.")
                 else:
                     db.insert("ref_uom_conversion", data).execute()

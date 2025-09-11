@@ -81,7 +81,7 @@ with st.sidebar:
             else:
                 data = {"name": name, "status": status}
                 if edit_mode:
-                    supabase.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Category updated.")
                 else:
                     db.insert("ref_ingredient_categories", data).execute()
@@ -92,6 +92,6 @@ with st.sidebar:
         if st.button("Cancel"):
             st.rerun()
         if st.button("Delete"):
-            supabase.table("ref_ingredient_categories").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+            db.table("ref_ingredient_categories").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
             st.success("Category inactivated.")
             st.rerun()

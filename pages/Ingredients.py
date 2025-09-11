@@ -221,7 +221,7 @@ with st.sidebar:
                     "storage_type_id": storage_type_id
                 }
                 if edit_mode:
-                    supabase.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ingredients").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Ingredient updated.")
                 else:
                     db.insert("ingredients", data).execute()
@@ -232,6 +232,6 @@ with st.sidebar:
         if st.button("Cancel"):
             st.rerun()
         if st.button("Delete"):
-            supabase.table("ingredients").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+            db.table("ingredients").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
             st.success("Ingredient inactivated.")
             st.rerun()
