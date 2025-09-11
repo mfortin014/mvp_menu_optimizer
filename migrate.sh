@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DB_URL="${DB_URL:-${SUPABASE_DB_URL:-}}"
+# Try to auto-load .env if present and DB_URL/SUPABASE_DB_URL not set
+if [ -z "${DB_URL:-}" ] && [ -z "${SUPABASE_DB_URL:-}" ] && [ -f ".env" ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+DB_URL="${DB_URL:-${SUPABASE_DB_URL:-${DATABASE_URL:-}}}"
+
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-migrations}"
 CMD="${1:-}"
 shift || true
