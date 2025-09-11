@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Set
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 from utils import tenant_db as db
+import os
 
 Json = Dict[str, Any]
 
@@ -46,14 +47,31 @@ def _tid() -> str:
     t = get_active_tenant()
     if t:
         return t
-    # Lazy init: pick the first tenant if none is set yet
+
+    # Preferred default via env
+    want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
+    want_id   = os.getenv("DEFAULT_TENANT_ID", "").strip()
+
+    if want_id:
+        r = supabase.table("tenants").select("id").eq("id", want_id).limit(1).execute()
+        if r.data:
+            set_active_tenant(r.data[0]["id"])
+            return r.data[0]["id"]
+
+    if want_code:
+        r = supabase.table("tenants").select("id").eq("code", want_code).limit(1).execute()
+        if r.data:
+            set_active_tenant(r.data[0]["id"])
+            return r.data[0]["id"]
+
+    # Fallback: first by name
     resp = supabase.table("tenants").select("id").order("name").limit(1).execute()
     rows = resp.data or []
     if not rows:
         raise RuntimeError("No tenants provisioned. Create one in DB first.")
-    t = rows[0]["id"]
-    set_active_tenant(t)
-    return t
+    set_active_tenant(rows[0]["id"])
+    return rows[0]["id"]
+
 
 
 class _TenantTable:
