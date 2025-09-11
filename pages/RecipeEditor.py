@@ -24,7 +24,7 @@ tenant_switcher(in_sidebar=True)  # or False to place in the body
 # -----------------------------
 
 def fetch_recipes_active():
-    res = supabase.table("recipes") \
+    res = db.table("recipes") \
         .select("id, name, recipe_code, recipe_type, status") \
         .eq("status", "Active") \
         .order("name") \
@@ -86,14 +86,14 @@ def fetch_prep_costs_row(recipe_id: str):
     return rows[0] if rows else None
 
 def fetch_recipe_line_costs(recipe_id):
-    res = supabase.table("recipe_line_costs") \
+    res = db.table("recipe_line_costs") \
         .select("*") \
         .eq("recipe_id", recipe_id) \
         .execute()
     return res.data or []
 
 def fetch_notes_map(recipe_id):
-    res = supabase.table("recipe_lines") \
+    res = db.table("recipe_lines") \
         .select("id, note") \
         .eq("recipe_id", recipe_id) \
         .execute()
@@ -117,7 +117,7 @@ def rpc_unit_cost_map(ids):
     return {r["id"]: r["unit_cost"] for r in rows if r.get("unit_cost") is not None}
 
 def upsert_recipe_line(edit_mode, recipe_line_id, payload):
-    tbl = supabase.table("recipe_lines")
+    tbl = db.table("recipe_lines")
     if edit_mode and recipe_line_id:
         tbl.update(payload).eq("id", recipe_line_id).execute()
     else:

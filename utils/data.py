@@ -211,7 +211,7 @@ def get_recipe_lines(recipe_id: str) -> pd.DataFrame:
     Fetches raw lines and enriches them with display info from input_catalog.
     """
     lines = _to_df(
-        supabase.table("recipe_lines")
+        db.table("recipe_lines")
         .select("*")
         .eq("recipe_id", recipe_id)
         .order("created_at")
