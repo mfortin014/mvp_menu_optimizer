@@ -4,11 +4,12 @@ from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.auth import require_auth
 from utils import tenant_db as db
+from components.active_client_badge import render as client_badge
 require_auth()
 
 st.set_page_config(page_title="UOM Conversions", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("UOM Conversions")
-
 # === Fetch Conversions ===
 def fetch_conversions():
     res = db.table("ref_uom_conversion").select("*").execute()

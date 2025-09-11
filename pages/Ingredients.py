@@ -8,10 +8,9 @@ from utils import tenant_db as db
 
 require_auth()
 st.set_page_config(page_title="Ingredients", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("🥦 Ingredients")
 
-# Always render switcher before any tenant-scoped queries
-client_badge(page_name="Ingredients") 
 
 # ---------- Data loaders ----------
 def fetch_ingredients_df() -> pd.DataFrame:

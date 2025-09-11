@@ -11,8 +11,8 @@ require_auth()
 
 
 st.set_page_config(page_title="Ingredient Categories", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("📋 Ingredient Categories")
-client_badge(page_name="Ingredients")   # or False to place in the body
 
 # === Fetch Categories ===
 def fetch_categories():

@@ -15,9 +15,9 @@ except Exception:
     pass
 
 st.set_page_config(page_title="Recipe Editor", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("📝 Recipe Editor")
 
-client_badge(page_name="Ingredients")   # or False to place in the body
 
 # -----------------------------
 # Data helpers

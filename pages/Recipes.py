@@ -29,7 +29,7 @@ from utils import tenant_db as db
 
 st.set_page_config(page_title="Recipes", layout="wide")
 
-client_badge(page_name="Ingredients")   # or False to place in the body
+client_badge(clients_page_title="Clients")
 
 # ── Debug switch ──────────────────────────────────────────────────────────────
 DEBUG = False  # Flip to True to see sidebar logs during Save

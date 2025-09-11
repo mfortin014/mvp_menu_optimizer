@@ -9,9 +9,9 @@ from utils import tenant_db as db
 require_auth()
 
 st.set_page_config(page_title="⚙️ Settings", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("⚙️ Settings")
 
-client_badge(page_name="Ingredients")   # or False to place in the body
 
 st.header("🔧 Backfill Missing Base UOMs")
 
