@@ -57,20 +57,17 @@ with manage_tab:
 
     with left:
         st.subheader("Add / Edit")
-        # Selected row context (if any)
-        sel_row = st.session_state.get("_clients_sel_row")
-        # Form fields
-        with st.form("client_form"):
-            # Defaults from selection if exists
-            base = sel_row or {}
-            name = st.text_input("Name", value=base.get("name",""))
-            code = st.text_input("Code", value=base.get("code",""))
-            is_active = st.checkbox("Active", value=bool(base.get("is_active", True)))
-            is_default = st.checkbox("Make default", value=bool(base.get("is_default", False)))
+        sel_row = st.session_state.get("_clients_sel_row", {})
 
-            logo_url = st.text_input("Logo URL", value=base.get("logo_url",""))
-            brand_primary = st.text_input("Primary color (hex)", value=base.get("brand_primary","#111827"))
-            brand_secondary = st.text_input("Secondary color (hex)", value=base.get("brand_secondary","#6b7280"))
+        with st.form("client_form"):
+            name = st.text_input("Name", value=sel_row.get("name",""))
+            code = st.text_input("Code", value=sel_row.get("code",""))
+            is_active = st.checkbox("Active", value=bool(sel_row.get("is_active", True)))
+            is_default = st.checkbox("Make default", value=bool(sel_row.get("is_default", False)))
+
+            logo_url = st.text_input("Logo URL", value=sel_row.get("logo_url",""))
+            brand_primary = st.text_input("Primary color (hex)", value=sel_row.get("brand_primary","#111827"))
+            brand_secondary = st.text_input("Secondary color (hex)", value=sel_row.get("brand_secondary","#6b7280"))
 
             submitted = st.form_submit_button("Save client")
             if submitted:
@@ -86,26 +83,19 @@ with manage_tab:
                         "brand_primary": brand_primary or None,
                         "brand_secondary": brand_secondary or None,
                     }
-                    if base.get("id"):
-                        db.table("tenants").update(payload).eq("id", base["id"]).execute()
+                    if sel_row.get("id"):
+                        db.table("tenants").update(payload).eq("id", sel_row["id"]).execute()
                         st.success("Client updated.")
                     else:
                         db.insert("tenants", payload).execute()
                         st.success("Client created.")
-                    # If marked default, unset default on others (DB enforces at-most-one anyway)
-                    if is_default:
-                        supabase.rpc("sql", { "q": """
-                            update public.tenants set is_default = false
-                            where id <> (select id from public.tenants where code = %(code)s limit 1)
-                              and is_default = true;
-                        """, "params": {"code": code}})  # Optional: if you have a generic `sql` RPC; otherwise ignore
                     st.cache_data.clear()
                     st.session_state.pop("_clients_sel_row", None)
                     st.rerun()
 
-        if sel_row:
+        if sel_row.get("id"):
             c1, c2 = st.columns(2)
-            if c1.button("Make loaded"):
+            if c1.button("Load client"):
                 set_active_tenant(sel_row["id"])
                 st.success(f"Loaded: {sel_row['name']}")
                 st.rerun()
@@ -115,13 +105,12 @@ with manage_tab:
 
     with right:
         st.subheader("Clients")
-        # Build grid; hide id column
-        show_cols = ["name","code","is_active","is_default","logo_url","brand_primary","brand_secondary"]
-        table_df = df_all[show_cols] if not df_all.empty else pd.DataFrame(columns=show_cols)
-
+        # Use full df but hide id in the grid
+        table_df = df_all.copy()
         gb = GridOptionsBuilder.from_dataframe(table_df)
         gb.configure_default_column(editable=False, filter=True, sortable=True)
         gb.configure_selection("single", use_checkbox=False)
+        gb.configure_column("id", hide=True)
         grid = AgGrid(
             table_df,
             gridOptions=gb.build(),
@@ -131,16 +120,17 @@ with manage_tab:
             allow_unsafe_jscode=True,
         )
 
-        # Find the selected full row (by name+code to rehydrate id)
-        sel = grid["selected_rows"]
-        picked = None
-        if isinstance(sel, pd.DataFrame) and not sel.empty:
-            picked = sel.iloc[0].to_dict()
-        elif isinstance(sel, list) and sel:
-            picked = sel[0]
+        # Hydrate form state from exact selected row by id (works across reruns)
+        picked = grid["selected_rows"]
+        picked_row = None
+        if isinstance(picked, list) and picked:
+            picked_row = picked[0]
+        elif hasattr(picked, "empty") and not picked.empty:
+            picked_row = picked.iloc[0].to_dict()
 
-        if picked:
-            # Rehydrate full row (get id)
-            full = df_all.loc[(df_all["name"] == picked["name"]) & (df_all["code"] == picked["code"])]
+        if picked_row and picked_row.get("id"):
+            # Find the authoritative record from df_all by id
+            full = df_all.loc[df_all["id"] == picked_row["id"]]
             if not full.empty:
                 st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+
