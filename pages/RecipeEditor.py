@@ -5,7 +5,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.supabase import supabase
 from components.tenant_switcher import render as tenant_switcher
 from utils import tenant_db as db
-
+from utils.cache import cache_by_tenant
 
 # Auth wrapper (optional in MVP env)
 try:
@@ -122,6 +122,11 @@ def upsert_recipe_line(edit_mode, recipe_line_id, payload):
         tbl.update(payload).eq("id", recipe_line_id).execute()
     else:
         tbl.insert(payload).execute()
+
+@cache_by_tenant(ttl=60)
+def _load_recipe_picker():
+    return db.table("recipes").select("id,name,recipe_code,status,recipe_type") \
+            .eq("recipe_type","service").eq("status","Active").order("name").execute().data or []
 
 # -----------------------------
 # Recipe selection
