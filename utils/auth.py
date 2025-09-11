@@ -4,29 +4,30 @@ from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
 def ensure_client_selected_pre_auth():
-    """Render a client chooser (active clients only) before showing the password form.
-       Preselects DB default; if none, env default; else first by name.
+    """Show an active-clients picker above the password UI (always visible).
+       Preselects DB default; updates session tenant on selection change.
     """
-    if get_active_tenant():
-        return  # already chosen
-
-    # active clients only
+    # Load active clients
     r = supabase.table("tenants").select("id,name,is_default").eq("is_active", True).order("name").execute()
     data = r.data or []
     if not data:
         st.error("No active clients configured.")
         st.stop()
 
-    # pick default
-    default_id = next((row["id"] for row in data if row.get("is_default")), data[0]["id"])
-    names = [row["name"] for row in data]
-    name_to_id = {row["name"]: row["id"] for row in data}
-    default_name = next((row["name"] for row in data if row["id"] == default_id), names[0])
+    # Determine which should be selected by default in the widget
+    db_default_id = next((row["id"] for row in data if row.get("is_default")), data[0]["id"])
+    tenant_names = [row["name"] for row in data]
+    id_by_name = {row["name"]: row["id"] for row in data}
+    name_by_id = {row["id"]: row["name"] for row in data}
 
-    st.subheader("Choose client")
-    choice = st.selectbox("Client", names, index=names.index(default_name))
-    chosen_id = name_to_id[choice]
-    if chosen_id != get_active_tenant():
+    current = get_active_tenant() or db_default_id
+    current_name = name_by_id.get(current, name_by_id.get(db_default_id, tenant_names[0]))
+
+    st.subheader("Client")
+    choice = st.selectbox("Choose client", tenant_names, index=tenant_names.index(current_name), key="login_client_select")
+    chosen_id = id_by_name[choice]
+
+    if chosen_id != current:
         set_active_tenant(chosen_id)
 
 def require_auth():
