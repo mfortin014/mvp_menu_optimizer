@@ -53,8 +53,46 @@ with switch_tab:
 
 # ---------- MANAGE TAB ----------
 with manage_tab:
+    # make columns, but HANDLE SELECTION (grid) FIRST in code, THEN render the form
     left, right = st.columns([1.2, 2.2])
 
+    # --- RIGHT: GRID (selection) ---
+    with right:
+        st.subheader("Clients")
+        table_df = df_all.copy()
+        gb = GridOptionsBuilder.from_dataframe(table_df)
+        gb.configure_default_column(editable=False, filter=True, sortable=True)
+        gb.configure_selection("single", use_checkbox=False)
+        gb.configure_column("id", hide=True)  # hide id visually, keep in payload
+        grid = AgGrid(
+            table_df,
+            gridOptions=gb.build(),
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=True,
+            height=420,
+            allow_unsafe_jscode=True,
+        )
+
+        # Current sel_row (may be empty)
+        current_sel = st.session_state.get("_clients_sel_row", {})
+
+        # Read current selection from grid
+        picked = grid["selected_rows"]
+        picked_row = None
+        if isinstance(picked, list) and picked:
+            picked_row = picked[0]
+        elif hasattr(picked, "empty") and not picked.empty:
+            picked_row = picked.iloc[0].to_dict()
+
+        # If selection changed, hydrate session state by ID and rerun so the form picks it up immediately
+        if picked_row and picked_row.get("id"):
+            if picked_row.get("id") != current_sel.get("id"):
+                full = df_all.loc[df_all["id"] == picked_row["id"]]
+                if not full.empty:
+                    st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+                    st.experimental_rerun()
+
+    # --- LEFT: FORM (reads hydrated session state) ---
     with left:
         st.subheader("Add / Edit")
         sel_row = st.session_state.get("_clients_sel_row", {})
@@ -101,34 +139,5 @@ with manage_tab:
             if c2.button("Clear selection", key="btn_manage_clear"):
                 st.session_state.pop("_clients_sel_row", None)
                 st.rerun()
-
-    with right:
-        st.subheader("Clients")
-        table_df = df_all.copy()
-        gb = GridOptionsBuilder.from_dataframe(table_df)
-        gb.configure_default_column(editable=False, filter=True, sortable=True)
-        gb.configure_selection("single", use_checkbox=False)
-        gb.configure_column("id", hide=True)  # hide id in UI
-        grid = AgGrid(
-            table_df,
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=True,
-            height=420,
-            allow_unsafe_jscode=True,
-        )
-
-        # Hydrate by id every run
-        picked = grid["selected_rows"]
-        picked_row = None
-        if isinstance(picked, list) and picked:
-            picked_row = picked[0]
-        elif hasattr(picked, "empty") and not picked.empty:
-            picked_row = picked.iloc[0].to_dict()
-
-        if picked_row and picked_row.get("id"):
-            full = df_all.loc[df_all["id"] == picked_row["id"]]
-            if not full.empty:
-                st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
 
 
