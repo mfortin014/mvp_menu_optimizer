@@ -1,7 +1,7 @@
 # utils/tenant_db.py
 from typing import Any, Dict, List, Optional, Set
 from utils.supabase import supabase
-from utils.tenant_state import get_active_tenant
+from utils.tenant_state import get_active_tenant, set_active_tenant
 from utils import tenant_db as db
 
 Json = Dict[str, Any]
@@ -37,9 +37,17 @@ GLOBAL_TABLES: Set[str] = {
 
 def _tid() -> str:
     t = get_active_tenant()
-    if not t:
-        raise RuntimeError("No active tenant set in session_state.")
+    if t:
+        return t
+    # Lazy init: pick the first tenant if none is set yet
+    resp = supabase.table("tenants").select("id").order("name").limit(1).execute()
+    rows = resp.data or []
+    if not rows:
+        raise RuntimeError("No tenants provisioned. Create one in DB first.")
+    t = rows[0]["id"]
+    set_active_tenant(t)
     return t
+
 
 class _TenantTable:
     def __init__(self, name: str, include_deleted: bool = False):
