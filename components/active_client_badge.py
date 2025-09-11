@@ -2,6 +2,7 @@ import streamlit as st
 from typing import Optional
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
+from utils.branding import inject_brand_colors
 
 def _pick_default_tenant() -> Optional[str]:
     # Prefer DB default & active, else first by name
@@ -41,16 +42,18 @@ def _go_clients_page():
     st.info("Open the **Clients** page in the sidebar to change client.")
 
 def render(clients_page_title: str = "Clients", **_ignore_kwargs):
-    """Header badge + button. Back-compat: ignore any old kwargs."""
+    # ensure CSS vars are present (safe to call multiple times)
+    inject_brand_colors()
+
     tid = _ensure_loaded_tenant()
     name = _tenant_name(tid)
 
-    # Sleek header row (no big blue box)
     left, right = st.columns([5, 1.5])
     with left:
         st.markdown(
             f"""
-            <div style="display:flex;align-items:center;gap:8px;margin:6px 0 4px 0;">
+            <div style="display:flex;align-items:center;gap:10px;margin:6px 0 4px 0;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brand-primary);"></span>
               <div style="font-size:13px;color:#666;">Loaded client</div>
               <div style="font-weight:600;">{name}</div>
             </div>

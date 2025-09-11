@@ -6,7 +6,7 @@ from utils.data import load_recipes_summary
 from utils.theme import get_primary_color, get_logo_path
 from utils.auth import require_auth
 from components.active_client_badge import render as client_badge
-from utils.branding import apply_branding_to_sidebar
+from utils.branding import apply_branding_to_sidebar, inject_brand_colors
 
 
 require_auth()
@@ -14,10 +14,10 @@ require_auth()
 # Setup
 st.set_page_config(page_title="Home", layout="wide")
 client_badge(clients_page_title="Clients")
-with st.sidebar:
-    st.image(get_logo_path(), use_column_width=True)
+
 st.markdown(f"<h1 style='color:{get_primary_color()}'>🏠 Home</h1>", unsafe_allow_html=True)
 apply_branding_to_sidebar()
+inject_brand_colors()
 
 # Load summary data
 df = load_recipes_summary()
