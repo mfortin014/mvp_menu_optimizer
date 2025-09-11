@@ -5,9 +5,11 @@ from utils import tenant_db as db
 from utils.supabase import supabase
 from utils.auth import require_auth
 from utils.tenant_state import get_active_tenant, set_active_tenant
+from components.active_client_badge import render as client_badge
 
 require_auth()
 st.set_page_config(page_title="Clients", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("🪪 Clients")
 
 # ---------- data ----------
@@ -53,17 +55,17 @@ with switch_tab:
 
 # ---------- MANAGE TAB ----------
 with manage_tab:
-    # make columns, but HANDLE SELECTION (grid) FIRST in code, THEN render the form
+    # Handle selection first, then render form
     left, right = st.columns([1.2, 2.2])
 
-    # --- RIGHT: GRID (selection) ---
+    # --- RIGHT: GRID (selection); we’ll add “edit mode” afterward in §2 ---
     with right:
         st.subheader("Clients")
         table_df = df_all.copy()
         gb = GridOptionsBuilder.from_dataframe(table_df)
         gb.configure_default_column(editable=False, filter=True, sortable=True)
         gb.configure_selection("single", use_checkbox=False)
-        gb.configure_column("id", hide=True)  # hide id visually, keep in payload
+        gb.configure_column("id", hide=True)
         grid = AgGrid(
             table_df,
             gridOptions=gb.build(),
@@ -73,10 +75,7 @@ with manage_tab:
             allow_unsafe_jscode=True,
         )
 
-        # Current sel_row (may be empty)
         current_sel = st.session_state.get("_clients_sel_row", {})
-
-        # Read current selection from grid
         picked = grid["selected_rows"]
         picked_row = None
         if isinstance(picked, list) and picked:
@@ -84,15 +83,13 @@ with manage_tab:
         elif hasattr(picked, "empty") and not picked.empty:
             picked_row = picked.iloc[0].to_dict()
 
-        # If selection changed, hydrate session state by ID and rerun so the form picks it up immediately
-        if picked_row and picked_row.get("id"):
-            if picked_row.get("id") != current_sel.get("id"):
-                full = df_all.loc[df_all["id"] == picked_row["id"]]
-                if not full.empty:
-                    st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
-                    st.experimental_rerun()
+        if picked_row and picked_row.get("id") and picked_row.get("id") != current_sel.get("id"):
+            full = df_all.loc[df_all["id"] == picked_row["id"]]
+            if not full.empty:
+                st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+                st.experimental_rerun()
 
-    # --- LEFT: FORM (reads hydrated session state) ---
+    # --- LEFT: FORM (reads hydrated selection) ---
     with left:
         st.subheader("Add / Edit")
         sel_row = st.session_state.get("_clients_sel_row", {})
@@ -107,9 +104,11 @@ with manage_tab:
             brand_primary = st.text_input("Primary color (hex)", value=sel_row.get("brand_primary","#111827"))
             brand_secondary = st.text_input("Secondary color (hex)", value=sel_row.get("brand_secondary","#6b7280"))
 
-            if st.form_submit_button("Save client"):
+            if st.form_submit_button("Save client", use_container_width=True):
                 if not name or not code:
-                    st.error("Name and Code are required.")
+                    st.error("Please provide both Name and Code.")
+                elif is_default and not is_active:
+                    st.error("A client must be active before it can be set as the default.")
                 else:
                     payload = {
                         "name": name,
@@ -120,24 +119,40 @@ with manage_tab:
                         "brand_primary": brand_primary or None,
                         "brand_secondary": brand_secondary or None,
                     }
+
+                    # Ensure single default at the app layer (DB also enforces it)
+                    if is_default:
+                        # Unset default on all other clients *before* saving this one
+                        db.table("tenants").update({"is_default": False}).execute()
+
                     if sel_row.get("id"):
                         db.table("tenants").update(payload).eq("id", sel_row["id"]).execute()
                         st.success("Client updated.")
                     else:
                         db.insert("tenants", payload).execute()
                         st.success("Client created.")
+
                     st.cache_data.clear()
                     st.session_state.pop("_clients_sel_row", None)
                     st.rerun()
 
+        # Action row
         if sel_row.get("id"):
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3)
             if c1.button("Load client", key="btn_manage_load"):
                 set_active_tenant(sel_row["id"])
                 st.success(f"Loaded: {sel_row['name']}")
                 st.rerun()
-            if c2.button("Clear selection", key="btn_manage_clear"):
-                st.session_state.pop("_clients_sel_row", None)
+            if c2.button("Deactivate", key="btn_manage_deactivate"):
+                if sel_row.get("is_default"):
+                    st.error("The default client cannot be deactivated. Please unset it as default first.")
+                else:
+                    db.table("tenants").update({"is_active": False}).eq("id", sel_row["id"]).execute()
+                    st.success("Client deactivated.")
+                    st.cache_data.clear()
+                    st.rerun()
+            if c3.button("Activate", key="btn_manage_activate"):
+                db.table("tenants").update({"is_active": True}).eq("id", sel_row["id"]).execute()
+                st.success("Client activated.")
+                st.cache_data.clear()
                 st.rerun()
-
-
