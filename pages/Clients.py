@@ -25,6 +25,10 @@ def _name_by_id(df: pd.DataFrame, tid: str) -> str:
 
 df_all = load_all_clients_df()
 
+if "_skip_clients_grid_once" not in st.session_state:
+    st.session_state["_skip_clients_grid_once"] = False
+
+
 # Auto-focus the row we just saved (if any)
 _focus_id = st.session_state.pop("_clients_focus_id", None)
 if _focus_id:
@@ -86,15 +90,21 @@ with manage_tab:
 
         picked = grid["selected_rows"]
         picked_row = None
-        if isinstance(picked, list) and picked:
-            picked_row = picked[0]
-        elif hasattr(picked, "empty") and not picked.empty:
-            picked_row = picked.iloc[0].to_dict()
 
-        if picked_row and picked_row.get("id"):
-            full = df_all.loc[df_all["id"] == picked_row["id"]]
-            if not full.empty:
-                st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+        if not st.session_state.get("_skip_clients_grid_once"):
+            if isinstance(picked, list) and picked:
+                picked_row = picked[0]
+            elif hasattr(picked, "empty") and not picked.empty:
+                picked_row = picked.iloc[0].to_dict()
+
+            if picked_row and picked_row.get("id"):
+                full = df_all.loc[df_all["id"] == picked_row["id"]]
+                if not full.empty:
+                    st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
+        else:
+            # consume the skip once
+            st.session_state["_skip_clients_grid_once"] = False
+
 
     # --- LEFT: FORM (reads hydrated selection this same run) ---
     with left:
@@ -165,4 +175,6 @@ with manage_tab:
                 st.rerun()
             if c2.button("Clear selection", key=f"btn_manage_clear_{rowkey}"):
                 st.session_state.pop("_clients_sel_row", None)
+                st.session_state["_skip_clients_grid_once"] = True  # ignore grid selection on next render
                 st.rerun()
+
