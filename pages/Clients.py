@@ -12,6 +12,41 @@ st.set_page_config(page_title="Clients", layout="wide")
 client_badge(clients_page_title="Clients")
 st.title("🪪 Clients")
 
+# Sticky mode switcher (tab replacement)
+MODES = ["🔁 Switch client", "🛠️ Manage clients"]
+_default_mode = st.session_state.get("clients_mode", MODES[0])
+
+mode = st.radio(
+    "Mode",
+    MODES,
+    index=MODES.index(_default_mode),
+    key="clients_mode",
+    horizontal=True,
+)
+
+# Optional: make the radio look like tabs
+st.markdown("""
+<style>
+/* compact + pill-like segmented control look */
+div[role='radiogroup'] > label {
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  padding: 6px 10px !important;
+  margin-right: 6px !important;
+  border-radius: 8px !important;
+}
+div[role='radiogroup'] > label:hover {
+  background: rgba(0,0,0,0.03) !important;
+}
+div[role='radiogroup'] input[checked] + div {
+  color: #fff !important;
+  background: var(--brand-primary, #111827) !important;
+  border-radius: 7px !important;
+  padding: 0 4px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # ---------- data ----------
 @st.cache_data(ttl=60)
 def load_all_clients_df() -> pd.DataFrame:
@@ -39,10 +74,8 @@ if _focus_id:
 cur_tid = get_active_tenant() or (df_all.iloc[0]["id"] if not df_all.empty else None)
 cur_name = _name_by_id(df_all, cur_tid) if cur_tid else "—"
 
-switch_tab, manage_tab = st.tabs(["🔁 Switch client", "🛠️ Manage clients"])
-
 # ---------- SWITCH TAB ----------
-with switch_tab:
+if mode == "🔁 Switch client":
     st.subheader("Switch client")
     st.info(f"Currently loaded: **{cur_name}**")
 
@@ -66,7 +99,7 @@ with switch_tab:
                 st.info("That client is already loaded.")
 
 # ---------- MANAGE TAB ----------
-with manage_tab:
+if mode == "🛠️ Manage clients":
     # Handle selection first, then render the form (no reruns on click)
     left, right = st.columns([1.2, 2.2])
 
