@@ -24,6 +24,14 @@ def _name_by_id(df: pd.DataFrame, tid: str) -> str:
     return row.iloc[0]["name"] if not row.empty else "—"
 
 df_all = load_all_clients_df()
+
+# Auto-focus the row we just saved (if any)
+_focus_id = st.session_state.pop("_clients_focus_id", None)
+if _focus_id:
+    sel = df_all.loc[df_all["id"] == _focus_id]
+    if not sel.empty:
+        st.session_state["_clients_sel_row"] = sel.iloc[0].to_dict()
+
 cur_tid = get_active_tenant() or (df_all.iloc[0]["id"] if not df_all.empty else None)
 cur_name = _name_by_id(df_all, cur_tid) if cur_tid else "—"
 
@@ -58,7 +66,7 @@ with manage_tab:
     # Handle selection first, then render the form (no reruns on click)
     left, right = st.columns([1.2, 2.2])
 
-    # --- RIGHT: GRID (selection first) ---
+    # --- RIGHT: GRID (selection) ---
     with right:
         st.subheader("Clients")
         table_df = df_all.copy()
@@ -76,7 +84,6 @@ with manage_tab:
             allow_unsafe_jscode=True,
         )
 
-        # Read selection from grid
         picked = grid["selected_rows"]
         picked_row = None
         if isinstance(picked, list) and picked:
@@ -84,7 +91,6 @@ with manage_tab:
         elif hasattr(picked, "empty") and not picked.empty:
             picked_row = picked.iloc[0].to_dict()
 
-        # Hydrate session state immediately (no rerun)
         if picked_row and picked_row.get("id"):
             full = df_all.loc[df_all["id"] == picked_row["id"]]
             if not full.empty:
@@ -94,30 +100,23 @@ with manage_tab:
     with left:
         st.subheader("Add / Edit")
         sel_row = st.session_state.get("_clients_sel_row", {})
+        rowkey = sel_row.get("id", "new")  # key suffix to isolate widget state per row
 
         with st.form("client_form"):
-            name = st.text_input("Name", value=sel_row.get("name",""))
-            code = st.text_input("Code", value=sel_row.get("code",""))
+            name = st.text_input("Name", value=sel_row.get("name",""), key=f"client_name_{rowkey}")
+            code = st.text_input("Code", value=sel_row.get("code",""), key=f"client_code_{rowkey}")
 
-            is_active  = st.checkbox("Active", value=bool(sel_row.get("is_active", True)))
-            is_default = st.checkbox("Make default", value=bool(sel_row.get("is_default", False)))
+            is_active  = st.checkbox("Active", value=bool(sel_row.get("is_active", True)), key=f"client_active_{rowkey}")
+            is_default = st.checkbox("Make default", value=bool(sel_row.get("is_default", False)), key=f"client_default_{rowkey}")
 
-            # Color pickers (show hex inline)
-            brand_primary = st.color_picker(
-                "Primary color",
-                value=(sel_row.get("brand_primary") or "#111827"),
-                key="cp_primary",
-            )
-            brand_secondary = st.color_picker(
-                "Secondary color",
-                value=(sel_row.get("brand_secondary") or "#6b7280"),
-                key="cp_secondary",
-            )
+            # Color pickers show the hex and color
+            brand_primary = st.color_picker("Primary color", value=(sel_row.get("brand_primary") or "#111827"), key=f"cp_primary_{rowkey}")
+            brand_secondary = st.color_picker("Secondary color", value=(sel_row.get("brand_secondary") or "#6b7280"), key=f"cp_secondary_{rowkey}")
 
-            logo_url = st.text_input("Logo URL", value=sel_row.get("logo_url",""))
+            logo_url = st.text_input("Logo URL", value=sel_row.get("logo_url",""), key=f"client_logo_{rowkey}")
 
             if st.form_submit_button("Save client", use_container_width=True):
-                # Accurate blockers
+                # Accurate guardrails
                 if not name or not code:
                     st.error("Please provide both Name and Code.")
                 elif sel_row.get("id") and sel_row.get("is_default") and (is_active is False):
@@ -142,23 +141,28 @@ with manage_tab:
                             q = q.neq("id", sel_row["id"])
                         q.execute()
 
-                    if sel_row.get("id"):
-                        db.table("tenants").update(payload).eq("id", sel_row["id"]).execute()
+                    saved_id = sel_row.get("id")
+                    if saved_id:
+                        db.table("tenants").update(payload).eq("id", saved_id).execute()
                         st.success("Client updated.")
                     else:
-                        db.insert("tenants", payload).execute()
-                        st.success("Client created.")
+                        res = db.insert("tenants", payload).execute()
+                        if res.data and len(res.data):
+                            saved_id = res.data[0].get("id")
+
+                    # Focus the saved row on the next render so the form matches DB truth
+                    if saved_id:
+                        st.session_state["_clients_focus_id"] = saved_id
 
                     st.cache_data.clear()
-                    st.session_state.pop("_clients_sel_row", None)
                     st.rerun()
 
         if sel_row.get("id"):
             c1, c2 = st.columns(2)
-            if c1.button("Load client", key="btn_manage_load"):
+            if c1.button("Load client", key=f"btn_manage_load_{rowkey}"):
                 set_active_tenant(sel_row["id"])
                 st.success(f"Loaded: {sel_row['name']}")
                 st.rerun()
-            if c2.button("Clear selection", key="btn_manage_clear"):
+            if c2.button("Clear selection", key=f"btn_manage_clear_{rowkey}"):
                 st.session_state.pop("_clients_sel_row", None)
                 st.rerun()
