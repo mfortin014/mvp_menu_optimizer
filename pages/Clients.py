@@ -55,16 +55,17 @@ with switch_tab:
 
 # ---------- MANAGE TAB ----------
 with manage_tab:
-    # Handle selection first, then render form
+    # Handle selection first, then render the form (no reruns on click)
     left, right = st.columns([1.2, 2.2])
 
     # --- RIGHT: GRID (selection first) ---
     with right:
         st.subheader("Clients")
         table_df = df_all.copy()
+
         gb = GridOptionsBuilder.from_dataframe(table_df)
         gb.configure_default_column(editable=False, filter=True, sortable=True)
-        gb.configure_selection("single", use_checkbox=False)  # row click selects and highlights
+        gb.configure_selection("single", use_checkbox=False)  # row click selects & highlights
         gb.configure_column("id", hide=True)
         grid = AgGrid(
             table_df,
@@ -75,7 +76,7 @@ with manage_tab:
             allow_unsafe_jscode=True,
         )
 
-        current_sel = st.session_state.get("_clients_sel_row", {})
+        # Read selection from grid
         picked = grid["selected_rows"]
         picked_row = None
         if isinstance(picked, list) and picked:
@@ -83,13 +84,13 @@ with manage_tab:
         elif hasattr(picked, "empty") and not picked.empty:
             picked_row = picked.iloc[0].to_dict()
 
-        if picked_row and picked_row.get("id") and picked_row.get("id") != current_sel.get("id"):
+        # Hydrate session state immediately (no rerun)
+        if picked_row and picked_row.get("id"):
             full = df_all.loc[df_all["id"] == picked_row["id"]]
             if not full.empty:
                 st.session_state["_clients_sel_row"] = full.iloc[0].to_dict()
-                st.experimental_rerun()
 
-    # --- LEFT: FORM (reads hydrated selection) ---
+    # --- LEFT: FORM (reads hydrated selection this same run) ---
     with left:
         st.subheader("Add / Edit")
         sel_row = st.session_state.get("_clients_sel_row", {})
@@ -97,11 +98,23 @@ with manage_tab:
         with st.form("client_form"):
             name = st.text_input("Name", value=sel_row.get("name",""))
             code = st.text_input("Code", value=sel_row.get("code",""))
-            is_active = st.checkbox("Active", value=bool(sel_row.get("is_active", True)))
+
+            is_active  = st.checkbox("Active", value=bool(sel_row.get("is_active", True)))
             is_default = st.checkbox("Make default", value=bool(sel_row.get("is_default", False)))
+
+            # Color pickers (show hex inline)
+            brand_primary = st.color_picker(
+                "Primary color",
+                value=(sel_row.get("brand_primary") or "#111827"),
+                key="cp_primary",
+            )
+            brand_secondary = st.color_picker(
+                "Secondary color",
+                value=(sel_row.get("brand_secondary") or "#6b7280"),
+                key="cp_secondary",
+            )
+
             logo_url = st.text_input("Logo URL", value=sel_row.get("logo_url",""))
-            brand_primary = st.text_input("Primary color (hex)", value=sel_row.get("brand_primary","#111827"))
-            brand_secondary = st.text_input("Secondary color (hex)", value=sel_row.get("brand_secondary","#6b7280"))
 
             if st.form_submit_button("Save client", use_container_width=True):
                 # Accurate blockers
@@ -122,10 +135,10 @@ with manage_tab:
                         "brand_secondary": brand_secondary or None,
                     }
 
-                    # Ensure single default (unset others with a WHERE)
+                    # Enforce single default: unset others (scoped WHERE) before saving this one
                     if is_default:
                         q = db.table("tenants").update({"is_default": False}).eq("is_default", True)
-                        if sel_row.get("id"):  # when editing, don't unset the one we're saving
+                        if sel_row.get("id"):
                             q = q.neq("id", sel_row["id"])
                         q.execute()
 
