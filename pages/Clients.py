@@ -27,24 +27,58 @@ mode = st.radio(
 # Optional: make the radio look like tabs
 st.markdown("""
 <style>
-/* compact + pill-like segmented control look */
+/* container spacing */
+div[role='radiogroup'] { gap: 8px; }
+
+/* base button look */
 div[role='radiogroup'] > label {
-  border: 1px solid rgba(0,0,0,0.08) !important;
-  padding: 6px 10px !important;
-  margin-right: 6px !important;
+  position: relative;
+  border: 1px solid rgba(0,0,0,0.12) !important;
+  background: #fff !important;
+  padding: 6px 12px !important;
   border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
 }
+
+/* neutral hover */
 div[role='radiogroup'] > label:hover {
   background: rgba(0,0,0,0.03) !important;
 }
-div[role='radiogroup'] input[checked] + div {
-  color: #fff !important;
-  background: var(--brand-primary, #111827) !important;
-  border-radius: 7px !important;
-  padding: 0 4px !important;
+
+/* HIDE the native radio dot completely */
+div[role='radiogroup'] input[type="radio"]{
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+/* remove any left padding that expected a dot */
+div[role='radiogroup'] > label > div {
+  padding-left: 0 !important;
+}
+
+/* SELECTED STATE: subtle gray pill */
+div[role='radiogroup'] > label:has(input:checked) {
+  background: rgba(0,0,0,0.05) !important;
+  border-color: rgba(0,0,0,0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08) !important;
+}
+
+/* optional: make the icon/text a hair bolder when selected */
+div[role='radiogroup'] > label:has(input:checked) span,
+div[role='radiogroup'] > label:has(input:checked) svg,
+div[role='radiogroup'] > label:has(input:checked) div {
+  filter: none !important;
+  opacity: 1 !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+
 
 
 # ---------- data ----------
