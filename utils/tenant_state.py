@@ -6,6 +6,10 @@ TENANT_KEY = "tenant_id"
 
 def set_active_tenant(tenant_id: str) -> None:
     st.session_state[TENANT_KEY] = tenant_id
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
 
 def get_active_tenant(default: Optional[str] = None) -> Optional[str]:
     return st.session_state.get(TENANT_KEY, default)
