@@ -1,6 +1,6 @@
 
 # 06_UI_UX_MVP_Tracker — Streamlit App UI/UX Implementation
-**Version:** 1.0  \n**Updated:** 2025-09-16 16:58  \n**Status:** Draft  \n**Owner:** UI/UX
+**Version:** 1.0  \n**Updated:** 2025-09-16 17:33  \n**Status:** Draft  \n**Owner:** UI/UX
 
 > Each task has an **Owner Spec** tag: Foundation | Identity | Measure | Chronicle | Intake | Lexicon
 
@@ -75,6 +75,13 @@
 - [ ] Tabs: General / Ingredient Categories / UOM Conversions (+ link to Clients). (Foundation)  
 - [ ] Shared grid/form components. (Foundation)  
 - [ ] Import/Export tools. (Intake/Foundation)  
+
+---
+
+## Harness (Streamlit glue & parity)
+- [ ] **Client-only calls** — Refactor all Streamlit pages to use `MOClient` exclusively; no direct SQL/business logic in widgets. (Owner: Foundation)
+- [ ] **Emit canonical events** — Verify services emit `ingredient.cost.updated`, `import.completed`, `recipe.recomputed` at the defined points. (Owners: Chronicle, Intake)
+- [ ] **Parity export page** — Implement windowed export of `event_log` to CSV/JSON. (Owner: Foundation)
 
 ---
 

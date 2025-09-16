@@ -1,6 +1,6 @@
 
 # 06_UI_UX_MVP_Spec — Streamlit App UI/UX (Aligned to Foundation/Identity/Measure/Chronicle/Intake/Lexicon)
-**Version:** 1.0  \n**Updated:** 2025-09-16 16:58  \n**Applies to:** Streamlit MVP (no FIRE)  \n**Scope:** Frontend behavior, component patterns, page contracts, and UI acceptance criteria **including** all items from *Menu_Optimizer_Roadmap_Tracker.md* (merged and normalized).
+**Version:** 1.0  \n**Updated:** 2025-09-16 17:33  \n**Applies to:** Streamlit MVP (no FIRE)  \n**Scope:** Frontend behavior, component patterns, page contracts, and UI acceptance criteria **including** all items from *Menu_Optimizer_Roadmap_Tracker.md* (merged and normalized).
 
 ---
 
@@ -157,3 +157,16 @@ All checklist items from Plans 1–5 and Page-Specific sections have been absorb
 - **Plan 4 (Wiring):** tenant proxy/views; permissive RLS now; strict claims (V008) planned; migration runner; helper SQL funcs tenant-aware.  
 - **Plan 5 (Data & Costing):** unit-cost parity fix; auto-prefill; line ordering; reverse conversion policy (derive).  
 - **Page-specific checklists:** Clients, Ingredients, Ingredient Categories, UOM Conversion, Recipes, Recipe Editor, Settings—all reflected in sections 5.1–5.10.
+
+---
+
+## 10) Streamlit Glue & Parity Harness (superset of initial checklist)
+This MVP UI/UX spec **includes and supersedes** the original glue/harness items.
+
+**What it mandates**
+1) **Client-only calls** — Streamlit pages call the `MOClient` interface (Local/HTTP) and never embed DB/business logic in widgets. (Owner: Foundation_MVP)  
+2) **Canonical events at the right spots** — Services emit `ingredient.cost.updated` (Chronicle_MVP on cost upsert), `import.completed` (Intake_MVP after commit), and `recipe.recomputed` (Chronicle_MVP after recompute). (Owners: Chronicle_MVP, Intake_MVP)  
+3) **Parity export** — Admin page provides a windowed export of `event_log` (CSV/JSON) to compare against v1 later. (Owner: Foundation_MVP)
+
+**Where covered above**
+- §2 Design principles (contracts-first), §3 IA, §4 patterns, §5.9 Parity Export, §5.6/§5.7 Chronicle behaviors, and event toasts in §4.5.
