@@ -1,0 +1,4 @@
+-- release: 0.6.0
+-- created: 20250916-223441
+-- purpose: hardening release marker (no new DDL here)
+-- notes: if any hotfix DDL is needed during QA, add it in this file in order.
