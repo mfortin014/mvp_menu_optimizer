@@ -4,16 +4,19 @@ from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import streamlit as st
 from utils.auth import require_auth
+from components.active_client_badge import render as client_badge
+from utils import tenant_db as db
 
 require_auth()
 
 
 st.set_page_config(page_title="Ingredient Categories", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("📋 Ingredient Categories")
 
 # === Fetch Categories ===
 def fetch_categories():
-    res = supabase.table("ref_ingredient_categories").select("*").execute()
+    res = db.table("ref_ingredient_categories").select("*").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 df = fetch_categories()
@@ -78,10 +81,10 @@ with st.sidebar:
             else:
                 data = {"name": name, "status": status}
                 if edit_mode:
-                    supabase.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Category updated.")
                 else:
-                    supabase.table("ref_ingredient_categories").insert(data).execute()
+                    db.insert("ref_ingredient_categories", data).execute()
                     st.success("Category added.")
                 st.rerun()
 
@@ -89,6 +92,6 @@ with st.sidebar:
         if st.button("Cancel"):
             st.rerun()
         if st.button("Delete"):
-            supabase.table("ref_ingredient_categories").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+            db.table("ref_ingredient_categories").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
             st.success("Category inactivated.")
             st.rerun()

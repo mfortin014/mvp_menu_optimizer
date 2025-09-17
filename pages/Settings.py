@@ -3,15 +3,20 @@ import pandas as pd
 from utils.supabase import supabase
 from datetime import datetime
 from utils.auth import require_auth
+from components.active_client_badge import render as client_badge
+from utils import tenant_db as db
+
 require_auth()
 
 st.set_page_config(page_title="⚙️ Settings", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("⚙️ Settings")
+
 
 st.header("🔧 Backfill Missing Base UOMs")
 
 def fetch_base_uom_map():
-    res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+    res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     return {
         row["from_uom"]: row["to_uom"]
         for row in res.data
@@ -21,7 +26,7 @@ def fetch_base_uom_map():
 # Run only when button clicked
 if st.button("Run Maintenance"):
     st.info("Fetching ingredients...")
-    res = supabase.table("ingredients").select("id, package_uom, base_uom").execute()
+    res = db.table("ingredients").select("id, package_uom, base_uom").execute()
     rows = res.data if res.data else []
 
     base_uom_map = fetch_base_uom_map()
@@ -46,7 +51,7 @@ if st.button("Run Maintenance"):
 
     if updates:
         for u in updates:
-            supabase.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
+            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
 
         st.success(f"✅ Updated {len(updates)} ingredients with inferred base_uom.")
     else:
@@ -61,7 +66,7 @@ valid_uoms = set()
 if object_type == "Ingredients":
     uploaded_file = st.file_uploader("Upload Ingredients CSV", type=["csv"], key="ingredients_upload")
     if uploaded_file:
-        uom_res = supabase.table("ref_uom_conversion").select("from_uom, to_uom").execute()
+        uom_res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
         valid_uoms = {r["from_uom"] for r in uom_res.data} if uom_res.data else set()
         base_uom_map = {r["from_uom"]: r["to_uom"] for r in uom_res.data if r["to_uom"] in ["g", "ml"]}
 
@@ -86,7 +91,7 @@ if object_type == "Ingredients":
             st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
             st.stop()
 
-        cat_res = supabase.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
+        cat_res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
         category_map = {row["name"]: row["id"] for row in cat_res.data}
         valid_statuses = {"active", "inactive"}
         valid_types = {"bought", "prepped"}
@@ -134,7 +139,7 @@ if object_type == "Ingredients":
                 elif package_uom in base_uom_map:
                     base_uom = base_uom_map[package_uom]
 
-            exists = supabase.table("ingredients").select("*").eq("ingredient_code", ingredient_code).execute()
+            exists = db.table("ingredients").select("*").eq("ingredient_code", ingredient_code).execute()
             if exists.data:
                 existing_row = exists.data[0]
                 duplicate_collisions.append({
@@ -195,7 +200,7 @@ if object_type == "Ingredients":
         if inserts:
             if st.button("📤 Upload Ingredients to Database"):
                 try:
-                    supabase.table("ingredients").insert(inserts).execute()
+                    db.insert("ingredients", inserts).execute()
                     st.success(f"🎉 {len(inserts)} ingredients successfully imported.")
                 except Exception as e:
                     st.error(f"❌ Insert failed: {e}")
@@ -204,7 +209,7 @@ elif object_type == "Recipes":
     uploaded_file = st.file_uploader("Upload Recipes CSV", type=["csv"], key="recipes_upload")
 
     if uploaded_file:
-        uom_res = supabase.table("ref_uom_conversion").select("from_uom").execute()
+        uom_res = db.table("ref_uom_conversion").select("from_uom").execute()
         valid_uoms = {r["from_uom"] for r in uom_res.data} if uom_res.data else set()
 
         try:
@@ -224,7 +229,7 @@ elif object_type == "Recipes":
             st.stop()
 
         existing_codes = {
-            r["recipe_code"]: r for r in supabase.table("recipes").select("*").execute().data
+            r["recipe_code"]: r for r in db.table("recipes").select("*").execute().data
         }
 
         inserts, rejects = [], []
@@ -311,7 +316,7 @@ elif object_type == "Recipes":
         if inserts:
             if st.button("📤 Upload Recipes to Database"):
                 try:
-                    supabase.table("recipes").insert(inserts).execute()
+                    db.insert("recipes", inserts).execute()
                     st.success(f"🎉 {len(inserts)} recipes successfully imported.")
                 except Exception as e:
                     st.error(f"❌ Insert failed: {e}")
@@ -320,7 +325,7 @@ elif object_type == "Recipes":
 st.divider()
 st.header("📤 Export Data")
 
-exp_ingr = supabase.table("ingredients").select("*").execute()
+exp_ingr = db.table("ingredients").select("*").execute()
 df_ingr = pd.DataFrame(exp_ingr.data or [])
 if not df_ingr.empty:
     st.download_button(
@@ -331,7 +336,7 @@ if not df_ingr.empty:
     )
 
 
-exp_rec = supabase.table("recipes").select("*").execute()
+exp_rec = db.table("recipes").select("*").execute()
 df_rec = pd.DataFrame(exp_rec.data or [])
 if not df_rec.empty:
     st.download_button(
@@ -358,9 +363,9 @@ confirm = st.text_input("Type DELETE to confirm")
 if st.button("🧹 Scrub Dataset"):
     if confirm == "DELETE":
         try:
-            supabase.table("recipe_lines").delete().neq("id", "").execute()
-            supabase.table("recipes").delete().neq("id", "").execute()
-            supabase.table("ingredients").delete().neq("id", "").execute()
+            db.table("recipe_lines").delete().neq("id", "").execute()
+            db.table("recipes").delete().neq("id", "").execute()
+            db.table("ingredients").delete().neq("id", "").execute()
             st.success("✅ Dataset scrubbed successfully.")
         except Exception as e:
             st.error(f"❌ Failed to scrub dataset: {e}")

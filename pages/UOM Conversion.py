@@ -3,14 +3,16 @@ import pandas as pd
 from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils.auth import require_auth
+from utils import tenant_db as db
+from components.active_client_badge import render as client_badge
 require_auth()
 
 st.set_page_config(page_title="UOM Conversions", layout="wide")
+client_badge(clients_page_title="Clients")
 st.title("UOM Conversions")
-
 # === Fetch Conversions ===
 def fetch_conversions():
-    res = supabase.table("ref_uom_conversion").select("*").execute()
+    res = db.table("ref_uom_conversion").select("*").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
 df = fetch_conversions()
@@ -92,10 +94,10 @@ with st.sidebar:
             else:
                 data = {"from_uom": from_uom, "to_uom": to_uom, "factor": factor}
                 if edit_mode:
-                    supabase.table("ref_uom_conversion").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ref_uom_conversion").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Conversion updated.")
                 else:
-                    supabase.table("ref_uom_conversion").insert(data).execute()
+                    db.insert("ref_uom_conversion", data).execute()
                     st.success("Conversion added.")
                 st.rerun()
 
