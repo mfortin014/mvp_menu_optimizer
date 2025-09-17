@@ -1,85 +1,116 @@
-# Menu Optimizer v1.1 – README
+# Menu Optimizer
 
-## Overview
+Optimize recipe costs and menus with tenant‑aware data and a clean Streamlit UI.
 
-This MVP supports Chef's culinary consulting work by allowing them to manage and analyze recipes, ingredient costs, and performance. It is a prototype built in **Streamlit** using a **Supabase** backend. The project will later be migrated to a React + Supabase architecture inside the OpsForge platform.
+**Status:** stable on `main` at **mvp-0.6.0** (pre‑1.0 SemVer).  
+**Branch model:** `main` (stable), `develop` (integration), short‑lived `feat/*` and `fix/*` branches.
 
 ---
 
-## Key Features
+## Quickstart
 
-### 🥦 Ingredient Management
-- Add/Edit/Delete ingredients (soft delete only)
-- Yield percentage support (for post-prep loss)
-- Ingredient categories (linked to `ref_ingredient_categories`)
-- Clean layout with editable form sidebar and data editor
-- Radio-style selection behavior in the ingredient table
+```bash
+# 1) Python env
+python -m venv .venv && source .venv/bin/activate
 
-### 📄 Recipe Summary & Breakdown
-- View recipe performance from `recipe_summary`
-- Total cost, price, and margin calculation
-- Uses latest cost view logic with `yield_pct`
+# 2) Install deps
+pip install -r requirements.txt
 
-### 📊 MPM Quadrant (Menu Performance Matrix)
-- Visual graph (popularity vs profitability)
-- Table format with quadrant filter (coming soon)
+# 3) Configure database connection (Postgres/Supabase)
+# Create a file named .env with:
+#   DATABASE_URL="postgresql://<user>:<pass>@<host>:5432/postgres?sslmode=require"
+
+# 4) (Optional) seed/sample data for demos
+./dump_sample_data.sh
+
+# 5) Run the app
+streamlit run Home.py
+```
+
+- Schema snapshots are generated via `dump_schema.sh` into `schema/`.
+- Runtime secrets can also be placed in `.streamlit/secrets.toml` if preferred.
+
+---
+
+## Features (high‑level)
+
+- Multi‑tenant data model with row‑level security (RLS).
+- Tenant branding (colors/logo) and an **Active Client** badge.
+- Recipe editor with recompute on edits.
+- Import flows and **cost update** events.
+- Clean UI state management (no surprise reruns).
+- Schema dumps and migration markers for reproducible releases.
+
+> Detailed specs and trackers live in **/docs** (see Docs Map).
 
 ---
 
 ## Tech Stack
 
-- Frontend: [Streamlit](https://streamlit.io)
-- Backend: [Supabase](https://supabase.com)
-  - PostgreSQL
-  - RPC for recipe breakdown
-  - View logic for costing
+- **Frontend:** Streamlit (Python)
+- **Database:** Postgres / Supabase
+- **CI:** GitHub Actions (minimal placeholder workflow)
+- **Language/Tools:** Python 3.x
 
 ---
 
-## Dev Setup
+## Repo Structure (top level)
 
-1. Clone this repo
-2. Create `.env` file or set `secrets.toml` in `.streamlit/`
-```env
-SUPABASE_URL=...
-SUPABASE_KEY=...
 ```
-3. Install requirements
+├─ components/        # UI building blocks
+├─ pages/             # Streamlit pages (Recipes, Editor, Clients, ...)
+├─ utils/             # tenant_db, branding, cache, version helper
+├─ migrations/        # release markers + SQL notes
+├─ schema/            # schema dumps (pg_dump via dump_schema.sh)
+├─ scripts/           # helpers (bump_version, release_stamp)
+├─ docs/              # specs, trackers, notes
+├─ Home.py            # Streamlit entry point
+├─ VERSION            # source of truth for app version
+└─ dump_schema.sh     # exports schema/*.sql from $DATABASE_URL
+```
+
+---
+
+## Configuration
+
+Create `.env` in the repo root:
+```
+DATABASE_URL="postgresql://<user>:<pass>@<host>:5432/postgres?sslmode=require"
+```
+- `dump_schema.sh` reads `.env` to produce `schema/supabase_schema_<date>[_NN].sql`.
+- For Streamlit secrets, you may also use `.streamlit/secrets.toml`.
+
+---
+
+## Docs Map
+
+- **Specs:** `docs/specs/` (e.g., Recipes as Ingredients)
+- **Trackers:** `docs/trackers/` (workplans, checklists)
+- **Notes:** `docs/notes/` (meeting notes, ChatGPT conversations)
+- **Changelog:** `CHANGELOG.md` (notable changes)
+- **Releases:** Git tags `mvp-X.Y.Z` on `main`
+
+---
+
+## Versioning & Releases
+
+- **Source of truth:** `VERSION` (also shown in the app header).  
+- **Tags on main:** `mvp-X.Y.Z` (pre‑1.0 SemVer: bump **MINOR** for features, **PATCH** for fixes).  
+- **Flow:** cut `release/X.Y.Z` from `develop` → harden → PR to `main` (**Squash**) → tag → back‑merge `main → develop` via PR.
+
+CLI helpers:
 ```bash
-pip install -r requirements.txt
-```
-4. Run app:
-```bash
-streamlit run Home.py
+scripts/bump_version.sh X.Y.Z
+scripts/release_stamp.sh X.Y.Z   # adds migration marker + runs dump_schema.sh
 ```
 
 ---
 
-## Project Structure
+## Contributing
 
-```
-.
-├── Home.py
-├── pages/
-│   └── Ingredients.py
-├── utils/
-│   ├── data.py
-│   └── supabase.py
-├── requirements.txt
-├── .env
-└── README.md
-```
+- Branch names: `feat/<thing>`, `fix/<thing>`, `chore/<thing>`
+- PRs required; CI must be green (placeholder action runs)
+- Linear history on `main` (Squash merges)
+- No secrets in code; use `.env` / repository secrets
 
 ---
-
-## Known Issues / To Do
-
-- Ingredient "Select" column behavior not fully radio-style yet
-- Recipe breakdown page still uses outdated cost logic
-- Ref tables management (e.g., categories, UOM) not yet exposed in UI
-- Inline editing in `st.data_editor` is currently disabled for validation consistency
-
----
-
-## License
-MIT
