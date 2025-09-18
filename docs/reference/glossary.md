@@ -1,5 +1,5 @@
 # Glossary
-**Updated:** 2025-09-18 19:08
+**Updated:** 2025-09-18 20:03
 
 Shared definitions for CI/CD, Git/GitHub, Supabase, and our house style.  
 When in doubt, link terms here from any doc or PR.
@@ -18,8 +18,14 @@ A manual control (e.g., “Require review to deploy to production”). In GitHub
 ### Artifact (Immutable Artifact)
 The build output you deploy (e.g., container image). Built once per commit; the **same** artifact is promoted to staging then production. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
 
+### Artifact Registry
+A repository that stores built artifacts (e.g., container registry). Critical for “build once, promote many.”
+
 ### Backfill
 A data migration step that populates or transforms existing rows to satisfy a new schema. Part of **Expand → Migrate → Contract**.
+
+### Back-merge
+Merging a change from a release or hotfix branch back into `main` so histories remain consistent.
 
 ### Batch / Umbrella PR
 A top-level PR that coordinates several small, related PRs (the “micro-PRs”). Lets you merge incrementally while keeping the big picture visible. See: [Branching & PR Protocol](../policy/branching_and_prs.md).
@@ -29,6 +35,13 @@ Two production environments (“blue” live, “green” idle). You deploy to g
 
 ### Build vs CI (Commit Types)
 **build**: build system or packaging changes. **ci**: continuous integration workflows or configuration changes. See: [Commits & Changelog](../policy/commits_and_changelog.md).
+
+### Breaking Change
+A change that requires users or other systems to adapt immediately (API contract change, destructive schema change without compatibility, removed behavior).  
+How to mark it:
+- Conventional Commits: `feat!:` or `fix!:` **and** add a `BREAKING CHANGE:` footer describing impact and required actions.  
+- Versioning pre-1.0: bump **Minor** (Y).  
+- Process: include migration steps in the PR, add a clear **Changed** note in the [CHANGELOG](../../CHANGELOG.md), and ensure flags/rollback are ready.
 
 ### Canary Release
 Gradual exposure of a feature to a small cohort, watching metrics before widening. Often implemented with **feature flags**. See: [Environments & Secrets](../policy/env_and_secrets.md).
@@ -58,7 +71,7 @@ A canonical list of entities, columns, and enumerations the app depends on. Live
 **DDL** (Data Definition Language): schema changes (CREATE/ALTER). **DML** (Data Manipulation Language): data changes (INSERT/UPDATE/DELETE).
 
 ### Decision Tree (Commit Intent)
-Quick classifier for commits (feat, fix, docs, test, build, ci, style, refactor, chore, perf, revert). Canonical version lives in [Docs Policy & Map](../policy/docs_policy.md).
+Quick classifier for commits (feat, fix, docs, test, build, ci, style, refactor, chore, perf, revert). Canonical version lives in [Conventional Commits & Changelog](../policy/commits_and_changelog.md).
 
 ### Deploy Marker
 A visible marker (with version/SHA) on dashboards/logs so deploys correlate with metrics. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
@@ -87,8 +100,11 @@ Bug resolved in runtime behavior. Example: `fix(intake): clamp negative quantiti
 ### Golden Path
 The simplest, representative user journey that must always work. Our **smoke test** validates this path after every deploy.
 
+### GitHub Environment
+A named environment in GitHub with scoped secrets and protection rules (e.g., require reviewers to deploy to production).
+
 ### Hotfix
-A small, urgent fix branched from the last production tag, then merged back into main with a new tag.
+A small, urgent fix branched from the last production tag, then merged back into `main` with a new tag.
 
 ### Idempotency / Idempotency Key
 Calling the same mutation twice yields the same effect. A client-provided unique key defends against retries/duplicates. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
@@ -104,6 +120,9 @@ Validates the contract between modules (e.g., DB layer + service). Sits between 
 
 ### Keep a Changelog
 Community format for writing CHANGELOG.md so humans can scan what changed. See: [Commits & Changelog](../policy/commits_and_changelog.md).
+
+### Linear History
+A repository setting that enforces merges as single commits (squash) to avoid complex graph histories.
 
 ### Main (Trunk)
 The protected, always-releasable branch. All feature branches merge here via PR. See: [Branching & PR Protocol](../policy/branching_and_prs.md).
@@ -132,6 +151,9 @@ An ephemeral, per-PR deployment to click around safely. Useful in v1; out-of-sco
 ### Production
 The live environment for users. Access is least privilege; deploys require approval.
 
+### Protected Branch / Branch Protection
+Rules that guard `main` (require status checks, linear history, PRs before merge).
+
 ### Refactor (Commit Type)
 Internal change that doesn’t alter behavior (e.g., extracting functions).
 
@@ -144,8 +166,14 @@ Human-readable summary of what’s in a release (also published as GitHub Releas
 ### RLS (Row-Level Security)
 Postgres policy system (used by Supabase) that filters rows per user/tenant. Ensures tenants can only see their own data.
 
+### Roll-forward
+Fix forward with a new commit and redeploy, instead of rolling back.
+
 ### Rollback
 Returning the system to a previous healthy artifact or turning a flag off. Prefer rollback over hot-fixing in production.
+
+### SBOM (Software Bill of Materials)
+A manifest of components and versions in your artifact. Useful for security and compliance; v1 item.
 
 ### Scope (Commit Scope)
 A short identifier in parentheses that narrows the commit (e.g., `feat(intake): …`). Helps generate focused release notes. See: [Commits & Changelog](../policy/commits_and_changelog.md).
