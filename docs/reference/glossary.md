@@ -1,5 +1,5 @@
 # Glossary
-**Updated:** 2025-09-18 20:03
+**Updated:** 2025-09-19 15:18
 
 Shared definitions for CI/CD, Git/GitHub, Supabase, and our house style.  
 When in doubt, link terms here from any doc or PR.
@@ -18,8 +18,14 @@ A manual control (e.g., “Require review to deploy to production”). In GitHub
 ### Artifact (Immutable Artifact)
 The build output you deploy (e.g., container image). Built once per commit; the **same** artifact is promoted to staging then production. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
 
+### Artifact Provenance (Labels)
+Metadata embedded in the artifact that records version, commit SHA, build time, and dependency digest so you can trace exactly what’s running. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
+
 ### Artifact Registry
 A repository that stores built artifacts (e.g., container registry). Critical for “build once, promote many.”
+
+### At-least-once (Event Delivery)
+Delivery guarantee for events/logs where messages may be delivered more than once. Deduplicate downstream using a stable `correlation_id`. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
 
 ### Backfill
 A data migration step that populates or transforms existing rows to satisfy a new schema. Part of **Expand → Migrate → Contract**.
@@ -32,6 +38,9 @@ A top-level PR that coordinates several small, related PRs (the “micro-PRs”)
 
 ### Blue/Green Deployment
 Two production environments (“blue” live, “green” idle). You deploy to green, switch traffic, and keep blue as rollback. We generally prefer **canary** for MVP.
+
+### Build Once, Promote Many
+Build a single immutable artifact per commit and deploy the same artifact to each environment (staging → production) without rebuilding. Ensures what you tested is exactly what you run. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
 
 ### Build vs CI (Commit Types)
 **build**: build system or packaging changes. **ci**: continuous integration workflows or configuration changes. See: [Commits & Changelog](../policy/commits_and_changelog.md).
@@ -73,8 +82,17 @@ A canonical list of entities, columns, and enumerations the app depends on. Live
 ### Decision Tree (Commit Intent)
 Quick classifier for commits (feat, fix, docs, test, build, ci, style, refactor, chore, perf, revert). Canonical version lives in [Conventional Commits & Changelog](../policy/commits_and_changelog.md).
 
+### Definition of Ready (DoR)
+Local checklist for when a Draft PR is ready for review: scope is tight, acceptance bullets are testable, rollback exists, migrations planned if needed. See: [Branching & PR Protocol](../policy/branching_and_prs.md#4-definition-of-ready--done).
+
+### Definition of Done (DoD)
+Checklist for merge: required checks are green, observability markers considered, CHANGELOG line drafted, docs/flags updated. See: [Branching & PR Protocol](../policy/branching_and_prs.md#4-definition-of-ready--done).
+
 ### Deploy Marker
 A visible marker (with version/SHA) on dashboards/logs so deploys correlate with metrics. See: [CI/CD Constitution](../policy/ci_cd_constitution.md).
+
+### DORA Metrics
+Industry-standard delivery outcomes we care about: **Deployment Frequency**, **Lead Time for Changes**, **Change Failure Rate**, and **MTTR** (Mean Time to Restore). Our North Star for CI/CD. See: [CI/CD Constitution](../policy/ci_cd_constitution.md#north-star).
 
 ### Draft PR
 A pull request opened intentionally before it’s ready to merge so scope and acceptance can be reviewed while work is in progress. See: [Branching & PR Protocol](../policy/branching_and_prs.md).
@@ -118,11 +136,23 @@ Validates the contract between modules (e.g., DB layer + service). Sits between 
 ### Issue / Project (GitHub)
 **Issues** track work items; **Projects** group and prioritize them. We keep trackers here, not in git history. See: [Docs Policy & Map](../policy/docs_policy.md).
 
+### JUnit XML
+A common test report format that CI uploads on failure to speed up triage. Mentioned in our Minimal CI. See: [Minimal CI (Week 1)](../policy/ci_minimal.md).
+
+### Kebab-case (Naming)
+Lowercase words separated by hyphens used for file and branch names (e.g., `feat/add-tenant-wizard`). Improves portability and link reliability.
+
 ### Keep a Changelog
 Community format for writing CHANGELOG.md so humans can scan what changed. See: [Commits & Changelog](../policy/commits_and_changelog.md).
 
+### Kill Switch (Feature Flags)
+A flag or config that can immediately disable a risky path at runtime without redeploying. Every flagged feature should define a kill switch. See: [Environments & Secrets](../policy/env_and_secrets.md).
+
 ### Linear History
 A repository setting that enforces merges as single commits (squash) to avoid complex graph histories.
+
+### Lockfile / Cache Key
+The lockfile (e.g., pinned requirements) provides a stable hash used as a CI cache key for dependencies, keeping builds fast and deterministic. See: [Minimal CI (Week 1)](../policy/ci_minimal.md).
 
 ### Main (Trunk)
 The protected, always-releasable branch. All feature branches merge here via PR. See: [Branching & PR Protocol](../policy/branching_and_prs.md).
@@ -148,6 +178,9 @@ A proposal to merge changes. For us, PRs start as Draft, declare intent, and inc
 ### Preview Environment
 An ephemeral, per-PR deployment to click around safely. Useful in v1; out-of-scope for MVP.
 
+### Pre-commit / Ruff / Black / Isort
+Local tooling that runs before commits to keep style noise out of reviews. **pre-commit** runs hooks, **ruff** lints, **black** formats, **isort** orders imports. See: [Minimal CI (Week 1)](../policy/ci_minimal.md).
+
 ### Production
 The live environment for users. Access is least privilege; deploys require approval.
 
@@ -171,6 +204,9 @@ Fix forward with a new commit and redeploy, instead of rolling back.
 
 ### Rollback
 Returning the system to a previous healthy artifact or turning a flag off. Prefer rollback over hot-fixing in production.
+
+### Runbook
+A pressure-tested, step-by-step guide used during operations or incidents (e.g., `release_playbook.md`). Lives under `docs/runbooks/`.
 
 ### SBOM (Software Bill of Materials)
 A manifest of components and versions in your artifact. Useful for security and compliance; v1 item.
@@ -199,6 +235,9 @@ Merging a PR as a single commit to keep history clean. See: [Branching & PR Prot
 ### Staging
 Pre-production environment that mirrors prod closely. Auto-deploy on merge to main for rehearsal.
 
+### Staging Burn-in
+A period where new schema or behavior runs in staging while telemetry is monitored before contracting or promoting. See: [CI/CD Constitution](../policy/ci_cd_constitution.md#migrations-expand--migrate--contract).
+
 ### Tag (Git)
 A named pointer to a commit, often used for releases. Immutable by convention.
 
@@ -207,6 +246,9 @@ An isolated customer/account space. All data and actions are scoped by `tenant_i
 
 ### Test Pyramid
 Emphasis on many fast unit tests, fewer integration tests, and very few E2E tests.
+
+### Three Homes (Library / Town Square / Archive)
+Our documentation homes by durability: **Library** (repo `docs/` for durable truths), **Town Square** (GitHub for work-in-progress planning and review), **Archive** (OneDrive for heavy packs and research). See: [Docs Policy & Map](../policy/docs_policy.md#1-the-three-homes).
 
 ### Trunk-Based Development
 Working on short-lived branches that frequently merge into `main` (the trunk). See: [Branching & PR Protocol](../policy/branching_and_prs.md).
@@ -225,6 +267,9 @@ The single source of truth for the app’s version, displayed in-app and used fo
 
 ### Version Pinning
 Locking a dependency to a specific version to avoid surprise changes.
+
+### xfail (Expected Failure)
+A test marked as “expected to fail” when a known issue exists; keep usage rare and temporary. Mentioned in the CI failure playbook. See: [Minimal CI (Week 1)](../policy/ci_minimal.md).
 
 ### Zero-Downtime Migration
 Schema/data evolution done without taking the app offline, usually via **Expand → Migrate → Contract**.
