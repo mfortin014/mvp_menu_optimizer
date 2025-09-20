@@ -1,48 +1,57 @@
 ---
 name: Work Item
-about: Start work with a clear intent and acceptance bullets (Feature/Bug/Chore/Policy/Runbook)
-title: "<type>: <short title>"
-labels: []
+about: Start work with a clear intent and acceptance bullets; keep Project fields in GitHub Projects (not here)
+title: "<short title>"
 assignees: []
 ---
 
-Because  
-What problem or outcome are we targeting? Who benefits, and why now?
+## Because
+Who benefits and why now? One or two sentences max.
 
-Type  
-Choose one: Feature · Bug · Chore · Policy · Runbook · Spec
-
-Area  
-<intake | identity | measure | chronicle | lexicon | ui | db | ci | policy | runbooks>
-
-Outcome (one sentence)  
+## Outcome (one sentence)
 What will be true when this is done?
 
-Done when (acceptance bullets)  
+## Done when (acceptance bullets)
 - [ ] …
 - [ ] …
 
-Links  
-Doc/Spec:  
-PR (if opened):  
-Related Issues:
+## Links
+- **Doc/Spec:**  
+- **PR (if opened):**  
+- **Related Issues:**  
 
-Tasks — in repo  
+## Tasks — in repo
 - [ ] …
 
-Tasks — external (GitHub settings, Supabase, etc.)  
+## Tasks — external (GitHub settings, Supabase, etc.)
 - [ ] …
 
-Flags / Migrations / Observability (if applicable)  
-- Flags: owner, default, kill switch, removal date  
-- Migrations: expand → migrate → contract plan  
-- Observability: smoke checks + key metrics to watch
+<details>
+<summary><strong>Flags / Migrations / Observability (optional)</strong></summary>
 
-Risk & rollback (brief)  
-Worst likely failure, and how we’d roll back or disable safely.
+**Flags (if any)**  
+Owner • default (OFF/ON) • kill switch • planned removal date
 
-Project fields (fill in Project view)  
-Status = Todo (Specs start as Draft) · Type = <Feature|Bug|Chore|Policy|Runbook|Spec> · Priority = <P0|P1|P2|P3> · Target Release = mvp-<X.Y.Z> · Area = <area>
+**Migrations (if any)**  
+Expand → Migrate → Contract; reference `migrations/sql/V***__*.sql`
 
-Notes  
-Use a branch named `<type>/<short-slug>` (e.g., `feat/add-tenant-wizard`). Open a Draft PR early and reference this Issue. The PR should include “Closes #<issue>” when ready.
+**Observability**  
+Smoke checks + key metrics/events to watch; deploy marker name
+</details>
+
+<details>
+<summary><strong>Risk & rollback (brief)</strong></summary>
+
+Worst likely failure and how we’d roll back or disable safely.
+</details>
+
+<details>
+<summary><strong>Out of scope (guardrails)</strong></summary>
+
+- …
+- …
+</details>
+
+**Notes**  
+Create a short-lived branch named `<type>/<short-slug>` (e.g., `feat/add-tenant-wizard`).  
+Open a Draft PR early and reference this Issue. When ready, include “Closes #<issue>” in the PR.
