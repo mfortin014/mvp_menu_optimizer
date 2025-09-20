@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# If you push multiple updates to the same PR, cancel older runs to save time
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege token; this workflow only reads code
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"  # speed up pip installs
+
+      - name: Install lint/format tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black isort
+
+      - name: Ruff (lint)
+        run: ruff . --output-format=github
+
+      - name: Black (format check)
+        run: black --check .
+
+      - name: isort (import order check)
+        run: isort . --check-only
+
+      # Thin, non-destructive smoke: compile all .py files.
+      # This catches syntax errors across the repo without running the app,
+      # touching the network, or requiring secrets/DB access.
+      - name: Thin smoke — syntax compile
+        run: |
+          python - <<'PY'
+          import os, sys, py_compile
+          SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "docs", "schema", "backups", ".streamlit"}
+          failures = []
+          for root, dirs, files in os.walk("."):
+              if any(part in SKIP_DIRS for part in root.split(os.sep)):
+                  continue
+              for f in files:
+                  if f.endswith(".py"):
+                      path = os.path.join(root, f)
+                      try:
+                          py_compile.compile(path, doraise=True)
+                      except Exception as e:
+                          failures.append((path, str(e)))
+          if failures:
+              for path, msg in failures:
+                  print(f"SMOKE: compile failed: {path} :: {msg}", file=sys.stderr)
+              sys.exit(1)
+          print("SMOKE: syntax OK across repository")
+          PY
