@@ -9,7 +9,8 @@ def skip(p: pathlib.Path) -> bool:
 def main():
     added = 0
     for p in pathlib.Path(".").rglob("*.py"):
-        if skip(p): continue
+        if skip(p): 
+            continue
         t = p.read_text(encoding="utf-8")
         if "db." in t and "from utils import tenant_db as db" not in t:
             lines = t.splitlines()
