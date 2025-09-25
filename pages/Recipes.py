@@ -24,7 +24,6 @@ from components.active_client_badge import render as client_badge
 
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
-from utils.supabase import supabase
 from utils import tenant_db as db
 
 st.set_page_config(page_title="Recipes", layout="wide")
@@ -110,9 +109,12 @@ def fetch_uom_options() -> list:
     rows = res.data or []
     uoms = set()
     for r in rows:
-        fu = r.get("from_uom"); tu = r.get("to_uom")
-        if fu: uoms.add(str(fu))
-        if tu: uoms.add(str(tu))
+        fu = r.get("from_uom")
+        tu = r.get("to_uom")
+        if fu: 
+            uoms.add(str(fu))
+        if tu: 
+            uoms.add(str(tu))
     if not uoms:
         uoms = {"Serving"}  # minimal defensive fallback
     return sorted(uoms)
@@ -177,10 +179,14 @@ fmt_currency_2 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+
 fmt_currency_5 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(5);}""")
 fmt_percent_1  = JsCode("""function(p){ if(p.value==null) return ''; return Number(p.value).toFixed(1)+'%';}""")
 
-if "price" in display_df.columns:      gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
-if "total_cost" in display_df.columns: gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
-if "cost_pct" in display_df.columns:   gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
-if "margin" in display_df.columns:     gb.configure_column("margin", header_name="Margin", valueFormatter=fmt_currency_2)
+if "price" in display_df.columns:
+    gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
+if "total_cost" in display_df.columns:
+    gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
+if "cost_pct" in display_df.columns:
+    gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
+if "margin" in display_df.columns:
+    gb.configure_column("margin", header_name="Margin", valueFormatter=fmt_currency_2)
 
 grid_options = gb.build()
 
@@ -345,11 +351,16 @@ with st.sidebar:
         if save_btn:
             dlog("Save clicked")
             errors = []
-            if not name: errors.append("Name")
-            if not code: errors.append("Recipe Code")
-            if not status: errors.append("Status")
-            if not selected_recipe_type: errors.append("Recipe Type")
-            if not yield_uom: errors.append("Yield UOM")
+            if not name: 
+                errors.append("Name")
+            if not code: 
+                errors.append("Recipe Code")
+            if not status: 
+                errors.append("Status")
+            if not selected_recipe_type:
+                errors.append("Recipe Type")
+            if not yield_uom: 
+                errors.append("Yield UOM")
 
             if errors:
                 st.error(f"⚠️ Please complete: {', '.join(errors)}")
