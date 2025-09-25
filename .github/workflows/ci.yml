@@ -33,10 +33,13 @@ jobs:
       - name: Install lint/format tooling
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black isort
+          pip install "ruff>=0.6" black isort
+          ruff --version
+          black --version
+          isort --version
 
       - name: Ruff (lint)
-        run: ruff . --output-format=github
+        run: ruff check . --output-format=github
 
       - name: Black (format check)
         run: black --check .
