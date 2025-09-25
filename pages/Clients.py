@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from utils import tenant_db as db
-from utils.supabase import supabase
 from utils.auth import require_auth
 from utils.tenant_state import get_active_tenant, set_active_tenant
 from components.active_client_badge import render as client_badge

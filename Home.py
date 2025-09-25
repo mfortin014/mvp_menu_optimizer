@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 
 from utils.data import load_recipes_summary
-from utils.theme import get_primary_color, get_logo_path
+from utils.theme import get_primary_color
 from utils.auth import require_auth
 from components.active_client_badge import render as client_badge
 from utils.branding import apply_branding_to_sidebar, inject_brand_colors
