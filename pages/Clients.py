@@ -113,7 +113,7 @@ if mode == "🔁 Switch client":
     st.subheader("Switch client")
     st.info(f"Currently loaded: **{cur_name}**")
 
-    df_active = df_all[df_all["is_active"] == True] if not df_all.empty else df_all
+    df_active = df_all.loc[df_all["is_active"]] if not df_all.empty else df_all
     names = df_active["name"].tolist() if not df_active.empty else []
     map_name_id = dict(zip(df_active["name"], df_active["id"])) if not df_active.empty else {}
     idx = names.index(cur_name) if cur_name in names else 0 if names else 0
