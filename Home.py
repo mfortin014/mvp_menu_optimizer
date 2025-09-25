@@ -7,7 +7,7 @@ from utils.theme import get_primary_color
 from utils.auth import require_auth
 from components.active_client_badge import render as client_badge
 from utils.branding import apply_branding_to_sidebar, inject_brand_colors
-
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 require_auth()
 
@@ -66,8 +66,6 @@ else:
     col1.metric("Avg Price", f"${avg_price:.2f}")
     col2.metric("Avg Cost (% of Price)", f"{avg_cost_pct:.1f}%")
     col3.metric("Avg Margin ($)", f"${avg_margin_dollar:.2f}")
-
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- SECTION 3: Recipe Table ---
 st.subheader("📋 Recipe Portfolio with Metrics")
