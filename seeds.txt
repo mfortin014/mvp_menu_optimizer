@@ -1,0 +1,3 @@
+.github/project-seeds/pending/phase1a-first-export.md
+.github/project-seeds/pending/phase1a-schema.md
+.github/project-seeds/pending/phase1a-workflow.md
