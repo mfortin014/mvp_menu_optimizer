@@ -1,5 +1,4 @@
 import pandas as pd
-from sqlalchemy import create_engine
 from utils.db import get_engine
 
 engine = get_engine()
