@@ -31,9 +31,7 @@ def _load_json_fallback():
 
 def _normalize(logo_url, prim, sec, fb):
     primary = prim or fb.get("brand_primary") or fb.get("primary") or _DEFAULT_PRIMARY
-    secondary = (
-        sec or fb.get("brand_secondary") or fb.get("secondary") or _DEFAULT_SECONDARY
-    )
+    secondary = sec or fb.get("brand_secondary") or fb.get("secondary") or _DEFAULT_SECONDARY
     logo = logo_url or fb.get("logo_url")
     return {"logo_url": logo, "primary": primary, "secondary": secondary}
 

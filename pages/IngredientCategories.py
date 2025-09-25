@@ -65,15 +65,11 @@ edit_mode = edit_data is not None
 with st.sidebar:
     st.subheader("➕ Add or Edit Category")
     with st.form("category_form"):
-        name = st.text_input(
-            "Name", value=edit_data.get("name", "") if edit_mode else ""
-        )
+        name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
 
         status_options = ["Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else "Active"
-        status = st.selectbox(
-            "Status", status_options, index=status_options.index(selected_status)
-        )
+        status = st.selectbox("Status", status_options, index=status_options.index(selected_status))
 
         submitted = st.form_submit_button("Save Category")
         errors = []

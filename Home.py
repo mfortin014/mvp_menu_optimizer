@@ -15,9 +15,7 @@ require_auth()
 st.set_page_config(page_title="Home", layout="wide")
 client_badge(clients_page_title="Clients")
 
-st.markdown(
-    f"<h1 style='color:{get_primary_color()}'>🏠 Home</h1>", unsafe_allow_html=True
-)
+st.markdown(f"<h1 style='color:{get_primary_color()}'>🏠 Home</h1>", unsafe_allow_html=True)
 apply_branding_to_sidebar()
 inject_brand_colors()
 

@@ -107,9 +107,7 @@ def fetch_recipe_line_costs(recipe_id):
 
 
 def fetch_notes_map(recipe_id):
-    res = (
-        db.table("recipe_lines").select("id, note").eq("recipe_id", recipe_id).execute()
-    )
+    res = db.table("recipe_lines").select("id, note").eq("recipe_id", recipe_id).execute()
     return {r["id"]: r.get("note") for r in (res.data or [])}
 
 
@@ -162,9 +160,7 @@ def _load_recipe_picker():
 
 recipes = fetch_recipes_active()
 name_to_id = {
-    (f"{r['name']} – {r['recipe_code']}" if r.get("recipe_code") else r["name"]): r[
-        "id"
-    ]
+    (f"{r['name']} – {r['recipe_code']}" if r.get("recipe_code") else r["name"]): r["id"]
     for r in recipes
 }
 options = ["— Select —"] + list(name_to_id.keys())
@@ -227,15 +223,11 @@ notes_map = fetch_notes_map(recipe_id)
 # Catalog for labels (ingredients + prep recipes)
 catalog_rows = fetch_input_catalog()
 id_to_label = {r["id"]: r["label"] for r in catalog_rows}
-df["ingredient"] = (
-    df["ingredient_id"].map(id_to_label).fillna("— missing or inactive —")
-)
+df["ingredient"] = df["ingredient_id"].map(id_to_label).fillna("— missing or inactive —")
 df["note"] = df["recipe_line_id"].map(notes_map)
 
 # Unit cost for the referenced input (ingredient or prep)
-unit_costs = rpc_unit_cost_map(
-    list({rid for rid in df["ingredient_id"].dropna().unique()})
-)
+unit_costs = rpc_unit_cost_map(list({rid for rid in df["ingredient_id"].dropna().unique()}))
 df["unit_cost"] = df["ingredient_id"].map(unit_costs)
 
 # Display table
@@ -309,9 +301,7 @@ with st.sidebar:
 
     # Selection options from catalog, excluding blocked recipes
     filtered_catalog = [
-        r
-        for r in catalog_rows
-        if not (r["source"] == "recipe" and r["id"] in blocked_recipes)
+        r for r in catalog_rows if not (r["source"] == "recipe" and r["id"] in blocked_recipes)
     ]
     filtered_catalog.sort(key=lambda r: r["label"].lower())
 
@@ -348,9 +338,7 @@ with st.sidebar:
 
         # Display unit cost (server-side)
         unit_cost_display = (
-            rpc_unit_cost_map([ingredient_id]).get(ingredient_id)
-            if ingredient_id
-            else None
+            rpc_unit_cost_map([ingredient_id]).get(ingredient_id) if ingredient_id else None
         )
         st.text_input(
             "Unit Cost (base unit)",
@@ -398,11 +386,7 @@ export_df = display_df.drop(columns=["recipe_line_id"], errors="ignore").copy()
 
 def _strip_money(x):
     try:
-        return (
-            float(str(x).replace("$", ""))
-            if isinstance(x, str) and x.startswith("$")
-            else x
-        )
+        return float(str(x).replace("$", "")) if isinstance(x, str) and x.startswith("$") else x
     except Exception:
         return x
 

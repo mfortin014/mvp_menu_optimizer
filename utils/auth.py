@@ -23,17 +23,13 @@ def ensure_client_selected_pre_auth():
         st.stop()
 
     # Determine which should be selected by default in the widget
-    db_default_id = next(
-        (row["id"] for row in data if row.get("is_default")), data[0]["id"]
-    )
+    db_default_id = next((row["id"] for row in data if row.get("is_default")), data[0]["id"])
     tenant_names = [row["name"] for row in data]
     id_by_name = {row["name"]: row["id"] for row in data}
     name_by_id = {row["id"]: row["name"] for row in data}
 
     current = get_active_tenant() or db_default_id
-    current_name = name_by_id.get(
-        current, name_by_id.get(db_default_id, tenant_names[0])
-    )
+    current_name = name_by_id.get(current, name_by_id.get(db_default_id, tenant_names[0]))
 
     st.subheader("Client")
     choice = st.selectbox(

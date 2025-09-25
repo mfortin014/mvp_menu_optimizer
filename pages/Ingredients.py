@@ -60,30 +60,19 @@ def fetch_uoms() -> list[str]:
 
 
 def fetch_categories() -> list[dict]:
-    res = (
-        db.table("ref_ingredient_categories")
-        .select("id,name")
-        .eq("status", "Active")
-        .execute()
-    )
+    res = db.table("ref_ingredient_categories").select("id,name").eq("status", "Active").execute()
     return res.data or []
 
 
 def fetch_storage_types() -> list[dict]:
-    res = (
-        db.table("ref_storage_type").select("id,name").eq("status", "Active").execute()
-    )
+    res = db.table("ref_storage_type").select("id,name").eq("status", "Active").execute()
     return res.data or []
 
 
 def fetch_base_uom_map() -> dict:
     # Best-effort “from → to” where base is g/ml for inference
     res = db.table("ref_uom_conversion").select("from_uom,to_uom").execute()
-    return {
-        r["from_uom"]: r["to_uom"]
-        for r in (res.data or [])
-        if r["to_uom"] in ["g", "ml"]
-    }
+    return {r["from_uom"]: r["to_uom"] for r in (res.data or []) if r["to_uom"] in ["g", "ml"]}
 
 
 # ---------- Fetch ----------
@@ -116,9 +105,7 @@ column_order = [
     "unit_cost",
     "base_uom",
 ]
-display_df = df[
-    column_order if all(c in df.columns for c in column_order) else df.columns
-].copy()
+display_df = df[column_order if all(c in df.columns for c in column_order) else df.columns].copy()
 
 gb = GridOptionsBuilder.from_dataframe(display_df)
 grid_height = 600 if len(display_df) > 10 else None
@@ -187,9 +174,7 @@ edit_mode = edit_data is not None
 with st.sidebar:
     st.subheader("➕ Add or Edit Ingredient")
     with st.form("ingredient_form"):
-        name = st.text_input(
-            "Name", value=edit_data.get("name", "") if edit_mode else ""
-        )
+        name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input(
             "Ingredient Code",
             value=edit_data.get("ingredient_code", "") if edit_mode else "",
@@ -232,9 +217,7 @@ with st.sidebar:
 
         status_opts = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
-        status_idx = (
-            status_opts.index(selected_status) if selected_status in status_opts else 0
-        )
+        status_idx = status_opts.index(selected_status) if selected_status in status_opts else 0
         status = st.selectbox("Status", status_opts, index=status_idx)
         status = None if status == "— Select —" else status
 
@@ -262,9 +245,7 @@ with st.sidebar:
 
         base_uom_opts = ["— Select —", "g", "ml", "unit"]
         selected_base = edit_data.get("base_uom") if edit_mode else None
-        base_idx = (
-            base_uom_opts.index(selected_base) if selected_base in base_uom_opts else 0
-        )
+        base_idx = base_uom_opts.index(selected_base) if selected_base in base_uom_opts else 0
         base_uom = st.selectbox(
             "Base UOM (optional, inferred if blank)", base_uom_opts, index=base_idx
         )
@@ -309,9 +290,7 @@ with st.sidebar:
                     "storage_type_id": storage_type_id,
                 }
                 if edit_mode:
-                    db.table("ingredients").update(payload).eq(
-                        "id", edit_data["id"]
-                    ).execute()
+                    db.table("ingredients").update(payload).eq("id", edit_data["id"]).execute()
                     st.success("Ingredient updated.")
                 else:
                     db.insert("ingredients", payload).execute()

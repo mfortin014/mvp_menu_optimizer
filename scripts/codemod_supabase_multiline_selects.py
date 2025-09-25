@@ -18,9 +18,7 @@ TARGETS = {
 }
 
 # matches supabase.table("name") even across spaces/newlines
-TAB_CALL = re.compile(
-    r'supabase\s*\.\s*table\s*\(\s*([\'"])([^\'"]+)\1\s*\)', re.MULTILINE
-)
+TAB_CALL = re.compile(r'supabase\s*\.\s*table\s*\(\s*([\'"])([^\'"]+)\1\s*\)', re.MULTILINE)
 
 
 def skip(p: pathlib.Path) -> bool:

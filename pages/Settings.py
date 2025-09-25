@@ -20,11 +20,7 @@ st.header("🔧 Backfill Missing Base UOMs")
 def fetch_base_uom_map():
     res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     return (
-        {
-            row["from_uom"]: row["to_uom"]
-            for row in res.data
-            if row["to_uom"] in ["g", "ml"]
-        }
+        {row["from_uom"]: row["to_uom"] for row in res.data if row["to_uom"] in ["g", "ml"]}
         if res.data
         else {}
     )
@@ -58,9 +54,7 @@ if st.button("Run Maintenance"):
 
     if updates:
         for u in updates:
-            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq(
-                "id", u["id"]
-            ).execute()
+            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
 
         st.success(f"✅ Updated {len(updates)} ingredients with inferred base_uom.")
     else:
@@ -80,9 +74,7 @@ if object_type == "Ingredients":
         uom_res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
         valid_uoms = {r["from_uom"] for r in uom_res.data} if uom_res.data else set()
         base_uom_map = {
-            r["from_uom"]: r["to_uom"]
-            for r in uom_res.data
-            if r["to_uom"] in ["g", "ml"]
+            r["from_uom"]: r["to_uom"] for r in uom_res.data if r["to_uom"] in ["g", "ml"]
         }
 
         try:
@@ -167,10 +159,7 @@ if object_type == "Ingredients":
                     base_uom = base_uom_map[package_uom]
 
             exists = (
-                db.table("ingredients")
-                .select("*")
-                .eq("ingredient_code", ingredient_code)
-                .execute()
+                db.table("ingredients").select("*").eq("ingredient_code", ingredient_code).execute()
             )
             if exists.data:
                 existing_row = exists.data[0]
@@ -201,17 +190,13 @@ if object_type == "Ingredients":
                         "ingredient_code": ingredient_code,
                         "name": name,
                         "ingredient_type": (
-                            ingredient_type
-                            if ingredient_type.lower() in valid_types
-                            else "Bought"
+                            ingredient_type if ingredient_type.lower() in valid_types else "Bought"
                         ),
                         "package_qty": round(package_qty, 6),
                         "package_uom": package_uom,
                         "package_cost": round(package_cost, 6),
                         "yield_pct": round(yield_pct, 6),
-                        "status": (
-                            status if status.lower() in valid_statuses else "Active"
-                        ),
+                        "status": (status if status.lower() in valid_statuses else "Active"),
                         "category_id": category_id,
                         "base_uom": base_uom,  # ✅ include inferred value (if any)
                     }
@@ -248,9 +233,7 @@ if object_type == "Ingredients":
                     st.error(f"❌ Insert failed: {e}")
 
 elif object_type == "Recipes":
-    uploaded_file = st.file_uploader(
-        "Upload Recipes CSV", type=["csv"], key="recipes_upload"
-    )
+    uploaded_file = st.file_uploader("Upload Recipes CSV", type=["csv"], key="recipes_upload")
 
     if uploaded_file:
         uom_res = db.table("ref_uom_conversion").select("from_uom").execute()

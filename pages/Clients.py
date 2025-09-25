@@ -87,9 +87,7 @@ div[role='radiogroup'] > label:has(input:checked) div {
 def load_all_clients_df() -> pd.DataFrame:
     r = (
         db.table("tenants")
-        .select(
-            "id,name,code,is_active,logo_url,brand_primary,brand_secondary,is_default"
-        )
+        .select("id,name,code,is_active,logo_url,brand_primary,brand_secondary,is_default")
         .order("name")
         .execute()
     )
@@ -126,9 +124,7 @@ if mode == "🔁 Switch client":
 
     df_active = df_all.loc[df_all["is_active"]] if not df_all.empty else df_all
     names = df_active["name"].tolist() if not df_active.empty else []
-    map_name_id = (
-        dict(zip(df_active["name"], df_active["id"])) if not df_active.empty else {}
-    )
+    map_name_id = dict(zip(df_active["name"], df_active["id"])) if not df_active.empty else {}
     idx = names.index(cur_name) if cur_name in names else 0 if names else 0
 
     chosen_name = st.selectbox(
@@ -159,9 +155,7 @@ if mode == "🛠️ Manage clients":
 
         gb = GridOptionsBuilder.from_dataframe(table_df)
         gb.configure_default_column(editable=False, filter=True, sortable=True)
-        gb.configure_selection(
-            "single", use_checkbox=False
-        )  # row click selects & highlights
+        gb.configure_selection("single", use_checkbox=False)  # row click selects & highlights
         gb.configure_column("id", hide=True)
         grid = AgGrid(
             table_df,
@@ -196,12 +190,8 @@ if mode == "🛠️ Manage clients":
         rowkey = sel_row.get("id", "new")  # key suffix to isolate widget state per row
 
         with st.form("client_form"):
-            name = st.text_input(
-                "Name", value=sel_row.get("name", ""), key=f"client_name_{rowkey}"
-            )
-            code = st.text_input(
-                "Code", value=sel_row.get("code", ""), key=f"client_code_{rowkey}"
-            )
+            name = st.text_input("Name", value=sel_row.get("name", ""), key=f"client_name_{rowkey}")
+            code = st.text_input("Code", value=sel_row.get("code", ""), key=f"client_code_{rowkey}")
 
             is_active = st.checkbox(
                 "Active",
@@ -236,18 +226,12 @@ if mode == "🛠️ Manage clients":
                 # Accurate guardrails
                 if not name or not code:
                     st.error("Please provide both Name and Code.")
-                elif (
-                    sel_row.get("id")
-                    and sel_row.get("is_default")
-                    and (is_active is False)
-                ):
+                elif sel_row.get("id") and sel_row.get("is_default") and (is_active is False):
                     st.error(
                         "The default client cannot be deactivated. Please set another client as default first."
                     )
                 elif is_default and not is_active:
-                    st.error(
-                        "A client must be active before it can be set as the default."
-                    )
+                    st.error("A client must be active before it can be set as the default.")
                 else:
                     payload = {
                         "name": name,
@@ -261,11 +245,7 @@ if mode == "🛠️ Manage clients":
 
                     # Enforce single default: unset others (scoped WHERE) before saving this one
                     if is_default:
-                        q = (
-                            db.table("tenants")
-                            .update({"is_default": False})
-                            .eq("is_default", True)
-                        )
+                        q = db.table("tenants").update({"is_default": False}).eq("is_default", True)
                         if sel_row.get("id"):
                             q = q.neq("id", sel_row["id"])
                         q.execute()

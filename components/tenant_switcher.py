@@ -53,9 +53,7 @@ def render(in_sidebar: bool = True, label: str = "Active client"):
     names = list(id_by_name.keys())
 
     # Find the current name from the active id
-    current_name = next(
-        (n for n, tid in id_by_name.items() if tid == current), names[0]
-    )
+    current_name = next((n for n, tid in id_by_name.items() if tid == current), names[0])
 
     # Pre-seed widget state so the selectbox shows the real active tenant on first render
     if "tenant_select" not in st.session_state:

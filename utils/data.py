@@ -88,13 +88,7 @@ def load_recipe_details(recipe_name: str) -> pd.DataFrame:
     Uses existing get_recipe_details(rid uuid) RPC. We first resolve the recipe id by name,
     then call the RPC and augment it with selling_price for convenience.
     """
-    recipe = (
-        db.table("recipes")
-        .select("id, price")
-        .eq("name", recipe_name)
-        .single()
-        .execute()
-    )
+    recipe = db.table("recipes").select("id, price").eq("name", recipe_name).single().execute()
     if not recipe.data:
         return pd.DataFrame()
 
@@ -332,9 +326,7 @@ def get_uom_list() -> List[str]:
         df = _to_df(res)
         if df.empty:
             return []
-        uoms = pd.unique(
-            pd.concat([df["from_uom"], df["to_uom"]], ignore_index=True).dropna()
-        )
+        uoms = pd.unique(pd.concat([df["from_uom"], df["to_uom"]], ignore_index=True).dropna())
         return sorted(map(str, uoms))
     except Exception:
         return []
@@ -342,10 +334,5 @@ def get_uom_list() -> List[str]:
 
 @st.cache_data(ttl=60)
 def get_active_ingredient_categories() -> List[Dict[str, Any]]:
-    res = (
-        db.table("ref_ingredient_categories")
-        .select("id, name")
-        .eq("status", "Active")
-        .execute()
-    )
+    res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
     return res.data or []

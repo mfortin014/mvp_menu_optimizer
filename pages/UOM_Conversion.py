@@ -69,9 +69,7 @@ with st.sidebar:
         from_uom = st.text_input(
             "From UOM", value=edit_data.get("from_uom", "") if edit_mode else ""
         )
-        to_uom = st.text_input(
-            "To UOM", value=edit_data.get("to_uom", "") if edit_mode else ""
-        )
+        to_uom = st.text_input("To UOM", value=edit_data.get("to_uom", "") if edit_mode else "")
 
         factor_value = 1.0
         if edit_mode:
@@ -102,9 +100,7 @@ with st.sidebar:
             else:
                 data = {"from_uom": from_uom, "to_uom": to_uom, "factor": factor}
                 if edit_mode:
-                    db.table("ref_uom_conversion").update(data).eq(
-                        "id", edit_data["id"]
-                    ).execute()
+                    db.table("ref_uom_conversion").update(data).eq("id", edit_data["id"]).execute()
                     st.success("Conversion updated.")
                 else:
                     db.insert("ref_uom_conversion", data).execute()

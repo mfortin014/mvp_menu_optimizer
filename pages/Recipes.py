@@ -127,12 +127,8 @@ def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.Data
             return None
         return round(float(price) - float(cost), 2)
 
-    df["cost_pct"] = df.apply(
-        lambda r: safe_ratio(r.get("total_cost"), r.get("price")), axis=1
-    )
-    df["margin"] = df.apply(
-        lambda r: safe_margin(r.get("total_cost"), r.get("price")), axis=1
-    )
+    df["cost_pct"] = df.apply(lambda r: safe_ratio(r.get("total_cost"), r.get("price")), axis=1)
+    df["margin"] = df.apply(lambda r: safe_margin(r.get("total_cost"), r.get("price")), axis=1)
 
     ordered = [
         "recipe_code",
@@ -167,9 +163,7 @@ def fetch_uom_options() -> list:
     return sorted(uoms)
 
 
-def build_uom_choices(
-    recipe_type: str | None, current_uom: str | None, all_uoms: list
-) -> list:
+def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms: list) -> list:
     """
     Type-aware UOM choices:
       - prep: all_uoms minus {'service'}
@@ -199,9 +193,7 @@ with f1:
         "Status", options=["All", "Active", "Inactive"], index=1, horizontal=True
     )
 with f2:
-    type_filter = st.radio(
-        "Type", options=["All", "service", "prep"], index=0, horizontal=True
-    )
+    type_filter = st.radio("Type", options=["All", "service", "prep"], index=0, horizontal=True)
 
 # -----------------------------
 # Fetch & Filter
@@ -243,9 +235,7 @@ fmt_percent_1 = JsCode(
 if "price" in display_df.columns:
     gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
 if "total_cost" in display_df.columns:
-    gb.configure_column(
-        "total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5
-    )
+    gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
 if "cost_pct" in display_df.columns:
     gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
 if "margin" in display_df.columns:
@@ -376,18 +366,14 @@ with st.sidebar:
     selected_recipe_type = st.selectbox(
         "Recipe Type", type_options, index=type_index, key="recipe_type_selector"
     )
-    selected_recipe_type = (
-        None if selected_recipe_type == "— Select —" else selected_recipe_type
-    )
+    selected_recipe_type = None if selected_recipe_type == "— Select —" else selected_recipe_type
     dlog(f"type={selected_recipe_type} edit_mode={edit_mode}")
 
     # -------------------------
     # Save-only Form
     # -------------------------
     with st.form("recipe_form"):
-        name = st.text_input(
-            "Name", value=edit_data.get("name", "") if edit_mode else ""
-        )
+        name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
         code = st.text_input(
             "Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else ""
         )
@@ -395,9 +381,7 @@ with st.sidebar:
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
         status_index = (
-            status_options.index(selected_status)
-            if selected_status in status_options
-            else 0
+            status_options.index(selected_status) if selected_status in status_options else 0
         )
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
@@ -412,9 +396,7 @@ with st.sidebar:
             if edit_mode and edit_data.get("yield_qty") is not None
             else 1.0
         )
-        yield_qty = st.number_input(
-            "Yield Quantity", min_value=0.0, step=0.1, value=yield_qty_val
-        )
+        yield_qty = st.number_input("Yield Quantity", min_value=0.0, step=0.1, value=yield_qty_val)
 
         # --- UOM dropdown (type-aware) ---
         all_uoms = fetch_uom_options()
@@ -473,12 +455,7 @@ with st.sidebar:
             else:
                 # Uniqueness check on INSERT
                 if not edit_mode:
-                    existing = (
-                        db.table("recipes")
-                        .select("id")
-                        .eq("recipe_code", code)
-                        .execute()
-                    )
+                    existing = db.table("recipes").select("id").eq("recipe_code", code).execute()
                     if existing.data:
                         st.error("❌ Recipe code already exists.")
                         dlog("duplicate code on insert")
@@ -497,9 +474,7 @@ with st.sidebar:
 
                 try:
                     if edit_mode:
-                        db.table("recipes").update(payload).eq(
-                            "id", edit_data["id"]
-                        ).execute()
+                        db.table("recipes").update(payload).eq("id", edit_data["id"]).execute()
                         st.success("✅ Recipe updated.")
                     else:
                         db.insert("recipes", payload).execute()

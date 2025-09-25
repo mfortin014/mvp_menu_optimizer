@@ -73,13 +73,7 @@ def _tid() -> str:
 
     want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
     if want_code:
-        r = (
-            supabase.table("tenants")
-            .select("id")
-            .eq("code", want_code)
-            .limit(1)
-            .execute()
-        )
+        r = supabase.table("tenants").select("id").eq("code", want_code).limit(1).execute()
         if r.data:
             tid = r.data[0]["id"]
             set_active_tenant(tid)
