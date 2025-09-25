@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write           # needed for the auto "consume seeds" PR
+  contents: write            # needed for the auto "consume seeds" PR branch
   issues: write
   pull-requests: write
-  projects: write
+  repository-projects: write # (optional) ok with schema; not strictly required for Project v2 GraphQL
 
 concurrency:
   group: seed-${{ github.ref }}
@@ -98,7 +98,6 @@ jobs:
               return res.data.items.find(i => !i.pull_request) || null;
             }
 
-            const results = [];
             // Preload project once (use first seed's project_url)
             let projectInfo = null;
 
@@ -127,7 +126,9 @@ jobs:
               if (existing && createOnly) {
                 core.info(`Seed ${uid}: issue #${existing.number} exists; create-only → skipping update`);
                 // fetch full issue to get node id later
-                issue = (await github.rest.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number })).data;
+                issue = (await github.rest.issues.get({
+                  owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number
+                })).data;
               } else if (existing) {
                 core.info(`Seed ${uid}: updating issue #${existing.number}`);
                 issue = (await github.rest.issues.update({
@@ -164,10 +165,12 @@ jobs:
                 }
               }
 
-              results.push({ number: issue.number, id: issue.id, uid, title, meta, createdNew });
+              created.push({ number: issue.number, id: issue.id, uid, title, meta, createdNew });
             }
 
-            core.setOutput('created', JSON.stringify(results));
+            core.setOutput('created', JSON.stringify(created));
+          result-encoding: string
+          files: ${{ steps.list.outputs.files }}
 
       - name: Wire parent/children on newly created epics
         if: steps.create.outputs.created != ''
@@ -202,8 +205,7 @@ jobs:
                 issue_number: item.number, body
               });
             }
-          with:
-            created: ${{ steps.create.outputs.created }}
+          created: ${{ steps.create.outputs.created }}
 
       - name: Open PR to consume processed seeds (pending → applied)
         if: steps.list.outputs.files != ''
@@ -238,5 +240,4 @@ jobs:
               body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
             });
             core.notice(`Opened consume PR #${pr.data.number}`);
-        with:
           files: ${{ steps.list.outputs.files }}
