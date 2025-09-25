@@ -52,18 +52,24 @@ jobs:
         uses: actions/github-script@v7
         env:
           FILES:                ${{ steps.list.outputs.files }}
+          # Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
+          PROJECT_ID:           ${{ vars.PROJECT_ID }}
+          # Otherwise, keep using a human URL; make sure it's a **Projects v2** URL:
+          #   - user scope: https://github.com/users/<user>/projects/<n>
+          #   - org  scope: https://github.com/orgs/<org>/projects/<n>
           DEFAULT_PROJECT_URL:  ${{ vars.PROJECT_URL }}
           DEFAULT_ASSIGNEE:     ${{ vars.DEFAULT_ASSIGNEE }}
           FALLBACK_ASSIGNEE:    ${{ github.actor }}
         with:
           script: |
-            // 'core', 'github', 'context' are provided
+            // 'core', 'github', 'context' are provided by actions/github-script
             const fs = require('fs');
             const path = require('path');
 
             const files = (process.env.FILES || '').split(',').filter(Boolean);
             if (!files.length) { core.setOutput('created','[]'); return; }
 
+            // ---------- helpers ----------
             function parseHeader(body) {
               const m = body.match(/<!--([\s\S]*?)-->/);
               if (!m) return { meta:{}, rest: body.trim() };
@@ -88,49 +94,82 @@ jobs:
               return res.data.items.find(i => !i.pull_request) || null;
             }
 
-            async function getProjectInfo(projectUrl) {
-              const orgMatch  = projectUrl?.match(/orgs\/([^/]+)\/projects\/(\d+)/);
-              const userMatch = projectUrl?.match(/users\/([^/]+)\/projects\/(\d+)/);
-              if (!orgMatch && !userMatch) return null;
+            // ----- Projects v2 resolution (robust & non-fatal) -----
+            async function resolveProjectIdFromUrl(projectUrl) {
+              try {
+                if (!projectUrl) return null;
 
-              if (orgMatch) {
-                const [_, org, n] = orgMatch; const num = parseInt(n,10);
-                const data = await github.graphql(
-                  `query($org:String!, $num:Int!){
-                    organization(login:$org){ projectV2(number:$num){ id } }
-                  }`, { org, num }
-                );
-                return { projectId: data.organization.projectV2.id };
-              } else {
-                const [_, user, n] = userMatch; const num = parseInt(n,10);
-                const data = await github.graphql(
-                  `query($user:String!, $num:Int!){
-                    user(login:$user){ projectV2(number:$num){ id } }
-                  }`, { user, num }
-                );
-                return { projectId: data.user.projectV2.id };
+                const orgMatch  = projectUrl.match(/orgs\/([^/]+)\/projects\/(\d+)/);
+                const userMatch = projectUrl.match(/users\/([^/]+)\/projects\/(\d+)/);
+
+                if (orgMatch) {
+                  const [_, org, n] = orgMatch; const num = parseInt(n,10);
+                  const data = await github.graphql(
+                    `query($org:String!, $num:Int!){
+                      organization(login:$org){ projectV2(number:$num){ id } }
+                    }`, { org, num }
+                  );
+                  const id = data?.organization?.projectV2?.id || null;
+                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (org=${org}, number=${num}). Is this a classic project or the wrong number?`);
+                  return id;
+                }
+
+                if (userMatch) {
+                  const [_, user, n] = userMatch; const num = parseInt(n,10);
+                  const data = await github.graphql(
+                    `query($user:String!, $num:Int!){
+                      user(login:$user){ projectV2(number:$num){ id } }
+                    }`, { user, num }
+                  );
+                  const id = data?.user?.projectV2?.id || null;
+                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (user=${user}, number=${num}). Is this a classic project or the wrong number?`);
+                  return id;
+                }
+
+                core.warning(`Unrecognized project URL format: ${projectUrl}`);
+                return null;
+              } catch (e) {
+                core.warning(`Project lookup failed for ${projectUrl}: ${e.message}`);
+                return null; // non-fatal
               }
             }
 
             async function addIssueToProject(projectId, issueNumber) {
-              const node = await github.graphql(
-                `query($o:String!, $r:String!, $n:Int!){
-                  repository(owner:$o, name:$r){ issue(number:$n){ id } }
-                }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
-              );
-              await github.graphql(
-                `mutation($projectId:ID!, $contentId:ID!){
-                  addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
-                }`, { projectId, contentId: node.repository.issue.id }
-              );
+              try {
+                if (!projectId) return; // nothing to do
+                const node = await github.graphql(
+                  `query($o:String!, $r:String!, $n:Int!){
+                    repository(owner:$o, name:$r){ issue(number:$n){ id } }
+                  }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
+                );
+                const contentId = node?.repository?.issue?.id;
+                if (!contentId) { core.warning(`Could not resolve content node id for issue #${issueNumber}`); return; }
+                await github.graphql(
+                  `mutation($projectId:ID!, $contentId:ID!){
+                    addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
+                  }`, { projectId, contentId }
+                );
+              } catch (e) {
+                core.warning(`Add to project failed for #${issueNumber}: ${e.message}`);
+              }
             }
+            // ---------- /helpers ----------
 
             const DEFAULT_PROJECT_URL = process.env.DEFAULT_PROJECT_URL || null;
             const DEFAULT_ASSIGNEE    = process.env.DEFAULT_ASSIGNEE || '';
             const FALLBACK_ASSIGNEE   = process.env.FALLBACK_ASSIGNEE || '';
+            const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
 
-            let projectInfo = null;
-            const created = [];
+            // Resolve the project **once** (non-fatal)
+            let projectId = PROJECT_ID_OVERRIDE || null;
+            if (!projectId && DEFAULT_PROJECT_URL) {
+              projectId = await resolveProjectIdFromUrl(DEFAULT_PROJECT_URL);
+            }
+            if (!projectId && DEFAULT_PROJECT_URL) {
+              core.warning(`Skipping "add to project": could not resolve Projects v2 from ${DEFAULT_PROJECT_URL}`);
+            }
+
+            const created = []; // [{ number, uid, meta, createdNew: true }]
 
             for (const f of files) {
               const raw = fs.readFileSync(f, 'utf8');
@@ -140,6 +179,7 @@ jobs:
               const labels = Array.isArray(meta.labels) ? meta.labels : (meta.labels ? [meta.labels] : []);
               const uid    = meta.uid || null;
 
+              // Create-only semantics by default
               const mode      = String(meta.mode ?? 'create_only');
               const frozen    = String(meta.frozen ?? 'true') === 'true';
               const lifecycle = String(meta.lifecycle ?? 'seed_only');
@@ -153,34 +193,34 @@ jobs:
                 continue;
               }
 
+              // Assignees: seed > default var > fallback
               let assignees = [];
               if (Array.isArray(meta.assignees)) assignees = meta.assignees;
               else if (meta.assignees)           assignees = [meta.assignees];
               else if (DEFAULT_ASSIGNEE)         assignees = [DEFAULT_ASSIGNEE];
               else if (FALLBACK_ASSIGNEE)        assignees = [FALLBACK_ASSIGNEE];
 
-              const projectUrl = meta.project_url || DEFAULT_PROJECT_URL || null;
               const body = `${rest}\n\n<!-- seed-uid:${uid} -->`.trim();
 
+              // CREATE (always continue on failure of project-add)
               const issue = (await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo:  context.repo.repo,
                 title, body, labels, assignees
               })).data;
 
-              if (projectUrl) {
-                if (!projectInfo) projectInfo = await getProjectInfo(projectUrl);
-                if (projectInfo?.projectId) {
-                  await addIssueToProject(projectInfo.projectId, issue.number)
-                    .catch(e => core.warning(`Add to project failed for #${issue.number}: ${e.message}`));
-                }
-              }
+              // Optional: add to project
+              const chosenProjectUrl = meta.project_url || DEFAULT_PROJECT_URL || null;
+              const chosenProjectId  = PROJECT_ID_OVERRIDE
+                                       || (chosenProjectUrl ? projectId : null);
+              await addIssueToProject(chosenProjectId, issue.number);
 
               created.push({ number: issue.number, uid, meta, createdNew: true });
               core.info(`Created issue #${issue.number} for seed ${uid}`);
             }
 
             core.setOutput('created', JSON.stringify(created));
+
 
       - name: Wire hierarchy (epic checklists + late child linking)
         if: steps.create.outputs.created != ''
