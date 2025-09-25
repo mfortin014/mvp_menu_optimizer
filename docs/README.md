@@ -32,10 +32,9 @@ Repo = Library (durable truth). GitHub = Town Square (work-in-progress). OneDriv
 - ADRs live in `docs/adr/` (template arrives in Phase 2). [v1]
 
 ## Work Tracking & Heavy Files (update these URLs)
-- GitHub Issues: <repo issues URL>
-- GitHub Projects: <project board URL>
-- GitHub Discussions (optional): <URL>
-- OneDrive root for this project: <path>
+- GitHub Issues: [Link](https://github.com/mfortin014/mvp_menu_optimizer/issues)
+- GitHub Projects: [Link](https://github.com/users/mfortin014/projects/1/views/5)
+- OneDrive root for this project: [\OneDrive - Sur Le Feu\Menu_Optimizer\docs](https://surlefeu-my.sharepoint.com/:f:/p/mathieu_fortin/EnSXY-AFa9RCh1eRI804IwUBLaHXiZ7Ko1S_iWLJJTT61w?e=Jw0nTt)
 
 ---
 **How to use this index**  
