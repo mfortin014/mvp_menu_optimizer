@@ -20,19 +20,31 @@ jobs:
   seed:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (full history so diffs work)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: List pending seed files
+      - name: List pending seed files (robust on first push & shallow clones)
         id: list
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            git ls-files ".github/project-seeds/pending/**.md" > seeds.txt || true
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          SEED_GLOB=".github/project-seeds/pending/**.md"
+
+          # First push to a branch often has BEFORE all zeros or unset.
+          if [ -z "${BEFORE}" ] || [ "${BEFORE}" = "0000000000000000000000000000000000000000" ]; then
+            # Just list all seeds in pending/
+            git ls-files "${SEED_GLOB}" > seeds.txt || true
           else
-            git diff --name-only ${{ github.sha }}^ ${{ github.sha }} | grep -E "^\.github/project-seeds/pending/.*\.md$" || true > seeds.txt
+            # Only files touched in this push
+            git diff --name-only "${BEFORE}" "${AFTER}" | grep -E "^\.github/project-seeds/pending/.*\.md$" || true > seeds.txt
           fi
+
           echo "files=$(paste -sd, seeds.txt)" >> "$GITHUB_OUTPUT"
-          echo "Seeds:"; cat seeds.txt || true
+          echo "Seeds:"
+          cat seeds.txt || true
 
       # ▶ CREATE-ONLY: if an issue with this UID already exists, SKIP.
       - name: Create issues (create-only) and add to Project
