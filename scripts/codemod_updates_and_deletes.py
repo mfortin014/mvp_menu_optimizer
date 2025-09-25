@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import re, pathlib
-from utils import tenant_db as db
+import re
+import pathlib
 
 EXCLUDE = {".venv", "venv", "__pycache__", ".git", "node_modules"}
 
@@ -13,7 +13,8 @@ def skip(p: pathlib.Path) -> bool:
 def main():
     changed = 0
     for p in pathlib.Path(".").rglob("*.py"):
-        if skip(p): continue
+        if skip(p): 
+            continue
         s = p.read_text(encoding="utf-8")
         o = s
         s = UPD.sub(r'db.table("\1").update(', s)
