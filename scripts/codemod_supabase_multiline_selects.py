@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import re, pathlib
-from utils import tenant_db as db
+import re
+import pathlib
 
 EXCLUDE = {".venv", "venv", "__pycache__", ".git", "node_modules"}
 
