@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from utils.supabase import supabase
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-import streamlit as st
 from utils.auth import require_auth
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
