@@ -7,7 +7,6 @@ parent_uid: ci-cd-phase1a-epic
 mode: create_only
 frozen: true
 lifecycle: seed_only
-
 -->
 
 ## Intent
