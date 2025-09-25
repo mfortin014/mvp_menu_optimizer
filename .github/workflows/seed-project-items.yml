@@ -6,11 +6,12 @@ on:
       - ".github/project-seeds/pending/**.md"
   workflow_dispatch:
 
+# GITHUB_TOKEN perms needed for issues, PR, and repo-projects (Project v2 via GraphQL)
 permissions:
-  contents: write            # needed to open the consume-seeds PR
+  contents: write
   issues: write
   pull-requests: write
-  repository-projects: write # optional; GraphQL to Projects V2 usually works without it
+  repository-projects: write
 
 concurrency:
   group: seed-${{ github.ref }}
@@ -25,112 +26,141 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: List pending seed files (robust on first push & shallow clones)
+      - name: List pending seed files (robust on first push & shallow diffs)
         id: list
+        shell: bash
         run: |
           set -euo pipefail
           BEFORE="${{ github.event.before }}"
           AFTER="${{ github.sha }}"
           SEED_GLOB=".github/project-seeds/pending/**.md"
 
-          # First push to a branch often has BEFORE all zeros or unset.
           if [ -z "${BEFORE}" ] || [ "${BEFORE}" = "0000000000000000000000000000000000000000" ]; then
-            # List all tracked seeds in pending/
+            # First push to branch (no parent) → list all tracked seeds
             git ls-files "${SEED_GLOB}" > seeds.txt || true
           else
-            # Only files touched in this push → group the pipeline, then redirect once
+            # Only files touched in this push → group pipeline, redirect once
             ( git diff --name-only "${BEFORE}" "${AFTER}" \
               | grep -E "^\.github/project-seeds/pending/.*\.md$" || true ) > seeds.txt
           fi
 
           echo "files=$(paste -sd, seeds.txt)" >> "$GITHUB_OUTPUT"
-          echo "Seeds:"; cat seeds.txt || true
+          echo "Seeds to process:"
+          cat seeds.txt || true
 
-      # ▶ CREATE-ONLY: if an issue with this UID already exists, SKIP.
       - name: Create issues (create-only) and add to Project
         if: steps.list.outputs.files != ''
         id: create
         uses: actions/github-script@v7
         env:
-          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}       # repo Variable
-          DEFAULT_ASSIGNEE:     ${{ vars.DEFAULT_ASSIGNEE }} # repo Variable (may be empty)
-          FALLBACK_ASSIGNEE:    ${{ github.actor }}          # last resort
+          # Prefer repo-level variables over hard-coding
+          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+          DEFAULT_ASSIGNEE:     ${{ vars.DEFAULT_ASSIGNEE }}
+          FALLBACK_ASSIGNEE:    ${{ github.actor }}
         with:
           script: |
-            // NOTE: actions/github-script injects 'core' and 'github' globals — no need to require('@actions/core')
+            // actions/github-script provides 'core', 'github', and 'context' globals.
             const fs = require('fs');
             const path = require('path');
 
             const files = core.getInput('files').split(',').filter(Boolean);
             if (!files.length) { core.setOutput('created','[]'); return; }
 
-            // Helpers
+            // --- helpers -----------------------------------------------------
             function parseHeader(body) {
+              // Header block is an HTML comment at the top of the seed file.
               const m = body.match(/<!--([\s\S]*?)-->/);
               if (!m) return { meta:{}, rest: body.trim() };
               const hdr = m[1];
               const meta = {};
               hdr.split('\n').forEach(line => {
                 const L = line.trim();
-                if (!L || L.startsWith('#')) return;
-                const idx = L.indexOf(':'); if (idx < 0) return;
+                if (!L || L.startsWith('#')) return;          // ignore yaml-style notes in header
+                const idx = L.indexOf(':');
+                if (idx < 0) return;
                 const k = L.slice(0, idx).trim();
                 let v = L.slice(idx+1).trim();
+                // allow JSON or plain strings
                 try { meta[k] = JSON.parse(v); }
                 catch { meta[k] = v.replace(/^"+|"+$/g,''); }
               });
               const rest = body.replace(m[0], '').trim();
               return { meta, rest };
             }
+
             async function findIssueByUid(uid) {
               const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
               const res = await github.rest.search.issuesAndPullRequests({ q });
+              // Only issues, not PRs
               return res.data.items.find(i => !i.pull_request) || null;
             }
+
             async function getProjectInfo(projectUrl) {
-              const m = projectUrl?.match(/orgs\/([^/]+)\/projects\/(\d+)/) || projectUrl?.match(/users\/([^/]+)\/projects\/(\d+)/);
-              if (!m) return null;
-              const isOrg = projectUrl.includes('/orgs/');
-              const login = m[1];
-              const number = parseInt(m[2],10);
-              if (isOrg) {
-                const data = await github.graphql(`query($org:String!, $num:Int!){ organization(login:$org){ projectV2(number:$num){ id } } }`, { org: login, num: number });
+              // Accept both org and user Projects v2:
+              // - https://github.com/orgs/ORG/projects/123
+              // - https://github.com/users/USER/projects/1
+              const orgMatch  = projectUrl?.match(/orgs\/([^/]+)\/projects\/(\d+)/);
+              const userMatch = projectUrl?.match(/users\/([^/]+)\/projects\/(\d+)/);
+              if (!orgMatch && !userMatch) return null;
+
+              if (orgMatch) {
+                const [_, org, n] = orgMatch;
+                const number = parseInt(n, 10);
+                const data = await github.graphql(
+                  `query($org:String!, $num:Int!){
+                    organization(login:$org){ projectV2(number:$num){ id } }
+                  }`,
+                  { org, num: number }
+                );
                 return { projectId: data.organization.projectV2.id };
               } else {
-                const data = await github.graphql(`query($user:String!, $num:Int!){ user(login:$user){ projectV2(number:$num){ id } } }`, { user: login, num: number });
+                const [_, user, n] = userMatch;
+                const number = parseInt(n, 10);
+                const data = await github.graphql(
+                  `query($user:String!, $num:Int!){
+                    user(login:$user){ projectV2(number:$num){ id } }
+                  }`,
+                  { user, num: number }
+                );
                 return { projectId: data.user.projectV2.id };
               }
             }
+
             async function addIssueToProject(projectId, issueNumber) {
               const node = await github.graphql(
-                `query($o:String!, $r:String!, $n:Int!){ repository(owner:$o, name:$r){ issue(number:$n){ id } } }`,
+                `query($o:String!, $r:String!, $n:Int!){
+                  repository(owner:$o, name:$r){ issue(number:$n){ id } }
+                }`,
                 { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
               );
               await github.graphql(
-                `mutation($projectId:ID!, $contentId:ID!){ addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } } }`,
+                `mutation($projectId:ID!, $contentId:ID!){
+                  addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
+                }`,
                 { projectId, contentId: node.repository.issue.id }
               );
             }
+            // -----------------------------------------------------------------
 
             const DEFAULT_PROJECT_URL = process.env.DEFAULT_PROJECT_URL || null;
-            const DEFAULT_ASSIGNEE = process.env.DEFAULT_ASSIGNEE || '';
-            const FALLBACK_ASSIGNEE = process.env.FALLBACK_ASSIGNEE || '';
+            const DEFAULT_ASSIGNEE    = process.env.DEFAULT_ASSIGNEE || '';
+            const FALLBACK_ASSIGNEE   = process.env.FALLBACK_ASSIGNEE || '';
 
-            let projectInfo = null;
-            const created = [];
+            let projectInfo = null; // one project for all seeds by design
+            const created = [];      // [{ number, uid, meta, createdNew: true }]
 
             for (const f of files) {
               const raw = fs.readFileSync(f, 'utf8');
               const { meta, rest } = parseHeader(raw);
 
-              const title = meta.title || path.basename(f);
+              const title  = meta.title || path.basename(f);
               const labels = Array.isArray(meta.labels) ? meta.labels : (meta.labels ? [meta.labels] : []);
-              const uid = meta.uid || null;
+              const uid    = meta.uid || null;
 
-              // create-only defaults (hard)
-              const mode = (meta.mode ?? 'create_only') + '';
-              const frozen = String(meta.frozen ?? 'true') === 'true';
-              const lifecycle = (meta.lifecycle ?? 'seed_only') + '';
+              // Hard "create-only" semantics unless seed says otherwise
+              const mode      = String(meta.mode ?? 'create_only');
+              const frozen    = String(meta.frozen ?? 'true') === 'true';
+              const lifecycle = String(meta.lifecycle ?? 'seed_only');
               const createOnly = (mode === 'create_only') || frozen || (lifecycle === 'seed_only');
 
               if (!uid) {
@@ -138,35 +168,30 @@ jobs:
                 continue;
               }
 
-              // If an issue with this UID already exists → SKIP (create-only)
               const existing = await findIssueByUid(uid);
               if (existing && createOnly) {
                 core.info(`Seed ${uid}: issue #${existing.number} exists → create-only SKIP`);
                 continue;
               }
 
-              // assignees: seed > DEFAULT_ASSIGNEE > actor > none
+              // Assignees: seed > default var > actor > none
               let assignees = [];
               if (Array.isArray(meta.assignees)) assignees = meta.assignees;
-              else if (meta.assignees) assignees = [meta.assignees];
-              else if (DEFAULT_ASSIGNEE) assignees = [DEFAULT_ASSIGNEE];
-              else if (FALLBACK_ASSIGNEE) assignees = [FALLBACK_ASSIGNEE];
+              else if (meta.assignees)           assignees = [meta.assignees];
+              else if (DEFAULT_ASSIGNEE)         assignees = [DEFAULT_ASSIGNEE];
+              else if (FALLBACK_ASSIGNEE)        assignees = [FALLBACK_ASSIGNEE];
 
-              // project URL: seed value, else repo default, else no add
               const projectUrl = meta.project_url || DEFAULT_PROJECT_URL || null;
               const body = `${rest}\n\n<!-- seed-uid:${uid} -->`.trim();
 
               // CREATE
               const issue = (await github.rest.issues.create({
                 owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-                labels,
-                assignees
+                repo:  context.repo.repo,
+                title, body, labels, assignees
               })).data;
 
-              // add to Project (optional)
+              // Add to Project (optional)
               if (projectUrl) {
                 if (!projectInfo) projectInfo = await getProjectInfo(projectUrl);
                 if (projectInfo?.projectId) {
@@ -176,20 +201,17 @@ jobs:
               }
 
               created.push({ number: issue.number, uid, meta, createdNew: true });
+              core.info(`Created issue #${issue.number} for seed ${uid}`);
             }
 
             core.setOutput('created', JSON.stringify(created));
 
-            # Wire relationships without violating create-only:
-      # 1) If an EPIC was created in this run AND it declares children_uids → write its checklist now.
-      # 2) If a CHILD was created in this run AND declares parent_uid → append one checklist line to the existing epic (idempotent).
-      - name: Wire hierarchy (epic checklists + new child → existing epic)
+      - name: Wire hierarchy (epic checklists and late child → existing epic)
         if: steps.create.outputs.created != ''
         uses: actions/github-script@v7
         with:
           script: |
-            // 'core' and 'github' are provided
-            // utility: find an issue by 'seed-uid:...' marker
+            // 'core', 'github', 'context' provided by actions/github-script
             async function findIssueByUid(uid) {
               const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
               const res = await github.rest.search.issuesAndPullRequests({ q });
@@ -199,14 +221,11 @@ jobs:
             const created = JSON.parse(core.getInput('created'));
             const byUid = Object.fromEntries(created.map(i => [i.uid, i]));
 
-            // 1) Newly created epics: write their Children checklist (only once).
+            // 1) Newly created epics: write Children checklist once
             for (const item of created) {
               const meta = item.meta || {};
               const children = meta.children_uids || [];
-              if (!children.length) continue;
-
-              // Only when epic itself was created in this run
-              if (!item.createdNew) continue;
+              if (!children.length || !item.createdNew) continue;
 
               const childNums = children.map(u => byUid[u]?.number).filter(Boolean);
               if (!childNums.length) continue;
@@ -220,39 +239,44 @@ jobs:
               const body = `${issue.data.body}\n\n${header}${list}\n`;
 
               await github.rest.issues.update({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: item.number, body
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: item.number, body
               });
+              core.info(`Epic #${item.number}: wrote initial Children list`);
             }
 
-            // 2) Newly created children: append to existing epic by parent_uid (idempotent).
+            // 2) Newly created children: append to existing epic (idempotent)
             for (const item of created) {
               const meta = item.meta || {};
               const parentUid = meta.parent_uid;
               if (!parentUid) continue;
 
-              // find the epic by UID
               const parent = await findIssueByUid(parentUid);
-              if (!parent) { core.warning(`Child #${item.number} parent_uid=${parentUid} not found`); continue; }
+              if (!parent) { core.warning(`Child #${item.number}: parent_uid=${parentUid} not found`); continue; }
 
-              // fetch current body to check duplication
-              const parentIssue = await github.rest.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: parent.number });
+              const parentIssue = await github.rest.issues.get({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: parent.number
+              });
 
               const line = `- [ ] #${item.number}`;
               const header = "## Children";
               let body = parentIssue.data.body || "";
 
-              // ensure header exists
               if (!body.includes(header)) {
                 body = `${body}\n\n${header}\n${line}\n`;
               } else if (!body.includes(line)) {
-                // insert line just after header or append to the existing list
-              body = body.replace(/## Children[^\n]*\n((?:- \[ \] #[0-9]+\n)*)/m, (m, list) => `## Children\n${list || ""}${line}\n`);
+                body = body.replace(
+                  /## Children[^\n]*\n((?:- \[ \] #[0-9]+\n)*)/m,
+                  (m, list) => `## Children\n${list || ""}${line}\n`
+                );
               } else {
+                // already linked
                 continue;
               }
 
-              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: parent.number, body });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: parent.number, body
+              });
+              core.info(`Linked child #${item.number} under epic #${parent.number}`);
             }
           created: ${{ steps.create.outputs.created }}
 
@@ -269,14 +293,17 @@ jobs:
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
             execSync(`git checkout -b ${branch}`);
+
             for (const f of files) {
               const target = f.replace('/pending/', '/applied/');
               execSync(`mkdir -p "$(dirname "${target}")"`);
               execSync(`git mv "${f}" "${target}"`);
             }
+
             execSync('git add -A');
             execSync('git commit -m "chore(automation): consume processed seeds → applied/"');
             execSync(`git push --set-upstream origin ${branch}`);
+
             const pr = await github.rest.pulls.create({
               owner: context.repo.owner, repo: context.repo.repo,
               head: branch, base: 'main',
