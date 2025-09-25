@@ -88,7 +88,8 @@ def load_all_clients_df() -> pd.DataFrame:
     return pd.DataFrame(r.data or [])
 
 def _name_by_id(df: pd.DataFrame, tid: str) -> str:
-    if df.empty: return "—"
+    if df.empty: 
+        return "—"
     row = df.loc[df["id"] == tid]
     return row.iloc[0]["name"] if not row.empty else "—"
 

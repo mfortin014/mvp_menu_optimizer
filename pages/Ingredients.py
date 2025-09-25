@@ -197,12 +197,18 @@ with st.sidebar:
 
         submitted = st.form_submit_button("Save Ingredient")
         errors = []
-        if not name: errors.append("Name")
-        if not code: errors.append("Ingredient Code")
-        if not ingredient_type: errors.append("Ingredient Type")
-        if not package_uom: errors.append("Package UOM")
-        if not status: errors.append("Status")
-        if not category_id: errors.append("Category")
+        if not name: 
+            errors.append("Name")
+        if not code: 
+            errors.append("Ingredient Code")
+        if not ingredient_type: 
+            errors.append("Ingredient Type")
+        if not package_uom: 
+            errors.append("Package UOM")
+        if not status: 
+            errors.append("Status")
+        if not category_id: 
+            errors.append("Category")
 
         if submitted:
             if errors:
