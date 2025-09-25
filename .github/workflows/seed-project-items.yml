@@ -165,19 +165,34 @@ jobs:
 
             core.setOutput('created', JSON.stringify(created));
 
-      # Only wire parent/children on epics CREATED in this run (no rewrites)
-      - name: Wire parent/children on newly created epics
+            # Wire relationships without violating create-only:
+      # 1) If an EPIC was created in this run AND it declares children_uids → write its checklist now.
+      # 2) If a CHILD was created in this run AND declares parent_uid → append one checklist line to the existing epic (idempotent).
+      - name: Wire hierarchy (epic checklists + new child → existing epic)
         if: steps.create.outputs.created != ''
         uses: actions/github-script@v7
         with:
           script: |
             const core = require('@actions/core');
             const created = JSON.parse(core.getInput('created'));
+
+            // utility: find an issue by 'seed-uid:...' marker
+            async function findIssueByUid(uid) {
+              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
+              const res = await github.rest.search.issuesAndPullRequests({ q });
+              return res.data.items.find(i => !i.pull_request) || null;
+            }
+
             const byUid = Object.fromEntries(created.map(i => [i.uid, i]));
+
+            // 1) Newly created epics: write their Children checklist (only once).
             for (const item of created) {
               const meta = item.meta || {};
               const children = meta.children_uids || [];
               if (!children.length) continue;
+
+              // Only when epic itself was created in this run
+              if (!item.createdNew) continue;
 
               const childNums = children.map(u => byUid[u]?.number).filter(Boolean);
               if (!childNums.length) continue;
@@ -193,6 +208,46 @@ jobs:
               await github.rest.issues.update({
                 owner: context.repo.owner, repo: context.repo.repo,
                 issue_number: item.number, body
+              });
+            }
+
+            // 2) Newly created children: append to existing epic by parent_uid (idempotent).
+            for (const item of created) {
+              const meta = item.meta || {};
+              const parentUid = meta.parent_uid;
+              if (!parentUid) continue;
+
+              // find the epic by UID
+              const parent = await findIssueByUid(parentUid);
+              if (!parent) {
+                core.warning(`Child #${item.number} declares parent_uid=${parentUid} but no epic found.`);
+                continue;
+              }
+
+              // fetch current body to check duplication
+              const parentIssue = await github.rest.issues.get({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: parent.number
+              });
+
+              const line = `- [ ] #${item.number}`;
+              const header = "## Children";
+              let body = parentIssue.data.body || "";
+
+              // ensure header exists
+              if (!body.includes(header)) {
+                body = `${body}\n\n${header}\n${line}\n`;
+              } else if (!body.includes(line)) {
+                // insert line just after header or append to the existing list
+                body = body.replace(/## Children[^\n]*\n((?:- \[ \] #[0-9]+\n)*)/m, (m, list) => {
+                  return `## Children\n${list || ""}${line}\n`;
+                });
+              } else {
+                continue; // already linked; skip
+              }
+
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: parent.number, body
               });
             }
           created: ${{ steps.create.outputs.created }}
