@@ -106,8 +106,6 @@ We follow **Keep a Changelog** so humans can skim releases.
 - `perf`/`refactor` with user impact → **Changed** (otherwise omit)  
 - `docs`, `test`, `style`, `chore`, `ci`, `build` → usually omitted unless noteworthy (then **Changed**)
 
-> Scripts in use: `gen_changelog.py` and `release_notes.sh`. See the [Release Playbook](../runbooks/release_playbook.md) for when to run them.
-
 ---
 
 ## 6) Versions & tags

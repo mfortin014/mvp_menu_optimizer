@@ -20,11 +20,6 @@ Purpose: a repeatable, low‑risk path from `main` to staging and production wit
 - Update `VERSION` with `mvp-X.Y.Z` scheme. Pre‑1.0: bump **Y** for features/breaking changes, **Z** for fixes.  
 - Commit with: `chore(release): bump version to mvp-X.Y.Z`.
 
-Optional helper scripts (if present):
-- `verify_release.sh` — sanity checks (`VERSION` matches, clean tree, on `main`).  
-- `gen_changelog.py` — update `CHANGELOG.md` from merged PRs (edit as needed).  
-- `release_notes.sh` — draft GitHub Release notes from the changelog.
-
 ---
 
 ## 2) Tag
