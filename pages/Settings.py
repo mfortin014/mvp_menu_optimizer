@@ -1,9 +1,11 @@
-import streamlit as st
-import pandas as pd
 from datetime import datetime
-from utils.auth import require_auth
+
+import pandas as pd
+import streamlit as st
+
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
+from utils.auth import require_auth
 
 require_auth()
 
@@ -14,13 +16,19 @@ st.title("⚙️ Settings")
 
 st.header("🔧 Backfill Missing Base UOMs")
 
+
 def fetch_base_uom_map():
     res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
-    return {
-        row["from_uom"]: row["to_uom"]
-        for row in res.data
-        if row["to_uom"] in ["g", "ml"]
-    } if res.data else {}
+    return (
+        {
+            row["from_uom"]: row["to_uom"]
+            for row in res.data
+            if row["to_uom"] in ["g", "ml"]
+        }
+        if res.data
+        else {}
+    )
+
 
 # Run only when button clicked
 if st.button("Run Maintenance"):
@@ -50,7 +58,9 @@ if st.button("Run Maintenance"):
 
     if updates:
         for u in updates:
-            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq("id", u["id"]).execute()
+            db.table("ingredients").update({"base_uom": u["base_uom"]}).eq(
+                "id", u["id"]
+            ).execute()
 
         st.success(f"✅ Updated {len(updates)} ingredients with inferred base_uom.")
     else:
@@ -63,11 +73,17 @@ object_type = st.selectbox("Select object to import", ["Ingredients", "Recipes"]
 valid_uoms = set()
 
 if object_type == "Ingredients":
-    uploaded_file = st.file_uploader("Upload Ingredients CSV", type=["csv"], key="ingredients_upload")
+    uploaded_file = st.file_uploader(
+        "Upload Ingredients CSV", type=["csv"], key="ingredients_upload"
+    )
     if uploaded_file:
         uom_res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
         valid_uoms = {r["from_uom"] for r in uom_res.data} if uom_res.data else set()
-        base_uom_map = {r["from_uom"]: r["to_uom"] for r in uom_res.data if r["to_uom"] in ["g", "ml"]}
+        base_uom_map = {
+            r["from_uom"]: r["to_uom"]
+            for r in uom_res.data
+            if r["to_uom"] in ["g", "ml"]
+        }
 
         try:
             df = pd.read_csv(uploaded_file)
@@ -82,15 +98,27 @@ if object_type == "Ingredients":
         st.dataframe(df.head(), use_container_width=True)
 
         required_fields = [
-            "ingredient_code", "name", "ingredient_type", "package_qty",
-            "package_uom", "package_cost", "yield_pct", "status", "category"
+            "ingredient_code",
+            "name",
+            "ingredient_type",
+            "package_qty",
+            "package_uom",
+            "package_cost",
+            "yield_pct",
+            "status",
+            "category",
         ]
         missing_cols = [col for col in required_fields if col not in df.columns]
         if missing_cols:
             st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
             st.stop()
 
-        cat_res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
+        cat_res = (
+            db.table("ref_ingredient_categories")
+            .select("id, name")
+            .eq("status", "Active")
+            .execute()
+        )
         category_map = {row["name"]: row["id"] for row in cat_res.data}
         valid_statuses = {"active", "inactive"}
         valid_types = {"bought", "prepped"}
@@ -138,22 +166,29 @@ if object_type == "Ingredients":
                 elif package_uom in base_uom_map:
                     base_uom = base_uom_map[package_uom]
 
-            exists = db.table("ingredients").select("*").eq("ingredient_code", ingredient_code).execute()
+            exists = (
+                db.table("ingredients")
+                .select("*")
+                .eq("ingredient_code", ingredient_code)
+                .execute()
+            )
             if exists.data:
                 existing_row = exists.data[0]
-                duplicate_collisions.append({
-                    "ingredient_code": ingredient_code,
-                    "source": {
-                        "name": name,
-                        "ingredient_type": ingredient_type,
-                        "package_cost": package_cost
-                    },
-                    "existing": {
-                        "name": existing_row["name"],
-                        "ingredient_type": existing_row["ingredient_type"],
-                        "package_cost": existing_row["package_cost"]
+                duplicate_collisions.append(
+                    {
+                        "ingredient_code": ingredient_code,
+                        "source": {
+                            "name": name,
+                            "ingredient_type": ingredient_type,
+                            "package_cost": package_cost,
+                        },
+                        "existing": {
+                            "name": existing_row["name"],
+                            "ingredient_type": existing_row["ingredient_type"],
+                            "package_cost": existing_row["package_cost"],
+                        },
                     }
-                })
+                )
                 continue
 
             if issues:
@@ -161,18 +196,26 @@ if object_type == "Ingredients":
                 rejected_row["errors"] = "; ".join(issues)
                 rejected.append(rejected_row)
             else:
-                inserts.append({
-                    "ingredient_code": ingredient_code,
-                    "name": name,
-                    "ingredient_type": ingredient_type if ingredient_type.lower() in valid_types else "Bought",
-                    "package_qty": round(package_qty, 6),
-                    "package_uom": package_uom,
-                    "package_cost": round(package_cost, 6),
-                    "yield_pct": round(yield_pct, 6),
-                    "status": status if status.lower() in valid_statuses else "Active",
-                    "category_id": category_id,
-                    "base_uom": base_uom  # ✅ include inferred value (if any)
-                })
+                inserts.append(
+                    {
+                        "ingredient_code": ingredient_code,
+                        "name": name,
+                        "ingredient_type": (
+                            ingredient_type
+                            if ingredient_type.lower() in valid_types
+                            else "Bought"
+                        ),
+                        "package_qty": round(package_qty, 6),
+                        "package_uom": package_uom,
+                        "package_cost": round(package_cost, 6),
+                        "yield_pct": round(yield_pct, 6),
+                        "status": (
+                            status if status.lower() in valid_statuses else "Active"
+                        ),
+                        "category_id": category_id,
+                        "base_uom": base_uom,  # ✅ include inferred value (if any)
+                    }
+                )
 
         st.subheader("📊 Import Summary")
         st.write(f"✅ Valid rows ready to import: {len(inserts)}")
@@ -193,7 +236,7 @@ if object_type == "Ingredients":
                 label="⬇️ Download Rejected Rows CSV",
                 data=csv,
                 file_name="rejected_ingredients.csv",
-                mime="text/csv"
+                mime="text/csv",
             )
 
         if inserts:
@@ -205,7 +248,9 @@ if object_type == "Ingredients":
                     st.error(f"❌ Insert failed: {e}")
 
 elif object_type == "Recipes":
-    uploaded_file = st.file_uploader("Upload Recipes CSV", type=["csv"], key="recipes_upload")
+    uploaded_file = st.file_uploader(
+        "Upload Recipes CSV", type=["csv"], key="recipes_upload"
+    )
 
     if uploaded_file:
         uom_res = db.table("ref_uom_conversion").select("from_uom").execute()
@@ -288,15 +333,17 @@ elif object_type == "Recipes":
                 row["errors"] = "; ".join(issues)
                 rejects.append(row)
             else:
-                inserts.append({
-                    "recipe_code": recipe_code,
-                    "name": name,
-                    "status": status,
-                    "base_yield_qty": base_yield_qty,
-                    "base_yield_uom": base_yield_uom or None,
-                    "price": price,
-                    "recipe_category": recipe_category
-                })
+                inserts.append(
+                    {
+                        "recipe_code": recipe_code,
+                        "name": name,
+                        "status": status,
+                        "base_yield_qty": base_yield_qty,
+                        "base_yield_uom": base_yield_uom or None,
+                        "price": price,
+                        "recipe_category": recipe_category,
+                    }
+                )
 
         st.subheader("📊 Import Summary")
         st.write(f"✅ Rows ready to import: {len(inserts)}")
@@ -309,7 +356,7 @@ elif object_type == "Recipes":
                 label="📤 Download Rejected Rows",
                 data=csv,
                 file_name=f"recipes_rejected_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv",
-                mime="text/csv"
+                mime="text/csv",
             )
 
         if inserts:
@@ -331,7 +378,7 @@ if not df_ingr.empty:
         label="⬇️ Download Ingredients CSV",
         data=df_ingr.to_csv(index=False),
         file_name="ingredients_export.csv",
-        mime="text/csv"
+        mime="text/csv",
     )
 
 
@@ -342,13 +389,14 @@ if not df_rec.empty:
         label="⬇️ Download Recipes CSV (headers only)",
         data=df_rec.to_csv(index=False),
         file_name="recipes_export.csv",
-        mime="text/csv"
+        mime="text/csv",
     )
 
 st.divider()
 
 
-st.markdown("""
+st.markdown(
+    """
 ### ⚠️ Scrub Dataset
 This action will **permanently delete all ingredients, recipes, and recipe lines** from the database.
 - This **cannot be undone**.
@@ -356,7 +404,8 @@ This action will **permanently delete all ingredients, recipes, and recipe lines
 - Re-importing exported recipes will not restore their content.
 
 To confirm, type `DELETE` and click the button below.
-""")
+"""
+)
 
 confirm = st.text_input("Type DELETE to confirm")
 if st.button("🧹 Scrub Dataset"):

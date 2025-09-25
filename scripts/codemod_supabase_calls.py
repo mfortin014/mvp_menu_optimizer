@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import re
 import pathlib
+import re
 
 EXCLUDE = {".venv", "venv", "__pycache__", ".git", "node_modules"}
 
@@ -8,13 +8,15 @@ SEL = re.compile(r'(\bsupabase\.table\(\s*[\'"])([^\'"]+)([\'"]\s*\)\.select\()'
 INS = re.compile(r'\bsupabase\.table\(\s*[\'"]([^\'"]+)[\'"]\s*\)\.insert\(')
 UPS = re.compile(r'\bsupabase\.table\(\s*[\'"]([^\'"]+)[\'"]\s*\)\.upsert\(')
 
+
 def skip(p: pathlib.Path) -> bool:
     return any(part in EXCLUDE for part in p.parts)
+
 
 def main():
     changed = 0
     for p in pathlib.Path(".").rglob("*.py"):
-        if skip(p): 
+        if skip(p):
             continue
         s = p.read_text(encoding="utf-8")
         o = s
@@ -25,6 +27,7 @@ def main():
             p.write_text(s, encoding="utf-8")
             changed += 1
     print(f"Files changed: {changed}")
+
 
 if __name__ == "__main__":
     main()

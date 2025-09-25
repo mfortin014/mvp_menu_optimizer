@@ -1,8 +1,11 @@
 # components/tenant_switcher.py
 import os
+
 import streamlit as st
-from utils.tenant_state import set_active_tenant, get_active_tenant
+
 from utils.supabase import supabase
+from utils.tenant_state import get_active_tenant, set_active_tenant
+
 
 @st.cache_data(ttl=60)
 def _load_tenants():
@@ -10,13 +13,14 @@ def _load_tenants():
     resp = supabase.table("tenants").select("id,name,code").order("name").execute()
     return resp.data or []
 
+
 def _ensure_active_tenant(tenants):
     """Set session active tenant if missing, using env default or first by name."""
     current = get_active_tenant()
     if current:
         return current
 
-    want_id   = os.getenv("DEFAULT_TENANT_ID", "").strip()
+    want_id = os.getenv("DEFAULT_TENANT_ID", "").strip()
     want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
 
     if want_id and any(t["id"] == want_id for t in tenants):
@@ -34,6 +38,7 @@ def _ensure_active_tenant(tenants):
     set_active_tenant(tid)
     return tid
 
+
 def render(in_sidebar: bool = True, label: str = "Active client"):
     container = st.sidebar if in_sidebar else st
 
@@ -48,7 +53,9 @@ def render(in_sidebar: bool = True, label: str = "Active client"):
     names = list(id_by_name.keys())
 
     # Find the current name from the active id
-    current_name = next((n for n, tid in id_by_name.items() if tid == current), names[0])
+    current_name = next(
+        (n for n, tid in id_by_name.items() if tid == current), names[0]
+    )
 
     # Pre-seed widget state so the selectbox shows the real active tenant on first render
     if "tenant_select" not in st.session_state:

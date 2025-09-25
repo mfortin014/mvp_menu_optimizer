@@ -1,6 +1,7 @@
 # utils/tenant_db.py
 import os
 from typing import Any, Dict, List, Optional, Set
+
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
@@ -42,13 +43,21 @@ GLOBAL_TABLES: Set[str] = {
     "ref_uom_conversion",  # global by design
 }
 
+
 def _tid() -> str:
     t = get_active_tenant()
     if t:
         return t
 
     # 1) DB default (and active)
-    r = supabase.table("tenants").select("id").eq("is_default", True).eq("is_active", True).limit(1).execute()
+    r = (
+        supabase.table("tenants")
+        .select("id")
+        .eq("is_default", True)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
     if r.data:
         tid = r.data[0]["id"]
         set_active_tenant(tid)
@@ -64,7 +73,13 @@ def _tid() -> str:
 
     want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
     if want_code:
-        r = supabase.table("tenants").select("id").eq("code", want_code).limit(1).execute()
+        r = (
+            supabase.table("tenants")
+            .select("id")
+            .eq("code", want_code)
+            .limit(1)
+            .execute()
+        )
         if r.data:
             tid = r.data[0]["id"]
             set_active_tenant(tid)
@@ -77,7 +92,6 @@ def _tid() -> str:
     tid = r.data[0]["id"]
     set_active_tenant(tid)
     return tid
-
 
 
 class _TenantTable:
@@ -122,21 +136,26 @@ class _TenantTable:
             b = b.eq("tenant_id", _tid())
         return b
 
+
 # Public helpers
 def table(name: str, include_deleted: bool = False) -> _TenantTable:
     return _TenantTable(name, include_deleted=include_deleted)
 
+
 def insert(name: str, row: Json):
     return table(name).insert(row)
 
+
 def upsert(name: str, row: Json):
     return table(name).upsert(row)
+
 
 def insert_many(name: str, rows: List[Json]):
     if name in TENANT_SCOPED:
         t = _tid()
         rows = [{**r, "tenant_id": r.get("tenant_id", t)} for r in rows]
     return supabase.table(name).insert(rows)
+
 
 def update(name: str, values: Json, **filters):
     b = supabase.table(name)
@@ -145,6 +164,7 @@ def update(name: str, values: Json, **filters):
     for k, v in filters.items():
         b = b.eq(k, v)
     return b.update(values)
+
 
 def soft_delete(name: str, **filters):
     # sets deleted_at = now()
@@ -155,6 +175,7 @@ def soft_delete(name: str, **filters):
         b = b.eq(k, v)
     return b.update({"deleted_at": "now()"})
 
+
 def restore(name: str, **filters):
     b = supabase.table(name)
     if name in TENANT_SCOPED:
@@ -162,6 +183,7 @@ def restore(name: str, **filters):
     for k, v in filters.items():
         b = b.eq(k, v)
     return b.update({"deleted_at": None})
+
 
 # RPC helpers
 def rpc(name: str, params: Optional[Json] = None):

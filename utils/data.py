@@ -1,17 +1,18 @@
 # utils/data.py
 from __future__ import annotations
 
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
 import streamlit as st
-from typing import Dict, List, Optional, Any
 
-from utils.supabase import supabase
 from utils import tenant_db as db
-
+from utils.supabase import supabase
 
 # -----------------------------
 # Helpers
 # -----------------------------
+
 
 def _to_df(res) -> pd.DataFrame:
     return pd.DataFrame(res.data) if getattr(res, "data", None) else pd.DataFrame()
@@ -20,6 +21,7 @@ def _to_df(res) -> pd.DataFrame:
 # -----------------------------
 # Recipe Summary / Dashboard
 # -----------------------------
+
 
 @st.cache_data(ttl=60)
 def load_recipes_summary() -> pd.DataFrame:
@@ -70,6 +72,7 @@ def load_recipes_summary() -> pd.DataFrame:
 # Recipes (master)
 # -----------------------------
 
+
 def load_recipe_list() -> List[str]:
     res = db.table("recipes").select("name").order("name").execute()
     return [r["name"] for r in (res.data or [])]
@@ -85,7 +88,13 @@ def load_recipe_details(recipe_name: str) -> pd.DataFrame:
     Uses existing get_recipe_details(rid uuid) RPC. We first resolve the recipe id by name,
     then call the RPC and augment it with selling_price for convenience.
     """
-    recipe = db.table("recipes").select("id, price").eq("name", recipe_name).single().execute()
+    recipe = (
+        db.table("recipes")
+        .select("id, price")
+        .eq("name", recipe_name)
+        .single()
+        .execute()
+    )
     if not recipe.data:
         return pd.DataFrame()
 
@@ -180,6 +189,7 @@ def update_recipe(
 # Input catalog (ingredients + prep recipes)
 # -----------------------------
 
+
 @st.cache_data(ttl=60)
 def get_input_catalog() -> pd.DataFrame:
     """
@@ -205,6 +215,7 @@ def get_input_catalog() -> pd.DataFrame:
 # -----------------------------
 # Recipe lines
 # -----------------------------
+
 
 def get_recipe_lines(recipe_id: str) -> pd.DataFrame:
     """
@@ -270,6 +281,7 @@ def delete_recipe_line(recipe_line_id: str) -> bool:
 # Unit cost lookup (RPC)
 # -----------------------------
 
+
 def get_unit_costs_for_inputs(inputs: List[Dict[str, str]]) -> pd.DataFrame:
     """
     Calls RPC `get_unit_costs_for_inputs(inputs jsonb)` which should accept payload like:
@@ -287,6 +299,7 @@ def get_unit_costs_for_inputs(inputs: List[Dict[str, str]]) -> pd.DataFrame:
 # -----------------------------
 # Ingredients (master)
 # -----------------------------
+
 
 @st.cache_data(ttl=60)
 def load_ingredient_master() -> pd.DataFrame:
@@ -307,6 +320,7 @@ def get_ingredient_id_by_name(name: str) -> Optional[str]:
 # Reference data (UOM, categories)
 # -----------------------------
 
+
 @st.cache_data(ttl=60)
 def get_uom_list() -> List[str]:
     """
@@ -318,7 +332,9 @@ def get_uom_list() -> List[str]:
         df = _to_df(res)
         if df.empty:
             return []
-        uoms = pd.unique(pd.concat([df["from_uom"], df["to_uom"]], ignore_index=True).dropna())
+        uoms = pd.unique(
+            pd.concat([df["from_uom"], df["to_uom"]], ignore_index=True).dropna()
+        )
         return sorted(map(str, uoms))
     except Exception:
         return []
@@ -326,5 +342,10 @@ def get_uom_list() -> List[str]:
 
 @st.cache_data(ttl=60)
 def get_active_ingredient_categories() -> List[Dict[str, Any]]:
-    res = db.table("ref_ingredient_categories").select("id, name").eq("status", "Active").execute()
+    res = (
+        db.table("ref_ingredient_categories")
+        .select("id, name")
+        .eq("status", "Active")
+        .execute()
+    )
     return res.data or []
