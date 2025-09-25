@@ -1,13 +1,13 @@
-import streamlit as st
-import pandas as pd
 import altair as alt
+import pandas as pd
+import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-from utils.data import load_recipes_summary
-from utils.theme import get_primary_color, get_logo_path
-from utils.auth import require_auth
 from components.active_client_badge import render as client_badge
+from utils.auth import require_auth
 from utils.branding import apply_branding_to_sidebar, inject_brand_colors
-
+from utils.data import load_recipes_summary
+from utils.theme import get_primary_color
 
 require_auth()
 
@@ -28,25 +28,51 @@ if df.empty:
     st.info("Performance data is not available yet.")
 else:
     # Axis bounds logic
-    min_profitability = min(-0.25, df['profitability'].min() * 0.95)
-    max_profitability = max(0.25, df['profitability'].max() * 1.05)
-    max_popularity = df['popularity'].max() * 1.05
+    min_profitability = min(-0.25, df["profitability"].min() * 0.95)
+    max_profitability = max(0.25, df["profitability"].max() * 1.05)
+    max_popularity = df["popularity"].max() * 1.05
     x_mid = max_popularity / 2
 
     # Mid-lines
-    vline = alt.Chart(pd.DataFrame({'x': [x_mid]})).mark_rule(strokeDash=[4, 4], color='gray').encode(x='x:Q')
-    hline = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(strokeDash=[4, 4], color='gray').encode(y='y:Q')
+    vline = (
+        alt.Chart(pd.DataFrame({"x": [x_mid]}))
+        .mark_rule(strokeDash=[4, 4], color="gray")
+        .encode(x="x:Q")
+    )
+    hline = (
+        alt.Chart(pd.DataFrame({"y": [0]}))
+        .mark_rule(strokeDash=[4, 4], color="gray")
+        .encode(y="y:Q")
+    )
 
     # Base matrix chart
-    matrix_chart = alt.Chart(df).mark_circle(size=100).encode(
-        x=alt.X('popularity:Q', title='Units Sold', scale=alt.Scale(domain=[0, max_popularity])),
-        y=alt.Y('profitability:Q', title='Profitability (%)', scale=alt.Scale(domain=[min_profitability, max_profitability])),
-        tooltip=['recipe', 'price', 'cost', 'margin_dollar', 'profitability', 'popularity'],
-        color=alt.value(get_primary_color())
-    ).properties(
-        width=700,
-        height=500
-    ).interactive()
+    matrix_chart = (
+        alt.Chart(df)
+        .mark_circle(size=100)
+        .encode(
+            x=alt.X(
+                "popularity:Q",
+                title="Units Sold",
+                scale=alt.Scale(domain=[0, max_popularity]),
+            ),
+            y=alt.Y(
+                "profitability:Q",
+                title="Profitability (%)",
+                scale=alt.Scale(domain=[min_profitability, max_profitability]),
+            ),
+            tooltip=[
+                "recipe",
+                "price",
+                "cost",
+                "margin_dollar",
+                "profitability",
+                "popularity",
+            ],
+            color=alt.value(get_primary_color()),
+        )
+        .properties(width=700, height=500)
+        .interactive()
+    )
 
     # Combine and apply config
     final_chart = (matrix_chart + vline + hline).configure_axis(grid=False)
@@ -59,15 +85,15 @@ if df.empty:
     st.info("No recipe data available.")
 else:
     avg_price = df["price"].mean()
-    avg_cost_pct = (df["cost"] / df["price"]).replace([float("inf"), -float("inf")], None).dropna().mean() * 100
+    avg_cost_pct = (df["cost"] / df["price"]).replace(
+        [float("inf"), -float("inf")], None
+    ).dropna().mean() * 100
     avg_margin_dollar = df["margin_dollar"].mean()
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Avg Price", f"${avg_price:.2f}")
     col2.metric("Avg Cost (% of Price)", f"{avg_cost_pct:.1f}%")
     col3.metric("Avg Margin ($)", f"${avg_margin_dollar:.2f}")
-
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- SECTION 3: Recipe Table ---
 st.subheader("📋 Recipe Portfolio with Metrics")
@@ -77,11 +103,14 @@ else:
     df["Cost (% of Price)"] = (df["cost"] / df["price"]) * 100
     display_df = df[["recipe", "price", "Cost (% of Price)", "margin_dollar"]].copy()
 
-    display_df.rename(columns={
-        "recipe": "Recipe",
-        "price": "Price ($)",
-        "margin_dollar": "Margin ($)"
-    }, inplace=True)
+    display_df.rename(
+        columns={
+            "recipe": "Recipe",
+            "price": "Price ($)",
+            "margin_dollar": "Margin ($)",
+        },
+        inplace=True,
+    )
 
     # Round values
     for col in ["Price ($)", "Cost (% of Price)", "Margin ($)"]:
@@ -93,7 +122,9 @@ else:
 
     # Right-align numeric columns
     for col in ["Price ($)", "Cost (% of Price)", "Margin ($)"]:
-        gb.configure_column(col, type=["numericColumn", "rightAligned"], valueFormatter="x.toFixed(2)")
+        gb.configure_column(
+            col, type=["numericColumn", "rightAligned"], valueFormatter="x.toFixed(2)"
+        )
 
     grid_options = gb.build()
 
@@ -102,5 +133,5 @@ else:
         gridOptions=grid_options,
         update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True
+        allow_unsafe_jscode=True,
     )

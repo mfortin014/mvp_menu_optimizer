@@ -1,14 +1,22 @@
 # utils/auth.py
 import streamlit as st
+
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
+
 def ensure_client_selected_pre_auth():
     """Show an active-clients picker above the password UI (always visible).
-       Preselects DB default; updates session tenant on selection change.
+    Preselects DB default; updates session tenant on selection change.
     """
     # Load active clients
-    r = supabase.table("tenants").select("id,name,is_default").eq("is_active", True).order("name").execute()
+    r = (
+        supabase.table("tenants")
+        .select("id,name,is_default")
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+    )
     data = r.data or []
     if not data:
         st.error("No active clients configured.")
@@ -24,11 +32,17 @@ def ensure_client_selected_pre_auth():
     current_name = name_by_id.get(current, name_by_id.get(db_default_id, tenant_names[0]))
 
     st.subheader("Client")
-    choice = st.selectbox("Choose client", tenant_names, index=tenant_names.index(current_name), key="login_client_select")
+    choice = st.selectbox(
+        "Choose client",
+        tenant_names,
+        index=tenant_names.index(current_name),
+        key="login_client_select",
+    )
     chosen_id = id_by_name[choice]
 
     if chosen_id != current:
         set_active_tenant(chosen_id)
+
 
 def require_auth():
     if "authenticated" not in st.session_state:

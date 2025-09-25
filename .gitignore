@@ -7,3 +7,4 @@ data/
 .streamlit/secrets.toml
 shortcuts/
 backups/
+schema/archive/

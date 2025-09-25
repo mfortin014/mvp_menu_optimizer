@@ -1,11 +1,10 @@
-import streamlit as st
 import pandas as pd
-from utils.supabase import supabase
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import streamlit as st
-from utils.auth import require_auth
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
+from utils.auth import require_auth
 
 require_auth()
 
@@ -14,10 +13,12 @@ st.set_page_config(page_title="Ingredient Categories", layout="wide")
 client_badge(clients_page_title="Clients")
 st.title("📋 Ingredient Categories")
 
+
 # === Fetch Categories ===
 def fetch_categories():
     res = db.table("ref_ingredient_categories").select("*").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
 
 df = fetch_categories()
 display_df = df.drop(columns=["id", "created_at", "updated_at"], errors="ignore")
@@ -34,7 +35,7 @@ grid_response = AgGrid(
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=True,
     height=400,
-    allow_unsafe_jscode=True
+    allow_unsafe_jscode=True,
 )
 
 # === Handle Selection ===
@@ -81,7 +82,9 @@ with st.sidebar:
             else:
                 data = {"name": name, "status": status}
                 if edit_mode:
-                    db.table("ref_ingredient_categories").update(data).eq("id", edit_data["id"]).execute()
+                    db.table("ref_ingredient_categories").update(data).eq(
+                        "id", edit_data["id"]
+                    ).execute()
                     st.success("Category updated.")
                 else:
                     db.insert("ref_ingredient_categories", data).execute()
@@ -92,6 +95,8 @@ with st.sidebar:
         if st.button("Cancel"):
             st.rerun()
         if st.button("Delete"):
-            db.table("ref_ingredient_categories").update({"status": "Inactive"}).eq("id", edit_data["id"]).execute()
+            db.table("ref_ingredient_categories").update({"status": "Inactive"}).eq(
+                "id", edit_data["id"]
+            ).execute()
             st.success("Category inactivated.")
             st.rerun()

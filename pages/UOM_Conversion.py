@@ -1,19 +1,23 @@
-import streamlit as st
 import pandas as pd
-from utils.supabase import supabase
+import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-from utils.auth import require_auth
-from utils import tenant_db as db
+
 from components.active_client_badge import render as client_badge
+from utils import tenant_db as db
+from utils.auth import require_auth
+
 require_auth()
 
 st.set_page_config(page_title="UOM Conversions", layout="wide")
 client_badge(clients_page_title="Clients")
 st.title("UOM Conversions")
+
+
 # === Fetch Conversions ===
 def fetch_conversions():
     res = db.table("ref_uom_conversion").select("*").execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
 
 df = fetch_conversions()
 display_df = df.drop(columns=["id", "created_at", "updated_at"], errors="ignore")
@@ -34,7 +38,7 @@ grid_response = AgGrid(
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=True,
     height=400,
-    allow_unsafe_jscode=True
+    allow_unsafe_jscode=True,
 )
 
 # === Handle Selection ===
@@ -62,7 +66,9 @@ edit_mode = edit_data is not None
 with st.sidebar:
     st.subheader("Add or Edit UOM Conversion")
     with st.form("uom_form"):
-        from_uom = st.text_input("From UOM", value=edit_data.get("from_uom", "") if edit_mode else "")
+        from_uom = st.text_input(
+            "From UOM", value=edit_data.get("from_uom", "") if edit_mode else ""
+        )
         to_uom = st.text_input("To UOM", value=edit_data.get("to_uom", "") if edit_mode else "")
 
         factor_value = 1.0

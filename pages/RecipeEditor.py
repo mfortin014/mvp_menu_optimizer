@@ -1,15 +1,17 @@
 # pages/RecipeEditor.py
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-from utils.supabase import supabase
+
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
 from utils.cache import cache_by_tenant
+from utils.supabase import supabase
 
 # Auth wrapper (optional in MVP env)
 try:
     from utils.auth import require_auth
+
     require_auth()
 except Exception:
     pass
@@ -23,20 +25,29 @@ st.title("📝 Recipe Editor")
 # Data helpers
 # -----------------------------
 
+
 def fetch_recipes_active():
-    res = db.table("recipes") \
-        .select("id, name, recipe_code, recipe_type, status") \
-        .eq("status", "Active") \
-        .order("name") \
+    res = (
+        db.table("recipes")
+        .select("id, name, recipe_code, recipe_type, status")
+        .eq("status", "Active")
+        .order("name")
         .execute()
+    )
     return res.data or []
+
 
 def fetch_recipe_core(recipe_id: str) -> dict:
     """Single base recipe row with name, price, type, yield."""
-    res = db.table("recipes").select(
-        "name, price, recipe_type, yield_qty, yield_uom"
-    ).eq("id", recipe_id).single().execute()
+    res = (
+        db.table("recipes")
+        .select("name, price, recipe_type, yield_qty, yield_uom")
+        .eq("id", recipe_id)
+        .single()
+        .execute()
+    )
     return res.data or {}
+
 
 def fetch_input_catalog():
     # Active ingredients + active prep recipes (backed by input_catalog view)
@@ -46,10 +57,12 @@ def fetch_input_catalog():
         r["label"] = f"{r.get('name','')} – {r.get('code','')}"
     return rows
 
+
 def fetch_all_recipe_lines_pairs():
     # For dependency graph (edges among recipes only)
     res = db.table("recipe_lines").select("recipe_id, ingredient_id").execute()
     return res.data or []
+
 
 def compute_ancestor_recipes(current_recipe_id, all_lines, all_recipe_ids):
     """
@@ -74,39 +87,41 @@ def compute_ancestor_recipes(current_recipe_id, all_lines, all_recipe_ids):
                 stack.append(parent)
     return ancestors
 
+
 def fetch_recipe_summary_row(recipe_id: str):
     # Might return 0 rows (e.g., for prep recipes)
     res = db.table("recipe_summary").select("*").eq("recipe_id", recipe_id).execute()
     rows = res.data or []
     return rows[0] if rows else None
 
+
 def fetch_prep_costs_row(recipe_id: str):
     res = db.table("prep_costs").select("*").eq("recipe_id", recipe_id).execute()
     rows = res.data or []
     return rows[0] if rows else None
 
+
 def fetch_recipe_line_costs(recipe_id):
-    res = db.table("recipe_line_costs") \
-        .select("*") \
-        .eq("recipe_id", recipe_id) \
-        .execute()
+    res = db.table("recipe_line_costs").select("*").eq("recipe_id", recipe_id).execute()
     return res.data or []
 
+
 def fetch_notes_map(recipe_id):
-    res = db.table("recipe_lines") \
-        .select("id, note") \
-        .eq("recipe_id", recipe_id) \
-        .execute()
+    res = db.table("recipe_lines").select("id, note").eq("recipe_id", recipe_id).execute()
     return {r["id"]: r.get("note") for r in (res.data or [])}
+
 
 def fetch_uom_options():
     res = db.table("ref_uom_conversion").select("from_uom, to_uom").execute()
     rows = res.data or []
     uoms = set()
     for r in rows:
-        if r.get("from_uom"): uoms.add(r["from_uom"])
-        if r.get("to_uom"): uoms.add(r["to_uom"])
+        if r.get("from_uom"):
+            uoms.add(r["from_uom"])
+        if r.get("to_uom"):
+            uoms.add(r["to_uom"])
     return sorted(uoms)
+
 
 def rpc_unit_cost_map(ids):
     if not ids:
@@ -116,6 +131,7 @@ def rpc_unit_cost_map(ids):
     rows = res.data or []
     return {r["id"]: r["unit_cost"] for r in rows if r.get("unit_cost") is not None}
 
+
 def upsert_recipe_line(edit_mode, recipe_line_id, payload):
     tbl = db.table("recipe_lines")
     if edit_mode and recipe_line_id:
@@ -123,10 +139,20 @@ def upsert_recipe_line(edit_mode, recipe_line_id, payload):
     else:
         tbl.insert(payload).execute()
 
+
 @cache_by_tenant(ttl=60)
 def _load_recipe_picker():
-    return db.table("recipes").select("id,name,recipe_code,status,recipe_type") \
-            .eq("recipe_type","service").eq("status","Active").order("name").execute().data or []
+    return (
+        db.table("recipes")
+        .select("id,name,recipe_code,status,recipe_type")
+        .eq("recipe_type", "service")
+        .eq("status", "Active")
+        .order("name")
+        .execute()
+        .data
+        or []
+    )
+
 
 # -----------------------------
 # Recipe selection
@@ -205,7 +231,15 @@ unit_costs = rpc_unit_cost_map(list({rid for rid in df["ingredient_id"].dropna()
 df["unit_cost"] = df["ingredient_id"].map(unit_costs)
 
 # Display table
-display_cols = ["recipe_line_id", "ingredient", "qty", "qty_uom", "unit_cost", "line_cost", "note"]
+display_cols = [
+    "recipe_line_id",
+    "ingredient",
+    "qty",
+    "qty_uom",
+    "unit_cost",
+    "line_cost",
+    "note",
+]
 display_df = df.reindex(columns=[c for c in display_cols if c in df.columns]).copy()
 for col in ["unit_cost", "line_cost"]:
     if col in display_df.columns:
@@ -267,8 +301,7 @@ with st.sidebar:
 
     # Selection options from catalog, excluding blocked recipes
     filtered_catalog = [
-        r for r in catalog_rows
-        if not (r["source"] == "recipe" and r["id"] in blocked_recipes)
+        r for r in catalog_rows if not (r["source"] == "recipe" and r["id"] in blocked_recipes)
     ]
     filtered_catalog.sort(key=lambda r: r["label"].lower())
 
@@ -284,7 +317,7 @@ with st.sidebar:
         selected_label = st.selectbox(
             "Ingredient or Prep Recipe",
             options=labels,
-            index=(labels.index(default_label) if default_label in labels else 0)
+            index=(labels.index(default_label) if default_label in labels else 0),
         )
         ingredient_id = label_to_id.get(selected_label)
 
@@ -292,16 +325,26 @@ with st.sidebar:
             "Quantity",
             min_value=0.0,
             step=0.1,
-            value=(edit_data["qty"] if edit_data else 1.0)
+            value=(edit_data["qty"] if edit_data else 1.0),
         )
 
         uom_opts = ["— Select —"] + fetch_uom_options()
         default_uom = edit_data["qty_uom"] if edit_data else None
-        qty_uom = st.selectbox("UOM", options=uom_opts, index=(uom_opts.index(default_uom) if default_uom in uom_opts else 0))
+        qty_uom = st.selectbox(
+            "UOM",
+            options=uom_opts,
+            index=(uom_opts.index(default_uom) if default_uom in uom_opts else 0),
+        )
 
         # Display unit cost (server-side)
-        unit_cost_display = rpc_unit_cost_map([ingredient_id]).get(ingredient_id) if ingredient_id else None
-        st.text_input("Unit Cost (base unit)", value=(f"{unit_cost_display:.6f}" if unit_cost_display is not None else ""), disabled=True)
+        unit_cost_display = (
+            rpc_unit_cost_map([ingredient_id]).get(ingredient_id) if ingredient_id else None
+        )
+        st.text_input(
+            "Unit Cost (base unit)",
+            value=(f"{unit_cost_display:.6f}" if unit_cost_display is not None else ""),
+            disabled=True,
+        )
 
         note_val = edit_data["note"] if edit_data else ""
         note = st.text_area("Note (optional)", value=note_val)
@@ -323,9 +366,13 @@ with st.sidebar:
                     "ingredient_id": ingredient_id,  # ingredient OR prep recipe id
                     "qty": round(float(qty), 6),
                     "qty_uom": qty_uom,
-                    "note": note or None
+                    "note": note or None,
                 }
-                upsert_recipe_line(edit_data is not None, (edit_data or {}).get("recipe_line_id"), payload)
+                upsert_recipe_line(
+                    edit_data is not None,
+                    (edit_data or {}).get("recipe_line_id"),
+                    payload,
+                )
                 st.success("Line saved.")
                 st.rerun()
 
@@ -336,11 +383,13 @@ with st.sidebar:
 st.markdown("### 📥 Export Recipe Lines")
 export_df = display_df.drop(columns=["recipe_line_id"], errors="ignore").copy()
 
+
 def _strip_money(x):
     try:
         return float(str(x).replace("$", "")) if isinstance(x, str) and x.startswith("$") else x
     except Exception:
         return x
+
 
 for c in ["unit_cost", "line_cost"]:
     if c in export_df.columns:

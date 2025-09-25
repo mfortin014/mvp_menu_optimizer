@@ -3,13 +3,16 @@ import pathlib
 
 EXCLUDE = {".venv", "venv", "__pycache__", ".git", "node_modules"}
 
+
 def skip(p: pathlib.Path) -> bool:
     return any(part in EXCLUDE for part in p.parts)
+
 
 def main():
     added = 0
     for p in pathlib.Path(".").rglob("*.py"):
-        if skip(p): continue
+        if skip(p):
+            continue
         t = p.read_text(encoding="utf-8")
         if "db." in t and "from utils import tenant_db as db" not in t:
             lines = t.splitlines()
@@ -21,6 +24,7 @@ def main():
             p.write_text("\n".join(lines), encoding="utf-8")
             added += 1
     print(f"Imports added: {added}")
+
 
 if __name__ == "__main__":
     main()

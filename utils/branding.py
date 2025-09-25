@@ -1,13 +1,16 @@
 # utils/branding.py
 import json
-import streamlit as st
 from pathlib import Path
+
+import streamlit as st
+
 from utils import tenant_db as db
 from utils.tenant_state import get_active_tenant
 
 CONFIG_PATH = Path("config/branding_config.json")
 _DEFAULT_PRIMARY = "#111827"
 _DEFAULT_SECONDARY = "#6b7280"
+
 
 @st.cache_data(ttl=60)
 def _load_json_fallback():
@@ -25,11 +28,13 @@ def _load_json_fallback():
         "brand_secondary": _DEFAULT_SECONDARY,
     }
 
+
 def _normalize(logo_url, prim, sec, fb):
     primary = prim or fb.get("brand_primary") or fb.get("primary") or _DEFAULT_PRIMARY
     secondary = sec or fb.get("brand_secondary") or fb.get("secondary") or _DEFAULT_SECONDARY
     logo = logo_url or fb.get("logo_url")
     return {"logo_url": logo, "primary": primary, "secondary": secondary}
+
 
 @st.cache_data(ttl=60)
 def load_branding():
@@ -38,7 +43,13 @@ def load_branding():
     if not tid:
         return _normalize(None, None, None, fb)
 
-    r = db.table("tenants").select("logo_url,brand_primary,brand_secondary").eq("id", tid).limit(1).execute()
+    r = (
+        db.table("tenants")
+        .select("logo_url,brand_primary,brand_secondary")
+        .eq("id", tid)
+        .limit(1)
+        .execute()
+    )
     row = (r.data or [{}])[0]
     return _normalize(
         row.get("logo_url"),
@@ -47,10 +58,12 @@ def load_branding():
         fb,
     )
 
+
 def apply_branding_to_sidebar():
     b = load_branding()
     if b.get("logo_url"):
         st.sidebar.image(b["logo_url"], use_column_width=True)
+
 
 def inject_brand_colors():
     b = load_branding()

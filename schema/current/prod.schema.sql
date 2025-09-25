@@ -1,3 +1,10 @@
+-- ------------------------------------------------------------
+-- Schema dump
+-- Env: prod
+-- Mode: latest
+-- Timestamp (UTC): 2025-09-24_2011UTC
+-- Git commit: 9d8e397
+-- ------------------------------------------------------------
 --
 -- PostgreSQL database dump
 --
@@ -673,20 +680,60 @@ $_$;
 
 
 --
+-- Name: enforce_same_tenant_ingredient_refs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_same_tenant_ingredient_refs() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare cat_t uuid; st_t uuid;
+begin
+  if new.category_id is not null then
+    select tenant_id into cat_t from public.ref_ingredient_categories where id = new.category_id;
+    if cat_t is not null and new.tenant_id is distinct from cat_t then
+      raise exception 'Cross-tenant reference: ingredient.category_id';
+    end if;
+  end if;
+
+  if new.storage_type_id is not null then
+    select tenant_id into st_t from public.ref_storage_type where id = new.storage_type_id;
+    if st_t is not null and new.tenant_id is distinct from st_t then
+      raise exception 'Cross-tenant reference: ingredient.storage_type_id';
+    end if;
+  end if;
+
+  return new;
+end $$;
+
+
+--
 -- Name: enforce_same_tenant_recipe_lines(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.enforce_same_tenant_recipe_lines() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-declare parent_t uuid; ingredient_t uuid;
+declare parent_t uuid; ing_t uuid; prep_t uuid;
 begin
   select tenant_id into parent_t from public.recipes where id = new.recipe_id;
-  select tenant_id into ingredient_t from public.ingredients where id = new.ingredient_id;
-  if parent_t is null or ingredient_t is null then return new; end if;
-  if new.tenant_id is distinct from parent_t or new.tenant_id is distinct from ingredient_t then
-    raise exception 'Cross-tenant reference in recipe_lines';
+
+  select tenant_id into ing_t from public.ingredients where id = new.ingredient_id;
+  if ing_t is null then
+    select tenant_id into prep_t from public.recipes where id = new.ingredient_id and recipe_type = 'prep';
   end if;
+
+  if parent_t is not null and new.tenant_id is distinct from parent_t then
+    raise exception 'Cross-tenant reference (parent recipe)';
+  end if;
+
+  if ing_t is not null and new.tenant_id is distinct from ing_t then
+    raise exception 'Cross-tenant reference (ingredient)';
+  end if;
+
+  if prep_t is not null and new.tenant_id is distinct from prep_t then
+    raise exception 'Cross-tenant reference (prep recipe)';
+  end if;
+
   return new;
 end $$;
 
@@ -737,6 +784,20 @@ $$;
 
 
 --
+-- Name: get_recipe_details_mt(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_recipe_details_mt(p_tenant uuid, p_recipe_id uuid) RETURNS TABLE(tenant_id uuid, recipe_id uuid, recipe_code text, name text, status text, price numeric, total_cost numeric, cost_pct numeric, margin numeric)
+    LANGUAGE sql STABLE
+    AS $$
+  select *
+  from public.recipe_summary
+  where tenant_id = p_tenant
+    and recipe_id = p_recipe_id
+$$;
+
+
+--
 -- Name: get_unit_costs_for_inputs(uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -757,6 +818,50 @@ CREATE FUNCTION public.get_unit_costs_for_inputs(ids uuid[]) RETURNS TABLE(id uu
   SELECT pc.recipe_id AS id, pc.unit_cost
   FROM prep_costs pc
   WHERE pc.recipe_id = ANY(ids);
+$$;
+
+
+--
+-- Name: get_unit_costs_for_inputs_mt(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_unit_costs_for_inputs_mt(p_tenant uuid) RETURNS TABLE(tenant_id uuid, input_id uuid, source text, code text, name text, base_uom text, unit_cost numeric)
+    LANGUAGE sql STABLE
+    AS $$
+  with ic as (
+    select
+      i.tenant_id,
+      i.id as input_id,
+      'ingredient'::text as source,
+      i.ingredient_code as code,
+      i.name,
+      i.base_uom,
+      c.unit_cost
+    from public.ingredients i
+    left join public.ingredient_costs c
+      on c.ingredient_id = i.id
+     and c.tenant_id = i.tenant_id
+    where i.deleted_at is null
+  ),
+  pc as (
+    select
+      r.tenant_id,
+      r.id as input_id,
+      'recipe'::text as source,
+      r.recipe_code as code,
+      r.name,
+      p.base_uom,
+      p.unit_cost
+    from public.recipes r
+    join public.prep_costs p
+      on p.recipe_id = r.id
+     and p.tenant_id = r.tenant_id
+    where r.recipe_type = 'prep'
+      and r.deleted_at is null
+  )
+  select * from ic where tenant_id = p_tenant
+  union all
+  select * from pc where tenant_id = p_tenant
 $$;
 
 
@@ -2233,7 +2338,6 @@ CREATE TABLE public.ref_uom_conversion (
     from_uom text NOT NULL,
     to_uom text NOT NULL,
     factor numeric NOT NULL,
-    tenant_id uuid NOT NULL,
     deleted_at timestamp with time zone
 );
 
@@ -2243,23 +2347,33 @@ CREATE TABLE public.ref_uom_conversion (
 --
 
 CREATE VIEW public.ingredient_costs AS
- SELECT i.id AS ingredient_id,
+ SELECT i.tenant_id,
+    i.id AS ingredient_id,
     i.ingredient_code,
     i.name,
     i.package_qty,
-    i.yield_pct,
     i.package_uom,
     i.base_uom,
     i.package_cost,
-    c.factor AS conversion_factor,
-    ((i.package_qty * i.yield_pct) / 100.0) AS package_qty_net,
-    (((i.package_qty * i.yield_pct) / 100.0) * c.factor) AS package_qty_net_base_unit,
+    i.yield_pct,
+    (i.package_qty * (i.yield_pct / 100.0)) AS package_qty_net,
         CASE
-            WHEN ((((i.package_qty * i.yield_pct) / 100.0) * c.factor) > (0)::numeric) THEN (i.package_cost / (((i.package_qty * i.yield_pct) / 100.0) * c.factor))
+            WHEN (i.package_uom = i.base_uom) THEN 1.0
+            ELSE c.factor
+        END AS conversion_factor,
+        CASE
+            WHEN (i.package_uom = i.base_uom) THEN (i.package_qty * (i.yield_pct / 100.0))
+            WHEN (c.factor IS NOT NULL) THEN ((i.package_qty * (i.yield_pct / 100.0)) * c.factor)
+            ELSE NULL::numeric
+        END AS package_qty_net_base_unit,
+        CASE
+            WHEN ((i.package_uom = i.base_uom) AND ((i.package_qty * (i.yield_pct / 100.0)) > (0)::numeric)) THEN (i.package_cost / (i.package_qty * (i.yield_pct / 100.0)))
+            WHEN ((c.factor IS NOT NULL) AND (((i.package_qty * (i.yield_pct / 100.0)) * c.factor) > (0)::numeric)) THEN (i.package_cost / ((i.package_qty * (i.yield_pct / 100.0)) * c.factor))
             ELSE NULL::numeric
         END AS unit_cost
    FROM (public.ingredients i
-     LEFT JOIN public.ref_uom_conversion c ON (((i.package_uom = c.from_uom) AND (i.base_uom = c.to_uom))));
+     LEFT JOIN public.ref_uom_conversion c ON (((i.package_uom = c.from_uom) AND (i.base_uom = c.to_uom))))
+  WHERE (i.deleted_at IS NULL);
 
 
 --
@@ -2295,19 +2409,21 @@ COMMENT ON COLUMN public.recipes.recipe_category IS 'Free-form text category use
 --
 
 CREATE VIEW public.input_catalog AS
- SELECT ingredients.id,
-    ingredients.ingredient_code AS code,
-    ingredients.name,
+ SELECT i.tenant_id,
+    i.id,
+    i.ingredient_code AS code,
+    i.name,
     'ingredient'::text AS source
-   FROM public.ingredients
-  WHERE (ingredients.status = 'Active'::text)
+   FROM public.ingredients i
+  WHERE ((i.status = 'Active'::text) AND (i.deleted_at IS NULL))
 UNION ALL
- SELECT recipes.id,
-    recipes.recipe_code AS code,
-    recipes.name,
+ SELECT r.tenant_id,
+    r.id,
+    r.recipe_code AS code,
+    r.name,
     'recipe'::text AS source
-   FROM public.recipes
-  WHERE ((recipes.status = 'Active'::text) AND (recipes.recipe_type = 'prep'::text));
+   FROM public.recipes r
+  WHERE ((r.status = 'Active'::text) AND (r.recipe_type = 'prep'::text) AND (r.deleted_at IS NULL));
 
 
 --
@@ -2332,16 +2448,17 @@ CREATE TABLE public.recipe_lines (
 --
 
 CREATE VIEW public.missing_uom_conversions AS
- SELECT rl.id AS recipe_line_id,
+ SELECT rl.tenant_id,
+    rl.id AS recipe_line_id,
     r.name AS recipe,
     i.name AS ingredient,
     rl.qty_uom,
     i.package_uom
    FROM (((public.recipe_lines rl
-     JOIN public.recipes r ON ((r.id = rl.recipe_id)))
-     JOIN public.ingredients i ON ((i.id = rl.ingredient_id)))
+     JOIN public.recipes r ON (((r.id = rl.recipe_id) AND (r.tenant_id = rl.tenant_id) AND (r.deleted_at IS NULL))))
+     JOIN public.ingredients i ON (((i.id = rl.ingredient_id) AND (i.tenant_id = rl.tenant_id) AND (i.deleted_at IS NULL))))
      LEFT JOIN public.ref_uom_conversion c ON (((rl.qty_uom = c.from_uom) AND (i.package_uom = c.to_uom))))
-  WHERE (c.factor IS NULL);
+  WHERE ((rl.deleted_at IS NULL) AND (rl.qty_uom <> i.package_uom) AND (c.from_uom IS NULL));
 
 
 --
@@ -2349,7 +2466,8 @@ CREATE VIEW public.missing_uom_conversions AS
 --
 
 CREATE VIEW public.recipe_line_costs_base AS
- SELECT rl.id AS recipe_line_id,
+ SELECT rl.tenant_id,
+    rl.id AS recipe_line_id,
     rl.recipe_id,
     rl.ingredient_id,
     rl.qty,
@@ -2357,19 +2475,22 @@ CREATE VIEW public.recipe_line_costs_base AS
     i.package_qty,
     i.package_uom,
     i.package_cost,
-    i.ingredient_type,
     i.yield_pct,
         CASE
-            WHEN ((i.id IS NOT NULL) AND (i.package_qty > (0)::numeric) AND ((rl.qty_uom = i.package_uom) OR (c.factor IS NOT NULL))) THEN
+            WHEN ((i.id IS NOT NULL) AND (i.package_qty > (0)::numeric) AND ((rl.qty_uom = i.package_uom) OR (EXISTS ( SELECT 1
+               FROM public.ref_uom_conversion cu
+              WHERE ((cu.from_uom = rl.qty_uom) AND (cu.to_uom = i.package_uom)))))) THEN
             CASE
                 WHEN (rl.qty_uom = i.package_uom) THEN ((rl.qty / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
-                ELSE (((rl.qty * c.factor) / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
+                ELSE (((rl.qty * ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = rl.qty_uom) AND (cu.to_uom = i.package_uom)))) / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
             END
             ELSE (0)::numeric
         END AS line_cost
-   FROM ((public.recipe_lines rl
-     LEFT JOIN public.ingredients i ON ((i.id = rl.ingredient_id)))
-     LEFT JOIN public.ref_uom_conversion c ON (((rl.qty_uom = c.from_uom) AND (i.package_uom = c.to_uom))));
+   FROM (public.recipe_lines rl
+     LEFT JOIN public.ingredients i ON (((i.id = rl.ingredient_id) AND (i.tenant_id = rl.tenant_id) AND (i.deleted_at IS NULL))))
+  WHERE (rl.deleted_at IS NULL);
 
 
 --
@@ -2377,24 +2498,58 @@ CREATE VIEW public.recipe_line_costs_base AS
 --
 
 CREATE VIEW public.prep_costs AS
- SELECT r.id AS recipe_id,
+ WITH base_uom_choice AS (
+         SELECT rl.recipe_id,
+            rl.tenant_id,
+            min(i.base_uom) AS base_uom
+           FROM (public.recipe_lines rl
+             JOIN public.ingredients i ON (((i.id = rl.ingredient_id) AND (i.tenant_id = rl.tenant_id) AND (i.deleted_at IS NULL))))
+          WHERE (rl.deleted_at IS NULL)
+          GROUP BY rl.recipe_id, rl.tenant_id
+        )
+ SELECT r.tenant_id,
+    r.id AS recipe_id,
     r.recipe_code,
     r.name,
     r.yield_qty,
     r.yield_uom,
     sum(COALESCE(rlcb.line_cost, (0)::numeric)) AS total_cost,
-    conv.factor AS conversion_factor,
-    (r.yield_qty * conv.factor) AS yield_qty_in_base_unit,
         CASE
-            WHEN ((r.yield_qty * conv.factor) > (0)::numeric) THEN (sum(COALESCE(rlcb.line_cost, (0)::numeric)) / (r.yield_qty * conv.factor))
+            WHEN (b.base_uom IS NULL) THEN NULL::numeric
+            WHEN (r.yield_uom = b.base_uom) THEN 1.0
+            ELSE ( SELECT cu.factor
+               FROM public.ref_uom_conversion cu
+              WHERE ((cu.from_uom = r.yield_uom) AND (cu.to_uom = b.base_uom)))
+        END AS conversion_factor,
+    COALESCE(b.base_uom, r.yield_uom) AS base_uom,
+        CASE
+            WHEN ((
+            CASE
+                WHEN (b.base_uom IS NULL) THEN NULL::numeric
+                WHEN (r.yield_uom = b.base_uom) THEN 1.0
+                ELSE ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = r.yield_uom) AND (cu.to_uom = b.base_uom)))
+            END IS NOT NULL) AND ((r.yield_qty *
+            CASE
+                WHEN (r.yield_uom = COALESCE(b.base_uom, r.yield_uom)) THEN 1.0
+                ELSE ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = r.yield_uom) AND (cu.to_uom = b.base_uom)))
+            END) > (0)::numeric)) THEN (sum(COALESCE(rlcb.line_cost, (0)::numeric)) / (r.yield_qty *
+            CASE
+                WHEN (r.yield_uom = COALESCE(b.base_uom, r.yield_uom)) THEN 1.0
+                ELSE ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = r.yield_uom) AND (cu.to_uom = b.base_uom)))
+            END))
             ELSE NULL::numeric
-        END AS unit_cost,
-    conv.to_uom AS base_uom
+        END AS unit_cost
    FROM ((public.recipes r
-     LEFT JOIN public.recipe_line_costs_base rlcb ON ((rlcb.recipe_id = r.id)))
-     LEFT JOIN public.ref_uom_conversion conv ON ((r.yield_uom = conv.from_uom)))
-  WHERE ((r.recipe_type = 'prep'::text) AND (r.status = 'Active'::text))
-  GROUP BY r.id, r.recipe_code, r.name, r.yield_qty, r.yield_uom, conv.factor, conv.to_uom;
+     LEFT JOIN base_uom_choice b ON (((b.recipe_id = r.id) AND (b.tenant_id = r.tenant_id))))
+     LEFT JOIN public.recipe_line_costs_base rlcb ON (((rlcb.recipe_id = r.id) AND (rlcb.tenant_id = r.tenant_id))))
+  WHERE ((r.recipe_type = 'prep'::text) AND (r.status = 'Active'::text) AND (r.deleted_at IS NULL))
+  GROUP BY r.tenant_id, r.id, r.recipe_code, r.name, r.yield_qty, r.yield_uom, b.base_uom;
 
 
 --
@@ -2413,22 +2568,22 @@ CREATE TABLE public.profiles (
 --
 
 CREATE VIEW public.recipe_line_costs AS
- SELECT rl.id AS recipe_line_id,
+ SELECT rl.tenant_id,
+    rl.id AS recipe_line_id,
     rl.recipe_id,
     rl.ingredient_id,
     rl.qty,
     rl.qty_uom,
-    i.package_qty,
-    i.package_uom,
-    i.package_cost,
-    i.ingredient_type,
-    i.yield_pct,
     COALESCE(
         CASE
-            WHEN ((i.id IS NOT NULL) AND (i.package_qty > (0)::numeric) AND ((rl.qty_uom = i.package_uom) OR (conv_ing.factor IS NOT NULL))) THEN
+            WHEN ((i.id IS NOT NULL) AND (i.package_qty > (0)::numeric) AND ((rl.qty_uom = i.package_uom) OR (EXISTS ( SELECT 1
+               FROM public.ref_uom_conversion cu
+              WHERE ((cu.from_uom = rl.qty_uom) AND (cu.to_uom = i.package_uom)))))) THEN
             CASE
                 WHEN (rl.qty_uom = i.package_uom) THEN ((rl.qty / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
-                ELSE (((rl.qty * conv_ing.factor) / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
+                ELSE (((rl.qty * ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = rl.qty_uom) AND (cu.to_uom = i.package_uom)))) / (i.yield_pct / 100.0)) * (i.package_cost / i.package_qty))
             END
             ELSE NULL::numeric
         END,
@@ -2436,16 +2591,17 @@ CREATE VIEW public.recipe_line_costs AS
             WHEN ((pr.id IS NOT NULL) AND (pc.unit_cost IS NOT NULL)) THEN
             CASE
                 WHEN (rl.qty_uom = pc.base_uom) THEN (rl.qty * pc.unit_cost)
-                ELSE ((rl.qty * conv_prep.factor) * pc.unit_cost)
+                ELSE ((rl.qty * ( SELECT cu.factor
+                   FROM public.ref_uom_conversion cu
+                  WHERE ((cu.from_uom = rl.qty_uom) AND (cu.to_uom = pc.base_uom)))) * pc.unit_cost)
             END
             ELSE NULL::numeric
         END, (0)::numeric) AS line_cost
-   FROM (((((public.recipe_lines rl
-     LEFT JOIN public.ingredients i ON ((i.id = rl.ingredient_id)))
-     LEFT JOIN public.ref_uom_conversion conv_ing ON (((rl.qty_uom = conv_ing.from_uom) AND (i.package_uom = conv_ing.to_uom))))
-     LEFT JOIN public.recipes pr ON (((pr.id = rl.ingredient_id) AND (pr.recipe_type = 'prep'::text))))
-     LEFT JOIN public.prep_costs pc ON ((pc.recipe_id = pr.id)))
-     LEFT JOIN public.ref_uom_conversion conv_prep ON (((rl.qty_uom = conv_prep.from_uom) AND (pc.base_uom = conv_prep.to_uom))));
+   FROM (((public.recipe_lines rl
+     LEFT JOIN public.ingredients i ON (((i.id = rl.ingredient_id) AND (i.tenant_id = rl.tenant_id) AND (i.deleted_at IS NULL))))
+     LEFT JOIN public.recipes pr ON (((pr.id = rl.ingredient_id) AND (pr.tenant_id = rl.tenant_id) AND (pr.recipe_type = 'prep'::text) AND (pr.deleted_at IS NULL))))
+     LEFT JOIN public.prep_costs pc ON (((pc.recipe_id = pr.id) AND (pc.tenant_id = pr.tenant_id))))
+  WHERE (rl.deleted_at IS NULL);
 
 
 --
@@ -2453,7 +2609,8 @@ CREATE VIEW public.recipe_line_costs AS
 --
 
 CREATE VIEW public.recipe_summary AS
- SELECT r.id AS recipe_id,
+ SELECT r.tenant_id,
+    r.id AS recipe_id,
     r.recipe_code,
     r.name,
     r.status,
@@ -2468,9 +2625,9 @@ CREATE VIEW public.recipe_summary AS
             ELSE NULL::numeric
         END AS margin
    FROM (public.recipes r
-     LEFT JOIN public.recipe_line_costs rlc ON ((r.id = rlc.recipe_id)))
-  WHERE ((r.status = 'Active'::text) AND (r.recipe_type = 'service'::text))
-  GROUP BY r.id, r.recipe_code, r.name, r.status, r.price;
+     LEFT JOIN public.recipe_line_costs rlc ON (((rlc.recipe_id = r.id) AND (rlc.tenant_id = r.tenant_id))))
+  WHERE ((r.status = 'Active'::text) AND (r.recipe_type = 'service'::text) AND (r.deleted_at IS NULL))
+  GROUP BY r.tenant_id, r.id, r.recipe_code, r.name, r.status, r.price;
 
 
 --
@@ -2519,6 +2676,17 @@ CREATE TABLE public.sales (
 
 
 --
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.schema_migrations (
+    filename text NOT NULL,
+    checksum text NOT NULL,
+    executed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: tenants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2528,7 +2696,11 @@ CREATE TABLE public.tenants (
     code text,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    logo_url text,
+    brand_primary text,
+    brand_secondary text,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 
@@ -2901,14 +3073,6 @@ ALTER TABLE ONLY auth.users
 
 
 --
--- Name: ingredients ingredients_ingredient_code_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ingredients
-    ADD CONSTRAINT ingredients_ingredient_code_key UNIQUE (ingredient_code);
-
-
---
 -- Name: ingredients ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2941,35 +3105,11 @@ ALTER TABLE ONLY public.recipes
 
 
 --
--- Name: recipes recipes_recipe_code_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.recipes
-    ADD CONSTRAINT recipes_recipe_code_key UNIQUE (recipe_code);
-
-
---
--- Name: ref_ingredient_categories ref_ingredient_categories_name_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ref_ingredient_categories
-    ADD CONSTRAINT ref_ingredient_categories_name_key UNIQUE (name);
-
-
---
 -- Name: ref_ingredient_categories ref_ingredient_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ref_ingredient_categories
     ADD CONSTRAINT ref_ingredient_categories_pkey PRIMARY KEY (id);
-
-
---
--- Name: ref_storage_type ref_storage_type_name_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ref_storage_type
-    ADD CONSTRAINT ref_storage_type_name_key UNIQUE (name);
 
 
 --
@@ -2994,6 +3134,14 @@ ALTER TABLE ONLY public.ref_uom_conversion
 
 ALTER TABLE ONLY public.sales
     ADD CONSTRAINT sales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schema_migrations
+    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 
 
 --
@@ -3443,13 +3591,6 @@ CREATE INDEX idx_ref_storage_type_tenant ON public.ref_storage_type USING btree 
 
 
 --
--- Name: idx_ref_uom_conversion_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_ref_uom_conversion_tenant ON public.ref_uom_conversion USING btree (tenant_id);
-
-
---
 -- Name: idx_sales_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3471,6 +3612,13 @@ CREATE UNIQUE INDEX ux_ingredients_tenant_code ON public.ingredients USING btree
 
 
 --
+-- Name: ux_ingredients_tenant_code_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_ingredients_tenant_code_active ON public.ingredients USING btree (tenant_id, ingredient_code) WHERE (deleted_at IS NULL);
+
+
+--
 -- Name: ux_recipes_tenant_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3478,10 +3626,38 @@ CREATE UNIQUE INDEX ux_recipes_tenant_code ON public.recipes USING btree (tenant
 
 
 --
+-- Name: ux_recipes_tenant_code_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_recipes_tenant_code_active ON public.recipes USING btree (tenant_id, recipe_code) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: ux_ref_ingredient_categories_tenant_name_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_ref_ingredient_categories_tenant_name_active ON public.ref_ingredient_categories USING btree (tenant_id, name) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: ux_ref_storage_type_tenant_name_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_ref_storage_type_tenant_name_active ON public.ref_storage_type USING btree (tenant_id, name) WHERE (deleted_at IS NULL);
+
+
+--
 -- Name: ux_ref_uom_conversion_pair; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX ux_ref_uom_conversion_pair ON public.ref_uom_conversion USING btree (from_uom, to_uom);
+
+
+--
+-- Name: ux_tenants_single_default; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_tenants_single_default ON public.tenants USING btree (is_default) WHERE is_default;
 
 
 --
@@ -3545,6 +3721,13 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.recipe_lines FOR EACH ROW 
 --
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.recipes FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: ingredients tr_ingredients_tenant_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_ingredients_tenant_guard BEFORE INSERT OR UPDATE ON public.ingredients FOR EACH ROW EXECUTE FUNCTION public.enforce_same_tenant_ingredient_refs();
 
 
 --
@@ -3740,14 +3923,6 @@ ALTER TABLE ONLY public.ref_ingredient_categories
 
 ALTER TABLE ONLY public.ref_storage_type
     ADD CONSTRAINT ref_storage_type_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
-
-
---
--- Name: ref_uom_conversion ref_uom_conversion_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ref_uom_conversion
-    ADD CONSTRAINT ref_uom_conversion_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
 
 
 --
@@ -3974,13 +4149,6 @@ CREATE POLICY "Allow read for authenticated users" ON public.ref_storage_type FO
 
 
 --
--- Name: ref_uom_conversion Allow read for authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow read for authenticated users" ON public.ref_uom_conversion FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: sales Allow read for authenticated users; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -4023,13 +4191,6 @@ CREATE POLICY "Chef full access" ON public.ref_storage_type TO authenticated USI
 
 
 --
--- Name: ref_uom_conversion Chef full access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Chef full access" ON public.ref_uom_conversion TO authenticated USING ((auth.email() = 'davidnoireaut@surlefeu.com'::text)) WITH CHECK ((auth.email() = 'davidnoireaut@surlefeu.com'::text));
-
-
---
 -- Name: sales Chef full access; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -4041,6 +4202,27 @@ CREATE POLICY "Chef full access" ON public.sales TO authenticated USING ((auth.e
 --
 
 ALTER TABLE public.ingredients ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: user_tenant_memberships memberships_select_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY memberships_select_all ON public.user_tenant_memberships FOR SELECT USING (true);
+
+
+--
+-- Name: user_tenant_memberships memberships_write_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY memberships_write_all ON public.user_tenant_memberships USING (true) WITH CHECK (true);
+
+
+--
+-- Name: ref_uom_conversion p_uom_select_public; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY p_uom_select_public ON public.ref_uom_conversion FOR SELECT TO authenticated, anon USING (true);
+
 
 --
 -- Name: recipe_lines; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4083,6 +4265,20 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tenants tenants_select_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenants_select_all ON public.tenants FOR SELECT USING (true);
+
+
+--
+-- Name: tenants tenants_write_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenants_write_all ON public.tenants USING (true) WITH CHECK (true);
+
 
 --
 -- Name: user_tenant_memberships; Type: ROW SECURITY; Schema: public; Owner: -

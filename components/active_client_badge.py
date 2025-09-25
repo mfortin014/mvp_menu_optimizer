@@ -1,16 +1,27 @@
-import streamlit as st
 from typing import Optional
+
+import streamlit as st
+
+from utils.branding import inject_brand_colors
 from utils.supabase import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
-from utils.branding import inject_brand_colors
+
 
 def _pick_default_tenant() -> Optional[str]:
     # Prefer DB default & active, else first by name
-    r = supabase.table("tenants").select("id").eq("is_default", True).eq("is_active", True).limit(1).execute()
+    r = (
+        supabase.table("tenants")
+        .select("id")
+        .eq("is_default", True)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
     if r.data:
         return r.data[0]["id"]
     r = supabase.table("tenants").select("id").order("name").limit(1).execute()
     return r.data[0]["id"] if r.data else None
+
 
 def _ensure_loaded_tenant() -> Optional[str]:
     tid = get_active_tenant()
@@ -21,11 +32,13 @@ def _ensure_loaded_tenant() -> Optional[str]:
         set_active_tenant(tid)
     return tid
 
+
 def _tenant_name(tenant_id: Optional[str]) -> str:
     if not tenant_id:
         return "— No client loaded —"
     r = supabase.table("tenants").select("name").eq("id", tenant_id).limit(1).execute()
     return r.data[0]["name"] if r.data else tenant_id
+
 
 def _go_clients_page():
     # Try built-in navigation if available; otherwise show a hint.
@@ -40,6 +53,7 @@ def _go_clients_page():
             except Exception:
                 pass
     st.info("Open the **Clients** page in the sidebar to change client.")
+
 
 def render(clients_page_title: str = "Clients", **_ignore_kwargs):
     # ensure CSS vars are present (safe to call multiple times)

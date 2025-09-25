@@ -17,14 +17,13 @@
 # + Added WHY comments where behavior isn’t obvious to reduce future head-scratching.
 # ============================================================================
 
-import streamlit as st
-import pandas as pd
 from datetime import datetime
+
+import pandas as pd
+import streamlit as st
+from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, GridUpdateMode, JsCode
+
 from components.active_client_badge import render as client_badge
-
-
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
-from utils.supabase import supabase
 from utils import tenant_db as db
 
 st.set_page_config(page_title="Recipes", layout="wide")
@@ -33,31 +32,51 @@ client_badge(clients_page_title="Clients")
 
 # ── Debug switch ──────────────────────────────────────────────────────────────
 DEBUG = False  # Flip to True to see sidebar logs during Save
+
+
 def dlog(msg):
     if DEBUG:
         st.sidebar.write(f"🛠️ {msg}")
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Auth (kept as-is)
 try:
     from utils.auth import require_auth
+
     require_auth()
 except Exception:
     pass
 
 st.title("📘 Recipes")
 
+
 # -----------------------------
 # Helpers
 # -----------------------------
 def fetch_recipes_df() -> pd.DataFrame:
     """Load base recipes using new schema fields."""
-    res = db.table("recipes").select(
-        "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
-    ).order("name").execute()
+    res = (
+        db.table("recipes")
+        .select(
+            "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
+        )
+        .order("name")
+        .execute()
+    )
     df = pd.DataFrame(res.data or [])
-    must_have = ["id", "recipe_code", "name", "status", "recipe_type",
-                 "recipe_category", "yield_qty", "yield_uom", "price"]
+    must_have = [
+        "id",
+        "recipe_code",
+        "name",
+        "status",
+        "recipe_type",
+        "recipe_category",
+        "yield_qty",
+        "yield_uom",
+        "price",
+    ]
     for c in must_have:
         if c not in df.columns:
             df[c] = None
@@ -65,6 +84,7 @@ def fetch_recipes_df() -> pd.DataFrame:
         for c in ("yield_qty", "price"):
             df[c] = pd.to_numeric(df[c], errors="coerce")
     return df
+
 
 def fetch_recipe_summary_map() -> pd.DataFrame:
     """Pull summary rows (by recipe_id) for cost aggregation (we rely on recipe_id, total_cost)."""
@@ -74,15 +94,27 @@ def fetch_recipe_summary_map() -> pd.DataFrame:
         s["total_cost"] = None
     return s
 
+
 def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.DataFrame:
     """Merge base recipes with summary costs, compute KPIs as numerics."""
     if base_df.empty:
-        return pd.DataFrame(columns=[
-            "recipe_code","name","status","recipe_type","recipe_category",
-            "yield_qty","yield_uom","price","total_cost","cost_pct","margin"
-        ])
+        return pd.DataFrame(
+            columns=[
+                "recipe_code",
+                "name",
+                "status",
+                "recipe_type",
+                "recipe_category",
+                "yield_qty",
+                "yield_uom",
+                "price",
+                "total_cost",
+                "cost_pct",
+                "margin",
+            ]
+        )
     df = base_df.copy()
-    s  = summary_df.rename(columns={"recipe_id": "id"}).copy()
+    s = summary_df.rename(columns={"recipe_id": "id"}).copy()
     df = df.merge(s, on="id", how="left")
 
     def safe_ratio(cost, price):
@@ -96,13 +128,23 @@ def assemble_grid_df(base_df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.Data
         return round(float(price) - float(cost), 2)
 
     df["cost_pct"] = df.apply(lambda r: safe_ratio(r.get("total_cost"), r.get("price")), axis=1)
-    df["margin"]   = df.apply(lambda r: safe_margin(r.get("total_cost"), r.get("price")), axis=1)
+    df["margin"] = df.apply(lambda r: safe_margin(r.get("total_cost"), r.get("price")), axis=1)
 
     ordered = [
-        "recipe_code","name","status","recipe_type","recipe_category",
-        "yield_qty","yield_uom","price","total_cost","cost_pct","margin"
+        "recipe_code",
+        "name",
+        "status",
+        "recipe_type",
+        "recipe_category",
+        "yield_qty",
+        "yield_uom",
+        "price",
+        "total_cost",
+        "cost_pct",
+        "margin",
     ]
     return df[[c for c in ordered if c in df.columns]]
+
 
 def fetch_uom_options() -> list:
     """Return sorted unique union of from_uom/to_uom from ref_uom_conversion."""
@@ -110,12 +152,16 @@ def fetch_uom_options() -> list:
     rows = res.data or []
     uoms = set()
     for r in rows:
-        fu = r.get("from_uom"); tu = r.get("to_uom")
-        if fu: uoms.add(str(fu))
-        if tu: uoms.add(str(tu))
+        fu = r.get("from_uom")
+        tu = r.get("to_uom")
+        if fu:
+            uoms.add(str(fu))
+        if tu:
+            uoms.add(str(tu))
     if not uoms:
         uoms = {"Serving"}  # minimal defensive fallback
     return sorted(uoms)
+
 
 def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms: list) -> list:
     """
@@ -137,19 +183,22 @@ def build_uom_choices(recipe_type: str | None, current_uom: str | None, all_uoms
         return [current_uom] + [u for u in uoms if u != current_uom]
     return uoms
 
+
 # -----------------------------
 # Filters (horizontal)
 # -----------------------------
 f1, f2, _ = st.columns([1, 1, 1])
 with f1:
-    status_filter = st.radio("Status", options=["All", "Active", "Inactive"], index=1, horizontal=True)
+    status_filter = st.radio(
+        "Status", options=["All", "Active", "Inactive"], index=1, horizontal=True
+    )
 with f2:
     type_filter = st.radio("Type", options=["All", "service", "prep"], index=0, horizontal=True)
 
 # -----------------------------
 # Fetch & Filter
 # -----------------------------
-base_df    = fetch_recipes_df()
+base_df = fetch_recipes_df()
 summary_df = fetch_recipe_summary_map()
 
 if status_filter != "All":
@@ -168,19 +217,29 @@ gb.configure_default_column(editable=False, filter=True, sortable=True)
 gb.configure_selection("single", use_checkbox=False)
 
 # Right-align numerics
-for col in ("yield_qty","price","total_cost","cost_pct","margin"):
+for col in ("yield_qty", "price", "total_cost", "cost_pct", "margin"):
     if col in display_df.columns:
         gb.configure_column(col, cellStyle={"textAlign": "right"})
 
 # Value formatters (display-only; underlying data remains numeric for export)
-fmt_currency_2 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(2);}""")
-fmt_currency_5 = JsCode("""function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(5);}""")
-fmt_percent_1  = JsCode("""function(p){ if(p.value==null) return ''; return Number(p.value).toFixed(1)+'%';}""")
+fmt_currency_2 = JsCode(
+    """function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(2);}"""
+)
+fmt_currency_5 = JsCode(
+    """function(p){ if(p.value==null) return ''; return '$'+Number(p.value).toFixed(5);}"""
+)
+fmt_percent_1 = JsCode(
+    """function(p){ if(p.value==null) return ''; return Number(p.value).toFixed(1)+'%';}"""
+)
 
-if "price" in display_df.columns:      gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
-if "total_cost" in display_df.columns: gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
-if "cost_pct" in display_df.columns:   gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
-if "margin" in display_df.columns:     gb.configure_column("margin", header_name="Margin", valueFormatter=fmt_currency_2)
+if "price" in display_df.columns:
+    gb.configure_column("price", header_name="Price", valueFormatter=fmt_currency_2)
+if "total_cost" in display_df.columns:
+    gb.configure_column("total_cost", header_name="Total Cost", valueFormatter=fmt_currency_5)
+if "cost_pct" in display_df.columns:
+    gb.configure_column("cost_pct", header_name="Cost %", valueFormatter=fmt_percent_1)
+if "margin" in display_df.columns:
+    gb.configure_column("margin", header_name="Margin", valueFormatter=fmt_currency_2)
 
 grid_options = gb.build()
 
@@ -190,7 +249,7 @@ grid_options = gb.build()
 try:
     SNAPSHOT_MODE = DataReturnMode.FILTERED_AND_SORTED  # preferred
 except AttributeError:
-    SNAPSHOT_MODE = DataReturnMode.FILTERED             # fallback
+    SNAPSHOT_MODE = DataReturnMode.FILTERED  # fallback
 
 grid_response = AgGrid(
     display_df,
@@ -228,7 +287,9 @@ if SNAPSHOT_MODE == DataReturnMode.FILTERED and not export_snapshot.empty:
                 by_cols.append(col_id)
                 ascending.append(direction == "asc")
         if by_cols:
-            export_snapshot = export_snapshot.sort_values(by=by_cols, ascending=ascending, kind="mergesort")
+            export_snapshot = export_snapshot.sort_values(
+                by=by_cols, ascending=ascending, kind="mergesort"
+            )
 
 # Build export DF with friendly headers (keep values numeric; formatting is for UI only)
 export_df = export_snapshot.copy()
@@ -245,7 +306,10 @@ rename_map = {
     "status": "Status",
     "name": "Name",
 }
-export_df.rename(columns={k: v for k, v in rename_map.items() if k in export_df.columns}, inplace=True)
+export_df.rename(
+    columns={k: v for k, v in rename_map.items() if k in export_df.columns},
+    inplace=True,
+)
 
 ts = datetime.now().strftime("%Y%m%d-%H%M")
 fname = f"recipes_{status_filter.lower()}_{type_filter.lower()}_{ts}.csv"
@@ -277,9 +341,15 @@ if selected_row is not None:
     if selected_code:
         dlog(f"Selected row recipe_code={selected_code}")
         # Reload full row from DB for accurate edit payload
-        orig_res = db.table("recipes").select(
-            "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
-        ).eq("recipe_code", selected_code).limit(1).execute()
+        orig_res = (
+            db.table("recipes")
+            .select(
+                "id, recipe_code, name, status, recipe_type, recipe_category, yield_qty, yield_uom, price"
+            )
+            .eq("recipe_code", selected_code)
+            .limit(1)
+            .execute()
+        )
         if orig_res.data:
             edit_data = orig_res.data[0]
 edit_mode = edit_data is not None
@@ -292,8 +362,10 @@ with st.sidebar:
 
     type_options = ["— Select —", "service", "prep"]
     default_type = edit_data.get("recipe_type") if edit_mode else "service"
-    type_index   = (type_options.index(default_type) if default_type in type_options else 1)
-    selected_recipe_type = st.selectbox("Recipe Type", type_options, index=type_index, key="recipe_type_selector")
+    type_index = type_options.index(default_type) if default_type in type_options else 1
+    selected_recipe_type = st.selectbox(
+        "Recipe Type", type_options, index=type_index, key="recipe_type_selector"
+    )
     selected_recipe_type = None if selected_recipe_type == "— Select —" else selected_recipe_type
     dlog(f"type={selected_recipe_type} edit_mode={edit_mode}")
 
@@ -302,17 +374,28 @@ with st.sidebar:
     # -------------------------
     with st.form("recipe_form"):
         name = st.text_input("Name", value=edit_data.get("name", "") if edit_mode else "")
-        code = st.text_input("Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else "")
+        code = st.text_input(
+            "Recipe Code", value=edit_data.get("recipe_code", "") if edit_mode else ""
+        )
 
         status_options = ["— Select —", "Active", "Inactive"]
         selected_status = edit_data.get("status") if edit_mode else None
-        status_index = status_options.index(selected_status) if selected_status in status_options else 0
+        status_index = (
+            status_options.index(selected_status) if selected_status in status_options else 0
+        )
         status = st.selectbox("Status", status_options, index=status_index)
         status = status if status != "— Select —" else None
 
-        recipe_category = st.text_input("Recipe Category", value=edit_data.get("recipe_category", "") if edit_mode else "")
+        recipe_category = st.text_input(
+            "Recipe Category",
+            value=edit_data.get("recipe_category", "") if edit_mode else "",
+        )
 
-        yield_qty_val = float(edit_data.get("yield_qty", 1.0)) if edit_mode and edit_data.get("yield_qty") is not None else 1.0
+        yield_qty_val = (
+            float(edit_data.get("yield_qty", 1.0))
+            if edit_mode and edit_data.get("yield_qty") is not None
+            else 1.0
+        )
         yield_qty = st.number_input("Yield Quantity", min_value=0.0, step=0.1, value=yield_qty_val)
 
         # --- UOM dropdown (type-aware) ---
@@ -336,8 +419,18 @@ with st.sidebar:
         yield_uom = st.selectbox("Yield UOM", options=uom_choices, index=idx)
 
         # Price — disabled live when prep
-        price_val = float(edit_data.get("price", 0.0)) if edit_mode and edit_data.get("price") is not None else 0.0
-        price = st.number_input("Price", min_value=0.0, step=0.01, value=price_val, disabled=(selected_recipe_type == "prep"))
+        price_val = (
+            float(edit_data.get("price", 0.0))
+            if edit_mode and edit_data.get("price") is not None
+            else 0.0
+        )
+        price = st.number_input(
+            "Price",
+            min_value=0.0,
+            step=0.01,
+            value=price_val,
+            disabled=(selected_recipe_type == "prep"),
+        )
 
         # Single, reliable submit button
         save_btn = st.form_submit_button("Save")
@@ -345,11 +438,16 @@ with st.sidebar:
         if save_btn:
             dlog("Save clicked")
             errors = []
-            if not name: errors.append("Name")
-            if not code: errors.append("Recipe Code")
-            if not status: errors.append("Status")
-            if not selected_recipe_type: errors.append("Recipe Type")
-            if not yield_uom: errors.append("Yield UOM")
+            if not name:
+                errors.append("Name")
+            if not code:
+                errors.append("Recipe Code")
+            if not status:
+                errors.append("Status")
+            if not selected_recipe_type:
+                errors.append("Recipe Type")
+            if not yield_uom:
+                errors.append("Yield UOM")
 
             if errors:
                 st.error(f"⚠️ Please complete: {', '.join(errors)}")
@@ -371,7 +469,7 @@ with st.sidebar:
                     "yield_qty": round(float(yield_qty), 6),
                     "yield_uom": yield_uom,
                     "price": round(float(price), 6),
-                    "recipe_type": selected_recipe_type
+                    "recipe_type": selected_recipe_type,
                 }
 
                 try:

@@ -1,17 +1,18 @@
 # utils/data.py
 from __future__ import annotations
 
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
 import streamlit as st
-from typing import Dict, List, Optional, Any
 
-from utils.supabase import supabase
 from utils import tenant_db as db
-
+from utils.supabase import supabase
 
 # -----------------------------
 # Helpers
 # -----------------------------
+
 
 def _to_df(res) -> pd.DataFrame:
     return pd.DataFrame(res.data) if getattr(res, "data", None) else pd.DataFrame()
@@ -20,6 +21,7 @@ def _to_df(res) -> pd.DataFrame:
 # -----------------------------
 # Recipe Summary / Dashboard
 # -----------------------------
+
 
 @st.cache_data(ttl=60)
 def load_recipes_summary() -> pd.DataFrame:
@@ -69,6 +71,7 @@ def load_recipes_summary() -> pd.DataFrame:
 # -----------------------------
 # Recipes (master)
 # -----------------------------
+
 
 def load_recipe_list() -> List[str]:
     res = db.table("recipes").select("name").order("name").execute()
@@ -180,6 +183,7 @@ def update_recipe(
 # Input catalog (ingredients + prep recipes)
 # -----------------------------
 
+
 @st.cache_data(ttl=60)
 def get_input_catalog() -> pd.DataFrame:
     """
@@ -205,6 +209,7 @@ def get_input_catalog() -> pd.DataFrame:
 # -----------------------------
 # Recipe lines
 # -----------------------------
+
 
 def get_recipe_lines(recipe_id: str) -> pd.DataFrame:
     """
@@ -270,6 +275,7 @@ def delete_recipe_line(recipe_line_id: str) -> bool:
 # Unit cost lookup (RPC)
 # -----------------------------
 
+
 def get_unit_costs_for_inputs(inputs: List[Dict[str, str]]) -> pd.DataFrame:
     """
     Calls RPC `get_unit_costs_for_inputs(inputs jsonb)` which should accept payload like:
@@ -287,6 +293,7 @@ def get_unit_costs_for_inputs(inputs: List[Dict[str, str]]) -> pd.DataFrame:
 # -----------------------------
 # Ingredients (master)
 # -----------------------------
+
 
 @st.cache_data(ttl=60)
 def load_ingredient_master() -> pd.DataFrame:
@@ -306,6 +313,7 @@ def get_ingredient_id_by_name(name: str) -> Optional[str]:
 # -----------------------------
 # Reference data (UOM, categories)
 # -----------------------------
+
 
 @st.cache_data(ttl=60)
 def get_uom_list() -> List[str]:
