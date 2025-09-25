@@ -39,7 +39,7 @@ jobs:
           isort --version
 
       - name: Ruff (lint)
-        run: ruff check . --fix --output-format=github
+        run: ruff check . --output-format=github
 
       - name: Black (format check)
         run: black --check .
