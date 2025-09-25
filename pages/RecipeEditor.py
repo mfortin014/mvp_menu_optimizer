@@ -104,8 +104,10 @@ def fetch_uom_options():
     rows = res.data or []
     uoms = set()
     for r in rows:
-        if r.get("from_uom"): uoms.add(r["from_uom"])
-        if r.get("to_uom"): uoms.add(r["to_uom"])
+        if r.get("from_uom"): 
+            uoms.add(r["from_uom"])
+        if r.get("to_uom"): 
+            uoms.add(r["to_uom"])
     return sorted(uoms)
 
 def rpc_unit_cost_map(ids):
