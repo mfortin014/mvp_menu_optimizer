@@ -1,3 +1,11 @@
 * text=auto
+
+# Scripts & SQL always LF
 *.sh  text eol=lf
 *.sql text eol=lf
+
+# Images/binaries never normalized
+*.png -text
+*.jpg -text
+*.pdf -text
+*.zip -text
