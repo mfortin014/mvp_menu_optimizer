@@ -1,0 +1,5 @@
+.github/project-seeds/pending/auto-gh-A.md
+.github/project-seeds/pending/auto-gh-B.md
+.github/project-seeds/pending/auto-gh-C.md
+.github/project-seeds/pending/auto-gh-D.md
+.github/project-seeds/pending/auto-gh-epic.md
