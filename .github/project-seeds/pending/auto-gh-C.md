@@ -1,6 +1,6 @@
 <!--
 title: Automation C — Seeds library index & applied moves
-labels: [ci, github-admin, phase:phase-0]
+labels: ["ci", "github-admin", "phase-0"]
 assignees: []
 uid: auto-gh-C
 parent_uid: auto-gh-epic

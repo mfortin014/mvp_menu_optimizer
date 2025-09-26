@@ -1,6 +1,6 @@
 <!--
 title: Automation B — Native parent/child via Sub-issues
-labels: [ci, github-admin, phase:phase-0]
+labels: ["ci", "github-admin", "phase-0"]
 assignees: []
 uid: auto-gh-B
 parent_uid: auto-gh-epic

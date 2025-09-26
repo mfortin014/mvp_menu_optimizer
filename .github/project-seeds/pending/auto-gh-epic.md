@@ -1,6 +1,6 @@
 <!--
 title: Epic — GitHub Objects Creation Automation
-labels: [ci, github-admin, phase:phase-0]
+labels: ["ci", "github-admin", "phase-0"]
 assignees: []
 uid: auto-gh-epic
 type: epic

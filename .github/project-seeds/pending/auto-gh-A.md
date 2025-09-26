@@ -1,6 +1,6 @@
 <!--
 title: Automation A — Projects v2 add & field writes
-labels: [ci, github-admin, phase:phase-0]
+labels: ["ci", "github-admin", "phase-0"]
 assignees: []
 uid: auto-gh-A
 parent_uid: auto-gh-epic
