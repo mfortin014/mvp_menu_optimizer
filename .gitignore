@@ -8,3 +8,4 @@ data/
 shortcuts/
 backups/
 schema/archive/
+*.Zone.Identifier
