@@ -8,7 +8,7 @@ status: Todo
 priority: P1
 target: mvp-0.7.0
 area: ci
-children_uids: auto-gh-A,auto-gh-B,auto-gh-C,auto-gh-D
+children_uids: "auto-gh-A","auto-gh-B","auto-gh-C","auto-gh-D"
 doc:
 pr:
 -->
