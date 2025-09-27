@@ -6,7 +6,7 @@ uid: test-ci-cd-phase1a-epic
 children_uids: ["test-ci-cd-phase1a-workflow","test-ci-cd-phase1a-schema","test-ci-cd-phase1a-first-export"]
 
 # Project field mappings (exact names from our Project policy):
-project: test
+project: <"test">
 -->
 
 # Epic: CI/CD Phase 1A — Project Exporter
