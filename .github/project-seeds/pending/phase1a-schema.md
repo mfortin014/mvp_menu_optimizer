@@ -5,7 +5,7 @@ uid: test-ci-cd-phase1a-schema
 parent_uid: test-ci-cd-phase1a-epic
 
 # Project field mappings (exact names from our Project policy):
-project: <test>
+project: test
 -->
 
 ## Intent
