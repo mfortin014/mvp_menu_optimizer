@@ -50,24 +50,25 @@ jobs:
         id: create
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
-        env:
-          FILES:                ${{ steps.list.outputs.files }}
-          # Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
-          PROJECT_ID:           ${{ vars.PROJECT_ID }}
-          # Otherwise, keep using a human URL; make sure it's a **Projects v2** URL:
-          #   - user scope: https://github.com/users/<user>/projects/<n>
-          #   - org  scope: https://github.com/orgs/<org>/projects/<n>
-          DEFAULT_PROJECT_URL:  ${{ vars.PROJECT_URL }}
-          DEFAULT_ASSIGNEE:     ${{ vars.DEFAULT_ASSIGNEE }}
-          FALLBACK_ASSIGNEE:    ${{ github.actor }}
+        # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' are provided by actions/github-script
             const fs = require('fs');
             const path = require('path');
 
+            // ------------------ env ------------------
             const files = (process.env.FILES || '').split(',').filter(Boolean);
             if (!files.length) { core.setOutput('created','[]'); return; }
+
+            // Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
+            const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
+            // Human URLs for routing (Variables)
+            const DEFAULT_PROJECT_URL  = process.env.DEFAULT_PROJECT_URL  || null;
+            const PROJECT_URL_TEST     = process.env.DEFAULT_PROJECT_URL_TEST || null;
+            const DEFAULT_ASSIGNEE     = process.env.DEFAULT_ASSIGNEE || '';
+            const FALLBACK_ASSIGNEE    = process.env.FALLBACK_ASSIGNEE || '';
 
             // ---------- helpers ----------
             function parseHeader(body) {
@@ -81,6 +82,7 @@ jobs:
                 const idx = L.indexOf(':'); if (idx < 0) return;
                 const k = L.slice(0, idx).trim();
                 let v = L.slice(idx+1).trim();
+                // Try strict JSON first (so arrays/quoted strings work)
                 try { meta[k] = JSON.parse(v); }
                 catch { meta[k] = v.replace(/^"+|"+$/g,''); }
               });
@@ -94,7 +96,8 @@ jobs:
               return res.data.items.find(i => !i.pull_request) || null;
             }
 
-            // ----- Projects v2 resolution (robust & non-fatal) -----
+            // ----- Projects v2 resolution -----
+            // Accepts: https://github.com/users/<login>/projects/<n>  OR  https://github.com/orgs/<org>/projects/<n>
             async function resolveProjectIdFromUrl(projectUrl) {
               try {
                 if (!projectUrl) return null;
@@ -105,25 +108,25 @@ jobs:
                 if (orgMatch) {
                   const [_, org, n] = orgMatch; const num = parseInt(n,10);
                   const data = await github.graphql(
-                    `query($org:String!, $num:Int!){
-                      organization(login:$org){ projectV2(number:$num){ id } }
+                    `query($org:String!,$num:Int!){
+                      organization(login:$org){ projectV2(number:$num){ id title } }
                     }`, { org, num }
                   );
-                  const id = data?.organization?.projectV2?.id || null;
-                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (org=${org}, number=${num}). Is this a classic project or the wrong number?`);
-                  return id;
+                  const proj = data?.organization?.projectV2;
+                  if (!proj?.id) core.warning(`Projects v2 not found at ${projectUrl} (org=${org}, number=${num}). Is this a classic project or wrong number?`);
+                  return proj?.id || null;
                 }
 
                 if (userMatch) {
                   const [_, user, n] = userMatch; const num = parseInt(n,10);
                   const data = await github.graphql(
-                    `query($user:String!, $num:Int!){
-                      user(login:$user){ projectV2(number:$num){ id } }
+                    `query($user:String!,$num:Int!){
+                      user(login:$user){ projectV2(number:$num){ id title } }
                     }`, { user, num }
                   );
-                  const id = data?.user?.projectV2?.id || null;
-                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (user=${user}, number=${num}). Is this a classic project or the wrong number?`);
-                  return id;
+                  const proj = data?.user?.projectV2;
+                  if (!proj?.id) core.warning(`Projects v2 not found at ${projectUrl} (user=${user}, number=${num}). Is this a classic project or wrong number?`);
+                  return proj?.id || null;
                 }
 
                 core.warning(`Unrecognized project URL format: ${projectUrl}`);
@@ -155,18 +158,14 @@ jobs:
             }
             // ---------- /helpers ----------
 
-            const DEFAULT_PROJECT_URL = process.env.DEFAULT_PROJECT_URL || null;
-            const DEFAULT_ASSIGNEE    = process.env.DEFAULT_ASSIGNEE || '';
-            const FALLBACK_ASSIGNEE   = process.env.FALLBACK_ASSIGNEE || '';
-            const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
-
-            // Resolve the project **once** (non-fatal)
-            let projectId = PROJECT_ID_OVERRIDE || null;
-            if (!projectId && DEFAULT_PROJECT_URL) {
-              projectId = await resolveProjectIdFromUrl(DEFAULT_PROJECT_URL);
-            }
-            if (!projectId && DEFAULT_PROJECT_URL) {
-              core.warning(`Skipping "add to project": could not resolve Projects v2 from ${DEFAULT_PROJECT_URL}`);
+            // Cache project ids per URL within this run (multiple seeds may target different projects)
+            const projectIdCache = new Map();
+            async function getProjectIdForUrl(url) {
+              if (!url) return null;
+              if (projectIdCache.has(url)) return projectIdCache.get(url);
+              const id = await resolveProjectIdFromUrl(url);
+              projectIdCache.set(url, id);
+              return id;
             }
 
             const created = []; // [{ number, uid, meta, createdNew: true }]
@@ -200,6 +199,30 @@ jobs:
               else if (DEFAULT_ASSIGNEE)         assignees = [DEFAULT_ASSIGNEE];
               else if (FALLBACK_ASSIGNEE)        assignees = [FALLBACK_ASSIGNEE];
 
+              // ------------------ per-seed routing ------------------
+              // Priority: (1) meta.project_url → (2) meta.project == "test" → (3) DEFAULT_PROJECT_URL (main)
+              const routeSwitch = (meta.project || '').toString().trim().toLowerCase();
+              const chosenProjectUrl =
+                (meta.project_url && String(meta.project_url)) ||
+                (routeSwitch === 'test' ? (PROJECT_URL_TEST || DEFAULT_PROJECT_URL) : DEFAULT_PROJECT_URL) ||
+                null;
+
+              // PROJECT_ID override is only safe when a single project is used; ignore it if we have a per-seed URL
+              let chosenProjectId = null;
+              if (!chosenProjectUrl && PROJECT_ID_OVERRIDE) {
+                chosenProjectId = PROJECT_ID_OVERRIDE;
+              } else if (chosenProjectUrl) {
+                chosenProjectId = await getProjectIdForUrl(chosenProjectUrl);
+              }
+
+              // Dry-run diagnostics, before any mutations
+              core.notice([
+                `Seed: ${uid}`,
+                `Routing source: ${meta.project_url ? 'seed.project_url' : (routeSwitch === 'test' ? 'vars.PROJECT_URL_TEST' : 'vars.PROJECT_URL (default)')}`,
+                `Chosen Project URL: ${chosenProjectUrl || '(N/A; using PROJECT_ID override)'}`,
+                `Resolved Project ID: ${chosenProjectId || '(unresolved)'}`
+              ].join(' | '));
+
               const body = `${rest}\n\n<!-- seed-uid:${uid} -->`.trim();
 
               // CREATE (always continue on failure of project-add)
@@ -209,10 +232,7 @@ jobs:
                 title, body, labels, assignees
               })).data;
 
-              // Optional: add to project
-              const chosenProjectUrl = meta.project_url || DEFAULT_PROJECT_URL || null;
-              const chosenProjectId  = PROJECT_ID_OVERRIDE
-                                       || (chosenProjectUrl ? projectId : null);
+              // Add to project (idempotent server-side)
               await addIssueToProject(chosenProjectId, issue.number);
 
               created.push({ number: issue.number, uid, meta, createdNew: true });
@@ -220,7 +240,17 @@ jobs:
             }
 
             core.setOutput('created', JSON.stringify(created));
-
+        env:
+          FILES: ${{ steps.list.outputs.files }}
+          # Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
+          PROJECT_ID: ${{ vars.PROJECT_ID }}
+          # Otherwise, keep using a human URL; make sure it's a **Projects v2** URL:
+          #   - user scope: https://github.com/users/<user>/projects/<n>
+          #   - org  scope: https://github.com/orgs/<org>/projects/<n>
+          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+          DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
+          FALLBACK_ASSIGNEE: ${{ github.actor }}
 
       - name: Wire hierarchy (epic checklists + late child linking)
         if: steps.create.outputs.created != ''
