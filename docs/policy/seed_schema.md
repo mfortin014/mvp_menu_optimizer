@@ -24,21 +24,23 @@ The header **must** be the first thing in the file. **Arrays must use valid JSON
 
 ```md
 <!--
-title: <string>                       # REQUIRED
-labels: ["label-1", "label-2"]        # OPTIONAL JSON array (GitHub labels)
-assignees: ["user1", "user2"]         # OPTIONAL JSON array
-uid: <string>                         # REQUIRED, unique across repo
-parent_uid: <string>                  # OPTIONAL, for native hierarchy
-children_uids: ["uid1","uid2",...]    # OPTIONAL JSON array of strings, epic convenience
+title: <string>                                                             # REQUIRED
+labels: ["label-1", "label-2"]                                              # OPTIONAL JSON array (GitHub labels)
+assignees: ["user1", "user2"]                                               # OPTIONAL JSON array
+uid: <string>                                                               # REQUIRED, unique across repo
+parent_uid: <string>                                                        # OPTIONAL, for native hierarchy
+children_uids: ["uid1","uid2",...]                                          # OPTIONAL JSON array of strings, epic convenience
 
 # Project field mappings (exact names from our Project policy):
-type: <Spec|Policy|Runbook|Feature|Bug|Chore|Epic>                    # REQUIRED
-status: <Draft|In review|Accepted|Parked|Todo|Doing|Done>             # OPTIONAL (default: Todo)
-priority: <P0|P1|P2|P3>                                               # OPTIONAL
-target: <string>                  # OPTIONAL, maps to "Target Release" (text)
+type: <Spec|Policy|Runbook|Feature|Bug|Chore|Epic>                          # REQUIRED
+status: <Draft|In review|Accepted|Parked|Todo|Doing|Done>                   # OPTIONAL (default: Todo)
+priority: <P0|P1|P2|P3>                                                     # OPTIONAL
+target: <string>                                                            # OPTIONAL, maps to "Target Release" (text)
 area: <intake|identity|measure|chronicle|lexicon|ui|db|ci|policy|runbooks>  # OPTIONAL
-doc: <path/to/doc.md>            # OPTIONAL, maps to "Doc Link"
-pr: <https://github.com/...>     # OPTIONAL, maps to "PR Link"
+project: <main|test>                                                        # OPTIONAL. Route to Main or Test Project. Defaults to "main" if omitted.
+project_url: "https://github.com/users/<user>/projects/<n>"                 # OPTIONAL explicit Project URL override (wins over `project`)
+doc: <path/to/doc.md>                                                       # OPTIONAL, maps to "Doc Link"
+pr: <https://github.com/...>                                                # OPTIONAL, maps to "PR Link"
 -->
 ```
 
@@ -67,6 +69,8 @@ pr: <https://github.com/...>     # OPTIONAL, maps to "PR Link"
 | `priority`      | string (enum)         | No       | **Priority** (Project single-select) | `P0, P1, P2, P3`                                                              |
 | `target`        | string                | No       | **Target Release** (Project text)    | e.g., `mvp-0.7.0`                                                             |
 | `area`          | string (enum)         | No       | **Area** (Project single-select)     | `intake, identity, measure, chronicle, lexicon, ui, db, ci, policy, runbooks` |
+| `project`       | string (enum)         | No       | **Routing**                          | "main" (default) or "test"                                                    |
+| `project_url`   | string (URL)          | No       | **Routing**                          | explicit project URL provided                                                 |
 | `doc`           | string                | No       | **Doc Link** (Project text)          | Prefer repo-relative path                                                     |
 | `pr`            | string (URL)          | No       | **PR Link** (Project text)           | Any valid URL                                                                 |
 
