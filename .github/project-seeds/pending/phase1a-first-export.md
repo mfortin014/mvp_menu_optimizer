@@ -1,0 +1,19 @@
+<!--
+title: chore: Test-Phase 1A — perform first manual export
+labels: ["test","chore","CI/CD-phase:phase-1a"]
+uid: test-ci-cd-phase1a-first-export
+parent_uid: test-ci-cd-phase1a-epic
+
+# Project field mappings (exact names from our Project policy):
+project: <test>
+-->
+
+## Intent
+
+Run the exporter once, attach artifacts, and verify the snapshot makes sense.
+
+## Acceptance
+
+- [ ] Export action run link attached.
+- [ ] `project_sync/project_state.json` and `project_status.md` present (or attached).
+- [ ] Quick note on any field mismatches to fix in the next iteration.
