@@ -11,7 +11,6 @@ area: ci
 doc: docs/policy/seed_schema.md
 pr: https://github.com/mfortin014/mvp_menu_optimizer/pull/1
 project: "test"
-
 -->
 
 # Test5 — field writes smoke test (Chore)
