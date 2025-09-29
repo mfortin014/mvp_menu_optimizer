@@ -10,6 +10,7 @@ target: mvp-0.7.0
 area: ci
 doc: docs/policy/seed_schema.md
 pr: https://github.com/mfortin014/mvp_menu_optimizer/pull/1
+
 -->
 
 # Test8 — field writes smoke test (Chore)
