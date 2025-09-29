@@ -153,8 +153,7 @@ jobs:
             }
 
             // Resolve field metadata once per project (name → {id, kind, options?})
-            // NOTE: text/number/date all appear as ProjectV2Field; single-select has options
-            const fieldCache = new Map(); // projectId -> Map<lowerName, fieldInfo>
+            const fieldCache = new Map(); // projectId -> map(nameLower -> node)
             async function getProjectFields(projectId) {
               if (!projectId) return null;
               if (fieldCache.has(projectId)) return fieldCache.get(projectId);
@@ -165,8 +164,12 @@ jobs:
                       fields(first: 50){
                         nodes{
                           __typename
-                          ... on ProjectV2SingleSelectField { id name options { id name } }
-                          ... on ProjectV2Field             { id name }  # text / number / date
+                          ... on ProjectV2Field              { id name }                # Core fields like Title/Assignees (ignored)
+                          ... on ProjectV2SingleSelectField  { id name options { id name } }
+                          ... on ProjectV2IterationField     { id name }                # Not used yet
+                          ... on ProjectV2TextField          { id name }                # Text
+                          ... on ProjectV2DateField          { id name }                # Date (not used)
+                          ... on ProjectV2NumberField        { id name }                # Number (not used)
                         }
                       }
                     }
@@ -175,12 +178,9 @@ jobs:
               );
               const nodes = data?.node?.fields?.nodes || [];
               const map = new Map();
-              for (const n of nodes) {
-                if (n.__typename === 'ProjectV2SingleSelectField') {
-                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'SINGLE_SELECT', options: n.options || [] });
-                } else if (n.__typename === 'ProjectV2Field') {
-                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'TEXT' });
-                }
+              for (const f of nodes) {
+                if (!f?.name) continue;
+                map.set(String(f.name).toLowerCase(), f);
               }
               fieldCache.set(projectId, map);
               return map;
@@ -202,7 +202,7 @@ jobs:
               // Try to add; if it already exists, fall back to lookup
               try {
                 const added = await github.graphql(
-                  `mutation($projectId:ID!, $contentId:ID!){
+                  `mutation($projectId:ID!,$contentId:ID!){
                     addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
                   }`, { projectId, contentId }
                 );
@@ -235,38 +235,108 @@ jobs:
               return hit?.id || null;
             }
 
-            // Update a single field value on a Project item
-            async function writeFieldValue(projectId, itemId, fieldInfo, rawValue) {
-              if (!projectId || !itemId || !fieldInfo) return;
-              const fname = fieldInfo.name;
-              const kind  = fieldInfo.kind;
+            // Read all current field values for an item (by field id)
+            async function getCurrentFieldValues(itemId) {
+              if (!itemId) return new Map();
+              const data = await github.graphql(
+                `query($id:ID!){
+                  node(id:$id){
+                    ... on ProjectV2Item {
+                      fieldValues(first: 50){
+                        nodes{
+                          __typename
+                          ... on ProjectV2ItemFieldTextValue {
+                            text
+                            field { ... on ProjectV2FieldCommon { id name } }
+                          }
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            name
+                            optionId
+                            field { ... on ProjectV2FieldCommon { id name } }
+                          }
+                          # Other value types omitted for now
+                        }
+                      }
+                    }
+                  }
+                }`, { id: itemId }
+              );
+              const nodes = data?.node?.fieldValues?.nodes || [];
+              const map = new Map(); // fieldId -> { kind, text? name? optionId? }
+              for (const v of nodes) {
+                const fid = v?.field?.id;
+                if (!fid) continue;
+                if (v.__typename === 'ProjectV2ItemFieldTextValue') {
+                  map.set(fid, { kind: 'TEXT', text: v.text ?? '' });
+                } else if (v.__typename === 'ProjectV2ItemFieldSingleSelectValue') {
+                  map.set(fid, { kind: 'SINGLE_SELECT', name: v.name ?? '', optionId: v.optionId ?? null });
+                }
+              }
+              return map;
+            }
 
+            // Update a single field value on a Project item, skipping if unchanged
+            async function writeFieldValue(projectId, itemId, fieldNode, rawValue, currentMap) {
+              if (!projectId || !itemId || !fieldNode) return;
+              const fname = fieldNode.name;
+              const ftype = fieldNode.__typename; // e.g., ProjectV2SingleSelectField, ProjectV2TextField
+
+              // Normalize incoming value
               if (rawValue == null || String(rawValue).trim() === '') {
                 core.info(`Field "${fname}": no value provided → skip`);
                 return;
               }
 
-              let value;
-              if (kind === 'SINGLE_SELECT') {
+              if (ftype === 'ProjectV2SingleSelectField') {
                 const wanted = String(rawValue).trim().toLowerCase();
-                const option = (fieldInfo.options || []).find(o => o.name.toLowerCase() === wanted);
+                const option = (fieldNode.options || []).find(o => o.name.toLowerCase() === wanted);
                 if (!option) {
-                  core.warning(`Field "${fname}": option "${rawValue}" not found; available: ${(fieldInfo.options||[]).map(o=>o.name).join(', ')}`);
+                  core.warning(`Field "${fname}": option "${rawValue}" not found; available: ${(fieldNode.options||[]).map(o=>o.name).join(', ')}`);
                   return;
                 }
-                value = { singleSelectOptionId: option.id };
-              } else {
-                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link", "PR Link"
-                value = { text: String(rawValue) };
-              }
 
-              await github.graphql(
-                `mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$value:ProjectV2FieldValue!){
-                  updateProjectV2ItemFieldValue(input:{projectId:$projectId,itemId:$itemId,fieldId:$fieldId,value:$value}){ projectV2Item { id } }
-                }`,
-                { projectId, itemId, fieldId: fieldInfo.id, value }
-              );
-              core.info(`Set "${fname}" = ${JSON.stringify(rawValue)}`);
+                // Idempotency check
+                const cur = currentMap.get(fieldNode.id);
+                if (cur && cur.kind === 'SINGLE_SELECT' && String(cur.name).toLowerCase() === wanted) {
+                  core.info(`Field "${fname}": already "${cur.name}" → skip`);
+                  return;
+                }
+
+                await github.graphql(
+                  `mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){
+                    updateProjectV2ItemFieldValue(input:{
+                      projectId:$projectId,itemId:$itemId,fieldId:$fieldId,
+                      value:{ singleSelectOptionId:$optionId }
+                    }){ projectV2Item { id } }
+                  }`,
+                  { projectId, itemId, fieldId: fieldNode.id, optionId: option.id }
+                );
+                core.info(`Set "${fname}" = ${option.name}`);
+
+              } else if (ftype === 'ProjectV2TextField') {
+                const text = String(rawValue);
+
+                // Idempotency check
+                const cur = currentMap.get(fieldNode.id);
+                if (cur && cur.kind === 'TEXT' && String(cur.text) === text) {
+                  core.info(`Field "${fname}": already "${text}" → skip`);
+                  return;
+                }
+
+                await github.graphql(
+                  `mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$text:String!){
+                    updateProjectV2ItemFieldValue(input:{
+                      projectId:$projectId,itemId:$itemId,fieldId:$fieldId,
+                      value:{ text:$text }
+                    }){ projectV2Item { id } }
+                  }`,
+                  { projectId, itemId, fieldId: fieldNode.id, text }
+                );
+                core.info(`Set "${fname}" = ${JSON.stringify(text)}`);
+
+              } else {
+                core.info(`Field "${fname}" has unsupported type "${ftype}" → skip`);
+              }
             }
 
             // ---------- /helpers ----------
@@ -337,32 +407,35 @@ jobs:
 
               // Add to project and get itemId
               const itemId = await getOrCreateProjectItem(chosenProjectId, issue.number);
-              if (itemId) core.info(`Project itemId for #${issue.number}: ${itemId}`);
+              core.info(`Project itemId for #${issue.number}: ${itemId}`);
 
-              // ---------- Field writes ----------
+              // ---------- Field writes (idempotent) ----------
               if (chosenProjectId && itemId) {
                 const fields = await getProjectFields(chosenProjectId);
                 if (!fields) {
                   core.warning('Project fields not resolved; skip field writes.');
                 } else {
+                  // Read current values once
+                  const currentMap = await getCurrentFieldValues(itemId);
+
                   // Map seed keys → Project fields (names must match Project policy)
                   const map = {
-                    type:     'Type',            // SINGLE_SELECT
-                    status:   'Status',          // SINGLE_SELECT
-                    priority: 'Priority',        // SINGLE_SELECT
-                    target:   'Target Release',  // TEXT
-                    area:     'Area',            // SINGLE_SELECT
-                    doc:      'Doc Link',        // TEXT
-                    pr:       'PR Link'          // TEXT
+                    type:        'Type',            // Single select
+                    status:      'Status',          // Single select
+                    priority:    'Priority',        // Single select
+                    target:      'Target Release',  // Text
+                    area:        'Area',            // Single select
+                    doc:         'Doc Link',        // Text
+                    pr:          'PR Link'          // Text
                   };
 
                   for (const [seedKey, fieldName] of Object.entries(map)) {
-                    const fieldInfo = fields.get(fieldName.toLowerCase());
-                    if (!fieldInfo) {
+                    const fieldNode = fields.get(fieldName.toLowerCase());
+                    if (!fieldNode) {
                       core.warning(`Project is missing field "${fieldName}" → skip`);
                       continue;
                     }
-                    await writeFieldValue(chosenProjectId, itemId, fieldInfo, meta[seedKey]);
+                    await writeFieldValue(chosenProjectId, itemId, fieldNode, meta[seedKey], currentMap);
                   }
                 }
               } else {
