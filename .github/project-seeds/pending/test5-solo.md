@@ -1,8 +1,8 @@
 <!--
-title: Test5 — field writes smoke test (Chore)
+title: Test6 — field writes smoke test (Chore)
 labels: ["test","chore","phase:phase-0"]
 assignees: ["mfortin014"]
-uid: test5-field-writes
+uid: test6-field-writes
 type: Chore
 status: Todo
 priority: P2
@@ -13,6 +13,6 @@ pr: https://github.com/mfortin014/mvp_menu_optimizer/pull/1
 project: "test"
 -->
 
-# Test5 — field writes smoke test (Chore)
+# Test6 — field writes smoke test (Chore)
 
 Body intentionally minimal. This seed validates custom Project field writes.

@@ -157,7 +157,7 @@ jobs:
               if (!projectId) return null;
               if (fieldCache.has(projectId)) return fieldCache.get(projectId);
 
-              // NOTE: fields() returns a UNION; must use type fragments
+              // NOTE: fields() returns a UNION; use type fragments
               const data = await github.graphql(
                 `query($id:ID!){
                   node(id:$id){
@@ -183,10 +183,13 @@ jobs:
                   map.set(key, { id: n.id, name: n.name, kind: 'SINGLE_SELECT', options: n.options || [] });
                 } else if (n.__typename === 'ProjectV2TextField') {
                   map.set(key, { id: n.id, name: n.name, kind: 'TEXT' });
-                } else {
-                  // ignore other field types for Automation A
                 }
               }
+
+              // Log discovered fields to help diagnose naming mismatches
+              const pretty = [...map.values()].map(f => `${f.name} (${f.kind}${f.options ? ' / ' + f.options.map(o=>o.name).join('|') : ''})`);
+              core.info(`Project fields discovered: ${pretty.join(' · ') || '(none found)'}`);
+
               fieldCache.set(projectId, map);
               return map;
             }
@@ -323,7 +326,7 @@ jobs:
                 chosenProjectId = await getProjectIdForUrl(chosenProjectUrl);
               }
 
-              // Dry-run diagnostics, before any mutations
+              // Dry-run diagnostics (not dry-run: we really mutate later)
               core.notice([
                 `Seed: ${uid}`,
                 `Routing source: ${meta.project_url ? 'seed.project_url' : (routeSwitch === 'test' ? 'vars.PROJECT_URL_TEST' : 'vars.PROJECT_URL (default)')}`,
@@ -342,6 +345,7 @@ jobs:
 
               // Add to project and get itemId
               const itemId = await getOrCreateProjectItem(chosenProjectId, issue.number);
+              core.info(`Project itemId for #${issue.number}: ${itemId || '(none)'}`);
 
               // ---------- Field writes ----------
               if (chosenProjectId && itemId) {
@@ -360,14 +364,17 @@ jobs:
                     pr:          'PR Link'          // TEXT
                   };
 
+                  const attempted = [];
                   for (const [seedKey, fieldName] of Object.entries(map)) {
                     const fieldNode = fields.get(fieldName.toLowerCase());
                     if (!fieldNode) {
                       core.warning(`Project is missing field "${fieldName}" → skip`);
                       continue;
                     }
+                    attempted.push(`${fieldName}<=${seedKey}:${meta[seedKey] ?? '(unset)'}`);
                     await writeFieldValue(chosenProjectId, itemId, fieldNode, meta[seedKey]);
                   }
+                  core.info(`Field write summary for #${issue.number}: ${attempted.join(' | ') || '(no matching fields)'}`);
                 }
               } else {
                 core.info('No ProjectId or itemId → skip field writes.');
