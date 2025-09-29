@@ -1,11 +1,11 @@
 <!--
-title: ci: Test-Phase 1A — add Project Exporter workflow (manual trigger)
+title: Test-ci: Phase 1A — add Project Exporter workflow (manual trigger)
 labels: ["test","ci","CI/CD-phase:phase-1a"]
-uid: test-ci-cd-phase1a-workflow
-parent_uid: test-ci-cd-phase1a-epic
+uid: test-ci-cd-phase1a-workflow-2
+parent_uid: test-ci-cd-phase1a-epic-2
 
 # Project field mappings (exact names from our Project policy):
-project: <test>
+project: "test"
 -->
 
 ## Intent

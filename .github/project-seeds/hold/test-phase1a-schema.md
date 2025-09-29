@@ -1,11 +1,11 @@
 <!--
-title: docs: Test-Phase 1A — exporter snapshot schema
+title: Test-docs: Phase 1A — exporter snapshot schema
 labels: ["test","docs","CI/CD-phase:phase-1a"]
-uid: test-ci-cd-phase1a-schema
-parent_uid: test-ci-cd-phase1a-epic
+uid: test-ci-cd-phase1a-schema-2
+parent_uid: test-ci-cd-phase1a-epic-2
 
 # Project field mappings (exact names from our Project policy):
-project: <test>
+project: "test"
 -->
 
 ## Intent

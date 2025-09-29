@@ -1,11 +1,10 @@
 <!--
 title: chore: Test-Phase 1A — perform first manual export
 labels: ["test","chore","CI/CD-phase:phase-1a"]
-uid: test-ci-cd-phase1a-first-export
-parent_uid: test-ci-cd-phase1a-epic
+uid: test-solo-ci-cd-phase1a-first-export
 
 # Project field mappings (exact names from our Project policy):
-project: <test>
+project: "test"
 -->
 
 ## Intent

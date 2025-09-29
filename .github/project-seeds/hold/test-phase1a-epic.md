@@ -2,14 +2,14 @@
 title: Test-Epic: CI/CD Phase 1A — Project Exporter
 labels: ["test","epic","CI/CD-phase:phase-1a"]
 assigness: ["mfortin014"]
-uid: test-ci-cd-phase1a-epic
-children_uids: ["test-ci-cd-phase1a-workflow","test-ci-cd-phase1a-schema","test-ci-cd-phase1a-first-export"]
+uid: test-ci-cd-phase1a-epic-2
+children_uids: ["test-ci-cd-phase1a-workflow-2","test-ci-cd-phase1a-schema-2","test-ci-cd-phase1a-first-export-2"]
 
 # Project field mappings (exact names from our Project policy):
-project: <test>
+project: "test"
 -->
 
-# Epic: CI/CD Phase 1A — Project Exporter
+# Test - Epic: CI/CD Phase 1A — Project Exporter
 
 ## Intent
 
