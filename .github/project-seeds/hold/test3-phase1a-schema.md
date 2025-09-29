@@ -1,8 +1,8 @@
 <!--
-title: Test-docs: Phase 1A — exporter snapshot schema
+title: Test3-docs: Phase 1A — exporter snapshot schema
 labels: ["test","docs","CI/CD-phase:phase-1a"]
-uid: test-ci-cd-phase1a-schema-2
-parent_uid: test-ci-cd-phase1a-epic-2
+uid: test3-ci-cd-phase1a-schema
+parent_uid: test3-ci-cd-phase1a-epic
 
 # Project field mappings (exact names from our Project policy):
 project: "test"
