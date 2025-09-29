@@ -255,15 +255,25 @@ jobs:
       - name: Wire hierarchy (epic checklists + late child linking)
         if: steps.create.outputs.created != ''
         uses: actions/github-script@v7
-        env:
-          CREATED: ${{ steps.create.outputs.created }}
         with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' provided
+
+            // GraphQL search avoids deprecation; returns issue number by seed-uid
             async function findIssueByUid(uid) {
-              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
-              const res = await github.rest.search.issuesAndPullRequests({ q });
-              return res.data.items.find(i => !i.pull_request) || null;
+              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" is:issue`;
+              const data = await github.graphql(
+                `query($q:String!){
+                  search(query:$q, type:ISSUE, first:1){
+                    nodes { ... on Issue { number } }
+                  }
+                }`,
+                { q }
+              );
+              const node = data?.search?.nodes?.[0];
+              if (!node?.number) return null;
+              return { number: node.number };
             }
 
             const created = JSON.parse(process.env.CREATED || '[]');
@@ -331,16 +341,64 @@ jobs:
         uses: actions/github-script@v7
         env:
           FILES: ${{ steps.list.outputs.files }}
+          # Repo variable to control auto-PR creation. Default false if unset.
+          ALLOW_AUTOCONSUME_PR: ${{ vars.ALLOW_AUTOCONSUME_PR || 'false' }}
         with:
           script: |
             const { execSync } = require('child_process');
+            const fs = require('fs');
+            const path = require('path');
+
             const files = (process.env.FILES || '').split(',').filter(Boolean);
             if (!files.length) { core.info('No seeds to consume'); return; }
 
-            const branch = `automation/consume-seeds-${Date.now()}`;
+            // Parse guard (explicitly opt-in)
+            const allowPR = String(process.env.ALLOW_AUTOCONSUME_PR || 'false').toLowerCase() === 'true';
+
+            function parseHeader(body) {
+              const m = body.match(/<!--([\s\S]*?)-->/);
+              if (!m) return { meta:{} };
+              const hdr = m[1];
+              const meta = {};
+              hdr.split('\n').forEach(line => {
+                const L = line.trim();
+                if (!L || L.startsWith('#')) return;
+                const idx = L.indexOf(':'); if (idx < 0) return;
+                const k = L.slice(0, idx).trim();
+                let v = L.slice(idx+1).trim();
+                try { meta[k] = JSON.parse(v); }
+                catch { meta[k] = v.replace(/^"+|"+$/g,''); }
+              });
+              return { meta };
+            }
+
+            function slugify(s) {
+              return String(s).toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'');
+            }
+
+            // Collect UIDs (fallback to filename stem) for traceable branch names
+            const uids = [];
+            for (const f of files) {
+              const raw = fs.readFileSync(f, 'utf8');
+              const { meta } = parseHeader(raw);
+              const uid = meta.uid || path.basename(f).replace(/\.md$/,'');
+              if (uid) uids.push(uid);
+            }
+
+            let branchBase;
+            if (uids.length === 1) {
+              branchBase = slugify(uids[0]);
+            } else if (uids.length <= 3) {
+              branchBase = uids.map(slugify).join('+');
+            } else {
+              branchBase = `${slugify(uids[0])}-and-${uids.length-1}-more`;
+            }
+            const branch = `automation/consume/${branchBase}-${Date.now()}`;
+
+            // Commit moves to a short-lived branch (never push to main directly)
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
-            execSync(`git checkout -b ${branch}`);
+            execSync(`git checkout -b "${branch}"`);
 
             for (const f of files) {
               const target = f.replace('/pending/', '/applied/');
@@ -349,23 +407,26 @@ jobs:
             }
 
             execSync('git add -A');
-            execSync('git commit -m "chore(automation): consume processed seeds → applied/"');
-            execSync(`git push --set-upstream origin ${branch}`);
+            execSync('git commit -m "chore(automation): consume seeds → applied/ [' + uids.join(', ') + ']"');
+            execSync(`git push --set-upstream origin "${branch}"`);
 
-            // Try to open PR; fall back to a console notice if blocked by org policy
+            // Open PR only when explicitly allowed; otherwise provide the compare link as a notice
+            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
+
+            if (!allowPR) {
+              core.notice('Auto-PR disabled by ALLOW_AUTOCONSUME_PR=false. Open manually: ' + compareUrl);
+              return;
+            }
+
             try {
               const pr = await github.rest.pulls.create({
                 owner: context.repo.owner, repo: context.repo.repo,
                 head: branch, base: 'main',
-                title: 'chore(automation): consume processed seeds → applied/',
+                title: `chore(automation): consume seeds → applied/ [${uids.join(', ')}]`,
                 body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
               });
               core.notice(`Opened consume PR #${pr.data.number}`);
             } catch (e) {
-              if (e.status === 403 && /not permitted to create or approve pull requests/i.test(e.message)) {
-                const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
-                core.warning('Policy blocks Actions from creating PRs. Please open it manually: ' + url);
-              } else {
-                throw e;
-              }
+              // If policy still blocks PR creation, fall back to manual link
+              core.warning('Auto-PR failed; open manually: ' + compareUrl + ` | reason: ${e.message}`);
             }
