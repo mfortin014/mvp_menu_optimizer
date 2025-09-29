@@ -90,10 +90,20 @@ jobs:
               return { meta, rest };
             }
 
+            // AFTER (GraphQL search; no deprecation)
             async function findIssueByUid(uid) {
-              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
-              const res = await github.rest.search.issuesAndPullRequests({ q });
-              return res.data.items.find(i => !i.pull_request) || null;
+              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" is:issue`;
+              const data = await github.graphql(
+                `query($q:String!){
+                  search(query:$q, type:ISSUE, first:1){
+                    nodes { ... on Issue { number } }
+                  }
+                }`,
+                { q }
+              );
+              const node = data?.search?.nodes?.[0];
+              if (!node?.number) return null;
+              return { number: node.number };
             }
 
             // ----- Projects v2 resolution -----
