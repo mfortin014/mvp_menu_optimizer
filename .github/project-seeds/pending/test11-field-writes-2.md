@@ -13,6 +13,7 @@ target: "mvp-0.8.0"
 area: "ci"
 doc: "docs/specs/04_Intake_MVP_Specs.md"
 pr: ""
+
 -->
 
 Second issue to confirm option matching is **case-insensitive** and text fields handle empty strings safely.
