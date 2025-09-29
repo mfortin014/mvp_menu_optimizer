@@ -50,24 +50,25 @@ jobs:
         id: create
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
-        env:
-          FILES:                ${{ steps.list.outputs.files }}
-          # Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
-          PROJECT_ID:           ${{ vars.PROJECT_ID }}
-          # Otherwise, keep using a human URL; make sure it's a **Projects v2** URL:
-          #   - user scope: https://github.com/users/<user>/projects/<n>
-          #   - org  scope: https://github.com/orgs/<org>/projects/<n>
-          DEFAULT_PROJECT_URL:  ${{ vars.PROJECT_URL }}
-          DEFAULT_ASSIGNEE:     ${{ vars.DEFAULT_ASSIGNEE }}
-          FALLBACK_ASSIGNEE:    ${{ github.actor }}
+        # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' are provided by actions/github-script
             const fs = require('fs');
             const path = require('path');
 
+            // ------------------ env ------------------
             const files = (process.env.FILES || '').split(',').filter(Boolean);
             if (!files.length) { core.setOutput('created','[]'); return; }
+
+            // Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
+            const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
+            // Human URLs for routing (Variables)
+            const DEFAULT_PROJECT_URL  = process.env.DEFAULT_PROJECT_URL  || null;
+            const PROJECT_URL_TEST     = process.env.DEFAULT_PROJECT_URL_TEST || null;
+            const DEFAULT_ASSIGNEE     = process.env.DEFAULT_ASSIGNEE || '';
+            const FALLBACK_ASSIGNEE    = process.env.FALLBACK_ASSIGNEE || '';
 
             // ---------- helpers ----------
             function parseHeader(body) {
@@ -81,6 +82,7 @@ jobs:
                 const idx = L.indexOf(':'); if (idx < 0) return;
                 const k = L.slice(0, idx).trim();
                 let v = L.slice(idx+1).trim();
+                // Try strict JSON first (so arrays/quoted strings work)
                 try { meta[k] = JSON.parse(v); }
                 catch { meta[k] = v.replace(/^"+|"+$/g,''); }
               });
@@ -88,13 +90,23 @@ jobs:
               return { meta, rest };
             }
 
+            // GraphQL search (no deprecation) to find an existing issue by seed uid
             async function findIssueByUid(uid) {
-              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
-              const res = await github.rest.search.issuesAndPullRequests({ q });
-              return res.data.items.find(i => !i.pull_request) || null;
+              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" is:issue`;
+              const data = await github.graphql(
+                `query($q:String!){
+                  search(query:$q, type:ISSUE, first:1){
+                    nodes { ... on Issue { number } }
+                  }
+                }`,
+                { q }
+              );
+              const node = data?.search?.nodes?.[0];
+              if (!node?.number) return null;
+              return { number: node.number };
             }
 
-            // ----- Projects v2 resolution (robust & non-fatal) -----
+            // Accepts: https://github.com/users/<login>/projects/<n>  OR  https://github.com/orgs/<org>/projects/<n>
             async function resolveProjectIdFromUrl(projectUrl) {
               try {
                 if (!projectUrl) return null;
@@ -105,25 +117,21 @@ jobs:
                 if (orgMatch) {
                   const [_, org, n] = orgMatch; const num = parseInt(n,10);
                   const data = await github.graphql(
-                    `query($org:String!, $num:Int!){
-                      organization(login:$org){ projectV2(number:$num){ id } }
+                    `query($org:String!,$num:Int!){
+                      organization(login:$org){ projectV2(number:$num){ id title } }
                     }`, { org, num }
                   );
-                  const id = data?.organization?.projectV2?.id || null;
-                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (org=${org}, number=${num}). Is this a classic project or the wrong number?`);
-                  return id;
+                  return data?.organization?.projectV2?.id || null;
                 }
 
                 if (userMatch) {
                   const [_, user, n] = userMatch; const num = parseInt(n,10);
                   const data = await github.graphql(
-                    `query($user:String!, $num:Int!){
-                      user(login:$user){ projectV2(number:$num){ id } }
+                    `query($user:String!,$num:Int!){
+                      user(login:$user){ projectV2(number:$num){ id title } }
                     }`, { user, num }
                   );
-                  const id = data?.user?.projectV2?.id || null;
-                  if (!id) core.warning(`Projects v2 not found at ${projectUrl} (user=${user}, number=${num}). Is this a classic project or the wrong number?`);
-                  return id;
+                  return data?.user?.projectV2?.id || null;
                 }
 
                 core.warning(`Unrecognized project URL format: ${projectUrl}`);
@@ -134,40 +142,134 @@ jobs:
               }
             }
 
-            async function addIssueToProject(projectId, issueNumber) {
+            // Cache project ids per URL within this run
+            const projectIdCache = new Map();
+            async function getProjectIdForUrl(url) {
+              if (!url) return null;
+              if (projectIdCache.has(url)) return projectIdCache.get(url);
+              const id = await resolveProjectIdFromUrl(url);
+              projectIdCache.set(url, id);
+              return id;
+            }
+
+            // Resolve field metadata once per project (name → {id, kind, options?})
+            // NOTE: text/number/date all appear as ProjectV2Field; single-select has options
+            const fieldCache = new Map(); // projectId -> Map<lowerName, fieldInfo>
+            async function getProjectFields(projectId) {
+              if (!projectId) return null;
+              if (fieldCache.has(projectId)) return fieldCache.get(projectId);
+              const data = await github.graphql(
+                `query($id:ID!){
+                  node(id:$id){
+                    ... on ProjectV2 {
+                      fields(first: 50){
+                        nodes{
+                          __typename
+                          ... on ProjectV2SingleSelectField { id name options { id name } }
+                          ... on ProjectV2Field             { id name }  # text / number / date
+                        }
+                      }
+                    }
+                  }
+                }`, { id: projectId }
+              );
+              const nodes = data?.node?.fields?.nodes || [];
+              const map = new Map();
+              for (const n of nodes) {
+                if (n.__typename === 'ProjectV2SingleSelectField') {
+                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'SINGLE_SELECT', options: n.options || [] });
+                } else if (n.__typename === 'ProjectV2Field') {
+                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'TEXT' });
+                }
+              }
+              fieldCache.set(projectId, map);
+              return map;
+            }
+
+            // Add to Project and return itemId, even if already present
+            async function getOrCreateProjectItem(projectId, issueNumber) {
+              if (!projectId || !issueNumber) return null;
+
+              // Resolve issue node id
+              const node = await github.graphql(
+                `query($o:String!, $r:String!, $n:Int!){
+                  repository(owner:$o, name:$r){ issue(number:$n){ id number } }
+                }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
+              );
+              const contentId = node?.repository?.issue?.id;
+              if (!contentId) { core.warning(`Could not resolve content node for #${issueNumber}`); return null; }
+
+              // Try to add; if it already exists, fall back to lookup
               try {
-                if (!projectId) return; // nothing to do
-                const node = await github.graphql(
-                  `query($o:String!, $r:String!, $n:Int!){
-                    repository(owner:$o, name:$r){ issue(number:$n){ id } }
-                  }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
-                );
-                const contentId = node?.repository?.issue?.id;
-                if (!contentId) { core.warning(`Could not resolve content node id for issue #${issueNumber}`); return; }
-                await github.graphql(
+                const added = await github.graphql(
                   `mutation($projectId:ID!, $contentId:ID!){
                     addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
                   }`, { projectId, contentId }
                 );
+                const itemId = added?.addProjectV2ItemById?.item?.id || null;
+                if (itemId) return itemId;
               } catch (e) {
-                core.warning(`Add to project failed for #${issueNumber}: ${e.message}`);
+                core.info(`addProjectV2ItemById: ${e.message} (will try to locate existing item)`);
               }
+
+              // Locate existing item by scanning recent items for matching content
+              const data = await github.graphql(
+                `query($projectId:ID!,$owner:String!,$repo:String!,$issue:Int!){
+                  repository(owner:$owner, name:$repo){ issue(number:$issue){ id } }
+                  node(id:$projectId){
+                    ... on ProjectV2 {
+                      items(first: 100, orderBy:{field:CREATED_AT, direction:DESC}){
+                        nodes {
+                          id
+                          content { __typename ... on Issue { id number } }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { projectId, owner: context.repo.owner, repo: context.repo.repo, issue: issueNumber }
+              );
+              const issueId = data?.repository?.issue?.id;
+              const items = data?.node?.items?.nodes || [];
+              const hit = items.find(n => n?.content?.__typename === 'Issue' && n.content.id === issueId);
+              return hit?.id || null;
             }
+
+            // Update a single field value on a Project item
+            async function writeFieldValue(projectId, itemId, fieldInfo, rawValue) {
+              if (!projectId || !itemId || !fieldInfo) return;
+              const fname = fieldInfo.name;
+              const kind  = fieldInfo.kind;
+
+              if (rawValue == null || String(rawValue).trim() === '') {
+                core.info(`Field "${fname}": no value provided → skip`);
+                return;
+              }
+
+              let value;
+              if (kind === 'SINGLE_SELECT') {
+                const wanted = String(rawValue).trim().toLowerCase();
+                const option = (fieldInfo.options || []).find(o => o.name.toLowerCase() === wanted);
+                if (!option) {
+                  core.warning(`Field "${fname}": option "${rawValue}" not found; available: ${(fieldInfo.options||[]).map(o=>o.name).join(', ')}`);
+                  return;
+                }
+                value = { singleSelectOptionId: option.id };
+              } else {
+                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link", "PR Link"
+                value = { text: String(rawValue) };
+              }
+
+              await github.graphql(
+                `mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$value:ProjectV2FieldValue!){
+                  updateProjectV2ItemFieldValue(input:{projectId:$projectId,itemId:$itemId,fieldId:$fieldId,value:$value}){ projectV2Item { id } }
+                }`,
+                { projectId, itemId, fieldId: fieldInfo.id, value }
+              );
+              core.info(`Set "${fname}" = ${JSON.stringify(rawValue)}`);
+            }
+
             // ---------- /helpers ----------
-
-            const DEFAULT_PROJECT_URL = process.env.DEFAULT_PROJECT_URL || null;
-            const DEFAULT_ASSIGNEE    = process.env.DEFAULT_ASSIGNEE || '';
-            const FALLBACK_ASSIGNEE   = process.env.FALLBACK_ASSIGNEE || '';
-            const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
-
-            // Resolve the project **once** (non-fatal)
-            let projectId = PROJECT_ID_OVERRIDE || null;
-            if (!projectId && DEFAULT_PROJECT_URL) {
-              projectId = await resolveProjectIdFromUrl(DEFAULT_PROJECT_URL);
-            }
-            if (!projectId && DEFAULT_PROJECT_URL) {
-              core.warning(`Skipping "add to project": could not resolve Projects v2 from ${DEFAULT_PROJECT_URL}`);
-            }
 
             const created = []; // [{ number, uid, meta, createdNew: true }]
 
@@ -200,6 +302,30 @@ jobs:
               else if (DEFAULT_ASSIGNEE)         assignees = [DEFAULT_ASSIGNEE];
               else if (FALLBACK_ASSIGNEE)        assignees = [FALLBACK_ASSIGNEE];
 
+              // ------------------ per-seed routing ------------------
+              // Priority: (1) meta.project_url → (2) meta.project == "test" → (3) DEFAULT_PROJECT_URL (main)
+              const routeSwitch = (meta.project || '').toString().trim().toLowerCase();
+              const chosenProjectUrl =
+                (meta.project_url && String(meta.project_url)) ||
+                (routeSwitch === 'test' ? (PROJECT_URL_TEST || DEFAULT_PROJECT_URL) : DEFAULT_PROJECT_URL) ||
+                null;
+
+              // PROJECT_ID override is only safe when a single project is used; ignore it if we have a per-seed URL
+              let chosenProjectId = null;
+              if (!chosenProjectUrl && PROJECT_ID_OVERRIDE) {
+                chosenProjectId = PROJECT_ID_OVERRIDE;
+              } else if (chosenProjectUrl) {
+                chosenProjectId = await getProjectIdForUrl(chosenProjectUrl);
+              }
+
+              // Dry-run diagnostics, before any mutations
+              core.notice([
+                `Seed: ${uid}`,
+                `Routing source: ${meta.project_url ? 'seed.project_url' : (routeSwitch === 'test' ? 'vars.PROJECT_URL_TEST' : 'vars.PROJECT_URL (default)')}`,
+                `Chosen Project URL: ${chosenProjectUrl || '(N/A; using PROJECT_ID override)'}`,
+                `Resolved Project ID: ${chosenProjectId || '(unresolved)'}`
+              ].join(' | '));
+
               const body = `${rest}\n\n<!-- seed-uid:${uid} -->`.trim();
 
               // CREATE (always continue on failure of project-add)
@@ -209,18 +335,53 @@ jobs:
                 title, body, labels, assignees
               })).data;
 
-              // Optional: add to project
-              const chosenProjectUrl = meta.project_url || DEFAULT_PROJECT_URL || null;
-              const chosenProjectId  = PROJECT_ID_OVERRIDE
-                                       || (chosenProjectUrl ? projectId : null);
-              await addIssueToProject(chosenProjectId, issue.number);
+              // Add to project and get itemId
+              const itemId = await getOrCreateProjectItem(chosenProjectId, issue.number);
+              if (itemId) core.info(`Project itemId for #${issue.number}: ${itemId}`);
+
+              // ---------- Field writes ----------
+              if (chosenProjectId && itemId) {
+                const fields = await getProjectFields(chosenProjectId);
+                if (!fields) {
+                  core.warning('Project fields not resolved; skip field writes.');
+                } else {
+                  // Map seed keys → Project fields (names must match Project policy)
+                  const map = {
+                    type:     'Type',            // SINGLE_SELECT
+                    status:   'Status',          // SINGLE_SELECT
+                    priority: 'Priority',        // SINGLE_SELECT
+                    target:   'Target Release',  // TEXT
+                    area:     'Area',            // SINGLE_SELECT
+                    doc:      'Doc Link',        // TEXT
+                    pr:       'PR Link'          // TEXT
+                  };
+
+                  for (const [seedKey, fieldName] of Object.entries(map)) {
+                    const fieldInfo = fields.get(fieldName.toLowerCase());
+                    if (!fieldInfo) {
+                      core.warning(`Project is missing field "${fieldName}" → skip`);
+                      continue;
+                    }
+                    await writeFieldValue(chosenProjectId, itemId, fieldInfo, meta[seedKey]);
+                  }
+                }
+              } else {
+                core.info('No ProjectId or itemId → skip field writes.');
+              }
+              // ---------- /Field writes ----------
 
               created.push({ number: issue.number, uid, meta, createdNew: true });
               core.info(`Created issue #${issue.number} for seed ${uid}`);
             }
 
             core.setOutput('created', JSON.stringify(created));
-
+        env:
+          FILES: ${{ steps.list.outputs.files }}
+          PROJECT_ID: ${{ vars.PROJECT_ID }}
+          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+          DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
+          FALLBACK_ASSIGNEE: ${{ github.actor }}
 
       - name: Wire hierarchy (epic checklists + late child linking)
         if: steps.create.outputs.created != ''
@@ -228,12 +389,24 @@ jobs:
         env:
           CREATED: ${{ steps.create.outputs.created }}
         with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' provided
+
+            // GraphQL search avoids deprecation; returns issue number by seed-uid
             async function findIssueByUid(uid) {
-              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" type:issue`;
-              const res = await github.rest.search.issuesAndPullRequests({ q });
-              return res.data.items.find(i => !i.pull_request) || null;
+              const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" is:issue`;
+              const data = await github.graphql(
+                `query($q:String!){
+                  search(query:$q, type:ISSUE, first:1){
+                    nodes { ... on Issue { number } }
+                  }
+                }`,
+                { q }
+              );
+              const node = data?.search?.nodes?.[0];
+              if (!node?.number) return null;
+              return { number: node.number };
             }
 
             const created = JSON.parse(process.env.CREATED || '[]');
@@ -242,7 +415,13 @@ jobs:
             // 1) Newly created epics → write Children checklist once
             for (const item of created) {
               const meta = item.meta || {};
-              const children = meta.children_uids || [];
+
+              // Accept JSON array (preferred) or CSV string (legacy)
+              const rawChildren = meta.children_uids ?? [];
+              const children = Array.isArray(rawChildren)
+                ? rawChildren
+                : String(rawChildren || '').split(',').map(s => s.trim()).filter(Boolean);
+
               if (!children.length || !item.createdNew) continue;
 
               const childNums = children.map(u => byUid[u]?.number).filter(Boolean);
@@ -301,16 +480,64 @@ jobs:
         uses: actions/github-script@v7
         env:
           FILES: ${{ steps.list.outputs.files }}
+          # Repo variable to control auto-PR creation. Default false if unset.
+          ALLOW_AUTOCONSUME_PR: ${{ vars.ALLOW_AUTOCONSUME_PR || 'false' }}
         with:
           script: |
             const { execSync } = require('child_process');
+            const fs = require('fs');
+            const path = require('path');
+
             const files = (process.env.FILES || '').split(',').filter(Boolean);
             if (!files.length) { core.info('No seeds to consume'); return; }
 
-            const branch = `automation/consume-seeds-${Date.now()}`;
+            // Parse guard (explicitly opt-in)
+            const allowPR = String(process.env.ALLOW_AUTOCONSUME_PR || 'false').toLowerCase() === 'true';
+
+            function parseHeader(body) {
+              const m = body.match(/<!--([\s\S]*?)-->/);
+              if (!m) return { meta:{} };
+              const hdr = m[1];
+              const meta = {};
+              hdr.split('\n').forEach(line => {
+                const L = line.trim();
+                if (!L || L.startsWith('#')) return;
+                const idx = L.indexOf(':'); if (idx < 0) return;
+                const k = L.slice(0, idx).trim();
+                let v = L.slice(idx+1).trim();
+                try { meta[k] = JSON.parse(v); }
+                catch { meta[k] = v.replace(/^"+|"+$/g,''); }
+              });
+              return { meta };
+            }
+
+            function slugify(s) {
+              return String(s).toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'');
+            }
+
+            // Collect UIDs (fallback to filename stem) for traceable branch names
+            const uids = [];
+            for (const f of files) {
+              const raw = fs.readFileSync(f, 'utf8');
+              const { meta } = parseHeader(raw);
+              const uid = meta.uid || path.basename(f).replace(/\.md$/,'');
+              if (uid) uids.push(uid);
+            }
+
+            let branchBase;
+            if (uids.length === 1) {
+              branchBase = slugify(uids[0]);
+            } else if (uids.length <= 3) {
+              branchBase = uids.map(slugify).join('+');
+            } else {
+              branchBase = `${slugify(uids[0])}-and-${uids.length-1}-more`;
+            }
+            const branch = `automation/consume/${branchBase}-${Date.now()}`;
+
+            // Commit moves to a short-lived branch (never push to main directly)
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
-            execSync(`git checkout -b ${branch}`);
+            execSync(`git checkout -b "${branch}"`);
 
             for (const f of files) {
               const target = f.replace('/pending/', '/applied/');
@@ -319,23 +546,26 @@ jobs:
             }
 
             execSync('git add -A');
-            execSync('git commit -m "chore(automation): consume processed seeds → applied/"');
-            execSync(`git push --set-upstream origin ${branch}`);
+            execSync('git commit -m "chore(automation): consume seeds → applied/ [' + uids.join(', ') + ']"');
+            execSync(`git push --set-upstream origin "${branch}"`);
 
-            // Try to open PR; fall back to a console notice if blocked by org policy
+            // Open PR only when explicitly allowed; otherwise provide the compare link as a notice
+            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
+
+            if (!allowPR) {
+              core.notice('Auto-PR disabled by ALLOW_AUTOCONSUME_PR=false. Open manually: ' + compareUrl);
+              return;
+            }
+
             try {
               const pr = await github.rest.pulls.create({
                 owner: context.repo.owner, repo: context.repo.repo,
                 head: branch, base: 'main',
-                title: 'chore(automation): consume processed seeds → applied/',
+                title: `chore(automation): consume seeds → applied/ [${uids.join(', ')}]`,
                 body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
               });
               core.notice(`Opened consume PR #${pr.data.number}`);
             } catch (e) {
-              if (e.status === 403 && /not permitted to create or approve pull requests/i.test(e.message)) {
-                const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
-                core.warning('Policy blocks Actions from creating PRs. Please open it manually: ' + url);
-              } else {
-                throw e;
-              }
+              // If policy still blocks PR creation, fall back to manual link
+              core.warning('Auto-PR failed; open manually: ' + compareUrl + ` | reason: ${e.message}`);
             }
