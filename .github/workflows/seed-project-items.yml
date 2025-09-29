@@ -53,12 +53,6 @@ jobs:
         # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
-      - name: Create issues (create-only) and add to Project
-        id: create
-        if: steps.list.outputs.files != ''
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' are provided by actions/github-script
             const fs = require('fs');
