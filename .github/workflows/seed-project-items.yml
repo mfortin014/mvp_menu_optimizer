@@ -50,7 +50,6 @@ jobs:
         id: create
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
-        # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
@@ -65,10 +64,10 @@ jobs:
             // Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
             const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
             // Human URLs for routing (Variables)
-            const DEFAULT_PROJECT_URL  = process.env.DEFAULT_PROJECT_URL  || null;
-            const PROJECT_URL_TEST     = process.env.DEFAULT_PROJECT_URL_TEST || null;
-            const DEFAULT_ASSIGNEE     = process.env.DEFAULT_ASSIGNEE || '';
-            const FALLBACK_ASSIGNEE    = process.env.FALLBACK_ASSIGNEE || '';
+            const DEFAULT_PROJECT_URL   = process.env.DEFAULT_PROJECT_URL  || null;
+            const PROJECT_URL_TEST      = process.env.DEFAULT_PROJECT_URL_TEST || null;
+            const DEFAULT_ASSIGNEE      = process.env.DEFAULT_ASSIGNEE || '';
+            const FALLBACK_ASSIGNEE     = process.env.FALLBACK_ASSIGNEE || '';
 
             // ---------- helpers ----------
             function parseHeader(body) {
@@ -152,31 +151,42 @@ jobs:
               return id;
             }
 
-            // Resolve field metadata once per project (name → {id, dataType, options?})
-            const fieldCache = new Map(); // projectId -> map
+            // Resolve field metadata once per project (name → {id, kind, options?})
+            const fieldCache = new Map(); // projectId -> Map<lower(name), FieldInfo>
             async function getProjectFields(projectId) {
               if (!projectId) return null;
               if (fieldCache.has(projectId)) return fieldCache.get(projectId);
+
+              // NOTE: fields() returns a UNION; must use type fragments
               const data = await github.graphql(
                 `query($id:ID!){
                   node(id:$id){
                     ... on ProjectV2 {
                       fields(first: 50){
                         nodes{
-                          id
-                          name
-                          dataType
-                          ... on ProjectV2SingleSelectField { options { id name } }
+                          __typename
+                          ... on ProjectV2SingleSelectField { id name options { id name } }
+                          ... on ProjectV2TextField         { id name }
                         }
                       }
                     }
                   }
                 }`, { id: projectId }
               );
+
               const nodes = data?.node?.fields?.nodes || [];
-              // Build case-insensitive lookup by field name
               const map = new Map();
-              for (const f of nodes) map.set(f.name.toLowerCase(), f);
+              for (const n of nodes) {
+                if (!n || !n.name) continue;
+                const key = n.name.toLowerCase();
+                if (n.__typename === 'ProjectV2SingleSelectField') {
+                  map.set(key, { id: n.id, name: n.name, kind: 'SINGLE_SELECT', options: n.options || [] });
+                } else if (n.__typename === 'ProjectV2TextField') {
+                  map.set(key, { id: n.id, name: n.name, kind: 'TEXT' });
+                } else {
+                  // ignore other field types for Automation A
+                }
+              }
               fieldCache.set(projectId, map);
               return map;
             }
@@ -204,7 +214,6 @@ jobs:
                 const itemId = added?.addProjectV2ItemById?.item?.id || null;
                 if (itemId) return itemId;
               } catch (e) {
-                // Continue to lookup
                 core.info(`addProjectV2ItemById: ${e.message} (will try to locate existing item)`);
               }
 
@@ -214,7 +223,7 @@ jobs:
                   repository(owner:$owner, name:$repo){ issue(number:$issue){ id } }
                   node(id:$projectId){
                     ... on ProjectV2 {
-                      items(first: 100, orderBy:{field:CREATED_AT, direction:DESC}){
+                      items(first: 100){
                         nodes {
                           id
                           content { __typename ... on Issue { id number } }
@@ -234,28 +243,25 @@ jobs:
             // Update a single field value on a Project item
             async function writeFieldValue(projectId, itemId, fieldNode, rawValue) {
               if (!projectId || !itemId || !fieldNode) return;
-              const fname = fieldNode.name;
-              const ftype = fieldNode.dataType;
 
-              // Prepare value by type
-              let value = null;
               if (rawValue == null || String(rawValue).trim() === '') {
-                core.info(`Field "${fname}": no value provided → skip`);
+                core.info(`Field "${fieldNode.name}": no value provided → skip`);
                 return;
               }
 
-              if (ftype === 'SINGLE_SELECT') {
+              let value = null;
+              if (fieldNode.kind === 'SINGLE_SELECT') {
                 const wanted = String(rawValue).trim().toLowerCase();
                 const option = (fieldNode.options || []).find(o => o.name.toLowerCase() === wanted);
                 if (!option) {
-                  core.warning(`Field "${fname}": option "${rawValue}" not found; available: ${(fieldNode.options||[]).map(o=>o.name).join(', ')}`);
+                  core.warning(`Field "${fieldNode.name}": option "${rawValue}" not found; available: ${(fieldNode.options||[]).map(o=>o.name).join(', ')}`);
                   return;
                 }
                 value = { singleSelectOptionId: option.id };
-              } else if (ftype === 'TEXT') {
+              } else if (fieldNode.kind === 'TEXT') {
                 value = { text: String(rawValue) };
               } else {
-                core.info(`Field "${fname}" has unsupported type "${ftype}" → skip`);
+                core.info(`Field "${fieldNode.name}" has unsupported kind "${fieldNode.kind}" → skip`);
                 return;
               }
 
@@ -265,7 +271,7 @@ jobs:
                 }`,
                 { projectId, itemId, fieldId: fieldNode.id, value }
               );
-              core.info(`Set "${fname}" = ${JSON.stringify(rawValue)}`);
+              core.info(`Set "${fieldNode.name}" = ${JSON.stringify(rawValue)}`);
             }
 
             // ---------- /helpers ----------
@@ -281,9 +287,9 @@ jobs:
               const uid    = meta.uid || null;
 
               // Create-only semantics by default
-              const mode      = String(meta.mode ?? 'create_only');
-              const frozen    = String(meta.frozen ?? 'true') === 'true';
-              const lifecycle = String(meta.lifecycle ?? 'seed_only');
+              const mode       = String(meta.mode ?? 'create_only');
+              const frozen     = String(meta.frozen ?? 'true') === 'true';
+              const lifecycle  = String(meta.lifecycle ?? 'seed_only');
               const createOnly = (mode === 'create_only') || frozen || (lifecycle === 'seed_only');
 
               if (!uid) { core.warning(`Seed ${f} missing 'uid'; skipping.`); continue; }
