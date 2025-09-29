@@ -13,6 +13,7 @@ target: "mvp-0.7.0"
 area: "ci"
 doc: "docs/policy/ci_minimal.md"
 pr: "https://github.com/mfortin014/mvp_menu_optimizer/pull/1"
+
 -->
 
 This is a single test issue to verify **Projects v2 field writes** are applied:
