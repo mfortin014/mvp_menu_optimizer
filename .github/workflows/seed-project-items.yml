@@ -255,6 +255,8 @@ jobs:
       - name: Wire hierarchy (epic checklists + late child linking)
         if: steps.create.outputs.created != ''
         uses: actions/github-script@v7
+        env:
+          CREATED: ${{ steps.create.outputs.created }}
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
@@ -282,7 +284,13 @@ jobs:
             // 1) Newly created epics → write Children checklist once
             for (const item of created) {
               const meta = item.meta || {};
-              const children = meta.children_uids || [];
+
+              // Accept JSON array (preferred) or CSV string (legacy)
+              const rawChildren = meta.children_uids ?? [];
+              const children = Array.isArray(rawChildren)
+                ? rawChildren
+                : String(rawChildren || '').split(',').map(s => s.trim()).filter(Boolean);
+
               if (!children.length || !item.createdNew) continue;
 
               const childNums = children.map(u => byUid[u]?.number).filter(Boolean);
