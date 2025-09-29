@@ -53,6 +53,12 @@ jobs:
         # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
+      - name: Create issues (create-only) and add to Project
+        id: create
+        if: steps.list.outputs.files != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
             // 'core', 'github', 'context' are provided by actions/github-script
             const fs = require('fs');
@@ -90,7 +96,7 @@ jobs:
               return { meta, rest };
             }
 
-            // AFTER (GraphQL search; no deprecation)
+            // GraphQL search (no deprecation) to find an existing issue by seed uid
             async function findIssueByUid(uid) {
               const q = `repo:${context.repo.owner}/${context.repo.repo} in:body "seed-uid:${uid}" is:issue`;
               const data = await github.graphql(
@@ -106,7 +112,6 @@ jobs:
               return { number: node.number };
             }
 
-            // ----- Projects v2 resolution -----
             // Accepts: https://github.com/users/<login>/projects/<n>  OR  https://github.com/orgs/<org>/projects/<n>
             async function resolveProjectIdFromUrl(projectUrl) {
               try {
@@ -122,9 +127,7 @@ jobs:
                       organization(login:$org){ projectV2(number:$num){ id title } }
                     }`, { org, num }
                   );
-                  const proj = data?.organization?.projectV2;
-                  if (!proj?.id) core.warning(`Projects v2 not found at ${projectUrl} (org=${org}, number=${num}). Is this a classic project or wrong number?`);
-                  return proj?.id || null;
+                  return data?.organization?.projectV2?.id || null;
                 }
 
                 if (userMatch) {
@@ -134,9 +137,7 @@ jobs:
                       user(login:$user){ projectV2(number:$num){ id title } }
                     }`, { user, num }
                   );
-                  const proj = data?.user?.projectV2;
-                  if (!proj?.id) core.warning(`Projects v2 not found at ${projectUrl} (user=${user}, number=${num}). Is this a classic project or wrong number?`);
-                  return proj?.id || null;
+                  return data?.user?.projectV2?.id || null;
                 }
 
                 core.warning(`Unrecognized project URL format: ${projectUrl}`);
@@ -147,28 +148,7 @@ jobs:
               }
             }
 
-            async function addIssueToProject(projectId, issueNumber) {
-              try {
-                if (!projectId) return; // nothing to do
-                const node = await github.graphql(
-                  `query($o:String!, $r:String!, $n:Int!){
-                    repository(owner:$o, name:$r){ issue(number:$n){ id } }
-                  }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
-                );
-                const contentId = node?.repository?.issue?.id;
-                if (!contentId) { core.warning(`Could not resolve content node id for issue #${issueNumber}`); return; }
-                await github.graphql(
-                  `mutation($projectId:ID!, $contentId:ID!){
-                    addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
-                  }`, { projectId, contentId }
-                );
-              } catch (e) {
-                core.warning(`Add to project failed for #${issueNumber}: ${e.message}`);
-              }
-            }
-            // ---------- /helpers ----------
-
-            // Cache project ids per URL within this run (multiple seeds may target different projects)
+            // Cache project ids per URL within this run
             const projectIdCache = new Map();
             async function getProjectIdForUrl(url) {
               if (!url) return null;
@@ -177,6 +157,124 @@ jobs:
               projectIdCache.set(url, id);
               return id;
             }
+
+            // Resolve field metadata once per project (name → {id, dataType, options?})
+            const fieldCache = new Map(); // projectId -> map
+            async function getProjectFields(projectId) {
+              if (!projectId) return null;
+              if (fieldCache.has(projectId)) return fieldCache.get(projectId);
+              const data = await github.graphql(
+                `query($id:ID!){
+                  node(id:$id){
+                    ... on ProjectV2 {
+                      fields(first: 50){
+                        nodes{
+                          id
+                          name
+                          dataType
+                          ... on ProjectV2SingleSelectField { options { id name } }
+                        }
+                      }
+                    }
+                  }
+                }`, { id: projectId }
+              );
+              const nodes = data?.node?.fields?.nodes || [];
+              // Build case-insensitive lookup by field name
+              const map = new Map();
+              for (const f of nodes) map.set(f.name.toLowerCase(), f);
+              fieldCache.set(projectId, map);
+              return map;
+            }
+
+            // Add to Project and return itemId, even if already present
+            async function getOrCreateProjectItem(projectId, issueNumber) {
+              if (!projectId || !issueNumber) return null;
+
+              // Resolve issue node id
+              const node = await github.graphql(
+                `query($o:String!, $r:String!, $n:Int!){
+                  repository(owner:$o, name:$r){ issue(number:$n){ id number } }
+                }`, { o: context.repo.owner, r: context.repo.repo, n: issueNumber }
+              );
+              const contentId = node?.repository?.issue?.id;
+              if (!contentId) { core.warning(`Could not resolve content node for #${issueNumber}`); return null; }
+
+              // Try to add; if it already exists, fall back to lookup
+              try {
+                const added = await github.graphql(
+                  `mutation($projectId:ID!, $contentId:ID!){
+                    addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}){ item { id } }
+                  }`, { projectId, contentId }
+                );
+                const itemId = added?.addProjectV2ItemById?.item?.id || null;
+                if (itemId) return itemId;
+              } catch (e) {
+                // Continue to lookup
+                core.info(`addProjectV2ItemById: ${e.message} (will try to locate existing item)`);
+              }
+
+              // Locate existing item by scanning recent items for matching content
+              const data = await github.graphql(
+                `query($projectId:ID!,$owner:String!,$repo:String!,$issue:Int!){
+                  repository(owner:$owner, name:$repo){ issue(number:$issue){ id } }
+                  node(id:$projectId){
+                    ... on ProjectV2 {
+                      items(first: 100, orderBy:{field:CREATED_AT, direction:DESC}){
+                        nodes {
+                          id
+                          content { __typename ... on Issue { id number } }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { projectId, owner: context.repo.owner, repo: context.repo.repo, issue: issueNumber }
+              );
+              const issueId = data?.repository?.issue?.id;
+              const items = data?.node?.items?.nodes || [];
+              const hit = items.find(n => n?.content?.__typename === 'Issue' && n.content.id === issueId);
+              return hit?.id || null;
+            }
+
+            // Update a single field value on a Project item
+            async function writeFieldValue(projectId, itemId, fieldNode, rawValue) {
+              if (!projectId || !itemId || !fieldNode) return;
+              const fname = fieldNode.name;
+              const ftype = fieldNode.dataType;
+
+              // Prepare value by type
+              let value = null;
+              if (rawValue == null || String(rawValue).trim() === '') {
+                core.info(`Field "${fname}": no value provided → skip`);
+                return;
+              }
+
+              if (ftype === 'SINGLE_SELECT') {
+                const wanted = String(rawValue).trim().toLowerCase();
+                const option = (fieldNode.options || []).find(o => o.name.toLowerCase() === wanted);
+                if (!option) {
+                  core.warning(`Field "${fname}": option "${rawValue}" not found; available: ${(fieldNode.options||[]).map(o=>o.name).join(', ')}`);
+                  return;
+                }
+                value = { singleSelectOptionId: option.id };
+              } else if (ftype === 'TEXT') {
+                value = { text: String(rawValue) };
+              } else {
+                core.info(`Field "${fname}" has unsupported type "${ftype}" → skip`);
+                return;
+              }
+
+              await github.graphql(
+                `mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,$value:ProjectV2FieldValue!){
+                  updateProjectV2ItemFieldValue(input:{projectId:$projectId,itemId:$itemId,fieldId:$fieldId,value:$value}){ projectV2Item { id } }
+                }`,
+                { projectId, itemId, fieldId: fieldNode.id, value }
+              );
+              core.info(`Set "${fname}" = ${JSON.stringify(rawValue)}`);
+            }
+
+            // ---------- /helpers ----------
 
             const created = []; // [{ number, uid, meta, createdNew: true }]
 
@@ -242,8 +340,39 @@ jobs:
                 title, body, labels, assignees
               })).data;
 
-              // Add to project (idempotent server-side)
-              await addIssueToProject(chosenProjectId, issue.number);
+              // Add to project and get itemId
+              const itemId = await getOrCreateProjectItem(chosenProjectId, issue.number);
+
+              // ---------- Field writes ----------
+              if (chosenProjectId && itemId) {
+                const fields = await getProjectFields(chosenProjectId);
+                if (!fields) {
+                  core.warning('Project fields not resolved; skip field writes.');
+                } else {
+                  // Map seed keys → Project fields (names must match Project policy)
+                  const map = {
+                    type:        'Type',            // SINGLE_SELECT
+                    status:      'Status',          // SINGLE_SELECT
+                    priority:    'Priority',        // SINGLE_SELECT
+                    target:      'Target Release',  // TEXT
+                    area:        'Area',            // SINGLE_SELECT
+                    doc:         'Doc Link',        // TEXT
+                    pr:          'PR Link'          // TEXT
+                  };
+
+                  for (const [seedKey, fieldName] of Object.entries(map)) {
+                    const fieldNode = fields.get(fieldName.toLowerCase());
+                    if (!fieldNode) {
+                      core.warning(`Project is missing field "${fieldName}" → skip`);
+                      continue;
+                    }
+                    await writeFieldValue(chosenProjectId, itemId, fieldNode, meta[seedKey]);
+                  }
+                }
+              } else {
+                core.info('No ProjectId or itemId → skip field writes.');
+              }
+              // ---------- /Field writes ----------
 
               created.push({ number: issue.number, uid, meta, createdNew: true });
               core.info(`Created issue #${issue.number} for seed ${uid}`);
@@ -252,11 +381,7 @@ jobs:
             core.setOutput('created', JSON.stringify(created));
         env:
           FILES: ${{ steps.list.outputs.files }}
-          # Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
           PROJECT_ID: ${{ vars.PROJECT_ID }}
-          # Otherwise, keep using a human URL; make sure it's a **Projects v2** URL:
-          #   - user scope: https://github.com/users/<user>/projects/<n>
-          #   - org  scope: https://github.com/orgs/<org>/projects/<n>
           DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
           DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
           DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
