@@ -102,8 +102,15 @@ jobs:
             const PENDING    = process.env.PENDING_DIR;
             const APPLIED    = process.env.APPLIED_DIR;
 
-            // read from workflow_dispatch inputs; default true if absent
-            const DRY_RUN = String(github.context.payload?.inputs?.dry_run ?? "true") === "true";
+            // Event-aware dry_run:
+            // - On pull_request (or anything else): default to true (safety)
+            const EVENT_NAME = process.env.GITHUB_EVENT_NAME || "";
+            let DRY_RUN = true;
+            if (EVENT_NAME === "workflow_dispatch") {
+              const inputs = (context && context.payload && context.payload.inputs) || {};
+              DRY_RUN = String(inputs.dry_run ?? "true") === "true";
+            }
+            core.notice(`Backfill mode: ${EVENT_NAME === "workflow_dispatch" ? "dispatch" : "PR"} | dry_run=${DRY_RUN}`);
             const PROJECT_ID = '${{ steps.projid.outputs.projectId }}';
             const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
 
