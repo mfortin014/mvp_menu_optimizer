@@ -46,14 +46,12 @@ jobs:
       - name: Resolve Project ID (GraphQL)
         id: projid
         uses: actions/github-script@v7
+        env:
+          PROJECT_URL: ${{ steps.proj.outputs.url }}
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
-          # pass URL as an input so core.getInput('url') works
-          url: ${{ steps.proj.outputs.url }}
           script: |
-            const raw = core.getInput('url', { required: true });
-
-            // Match supported PROJECT_URL shapes
+            const raw = process.env.PROJECT_URL;
             const mu = raw.match(/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
             const mo = raw.match(/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
             const mr = raw.match(/github\.com\/repos\/([^/]+)\/([^/]+)\/projects\/(\d+)/i);
@@ -61,52 +59,38 @@ jobs:
             let projectId = "";
 
             if (mu) {
-              const [, login, num] = mu;
-              const number = parseInt(num, 10);
-              const q = `
-                query($login:String!, $number:Int!){
-                  user(login:$login){ projectV2(number:$number){ id } }
-                }`;
+              const [, login, num] = mu; const number = parseInt(num, 10);
+              const q = `query($login:String!, $number:Int!){
+                user(login:$login){ projectV2(number:$number){ id } }
+              }`;
               const r = await github.graphql(q, { login, number });
               projectId = r?.user?.projectV2?.id || "";
-              core.notice(`Scope=user login=${login} number=${number}`);
             } else if (mo) {
-              const [, org, num] = mo;
-              const number = parseInt(num, 10);
-              const q = `
-                query($org:String!, $number:Int!){
-                  organization(login:$org){ projectV2(number:$number){ id } }
-                }`;
+              const [, org, num] = mo; const number = parseInt(num, 10);
+              const q = `query($org:String!, $number:Int!){
+                organization(login:$org){ projectV2(number:$number){ id } }
+              }`;
               const r = await github.graphql(q, { org, number });
               projectId = r?.organization?.projectV2?.id || "";
-              core.notice(`Scope=org org=${org} number=${number}`);
             } else if (mr) {
-              const [, owner, repo, num] = mr;
-              const number = parseInt(num, 10);
-              const q = `
-                query($owner:String!, $repo:String!, $number:Int!){
-                  repository(owner:$owner, name:$repo){ projectV2(number:$number){ id } }
-                }`;
+              const [, owner, repo, num] = mr; const number = parseInt(num, 10);
+              const q = `query($owner:String!, $repo:String!, $number:Int!){
+                repository(owner:$owner, name:$repo){ projectV2(number:$number){ id } }
+              }`;
               const r = await github.graphql(q, { owner, repo, number });
               projectId = r?.repository?.projectV2?.id || "";
-              core.notice(`Scope=repo owner=${owner} repo=${repo} number=${number}`);
             } else {
               core.setFailed(`Unsupported PROJECT_URL format: ${raw}`);
             }
 
-            if (!projectId) {
-              core.setFailed(`Could not resolve project ID from URL: ${raw}`);
-            } else {
-              core.setOutput('projectId', projectId);
-              core.notice(`Resolved Project ID: ${projectId}`);
-            }
+            if (!projectId) core.setFailed(`Could not resolve project ID from URL: ${raw}`);
+            core.setOutput('projectId', projectId);
+            core.notice(`Resolved Project ID: ${projectId}`);
 
       - name: Backfill library.json (collect, resolve, write/dry-run)
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
-          # expose dry_run to core.getInput('dry_run')
-          dry_run: ${{ inputs.dry_run }}
           script: |
             const fs = require('fs');
             const path = require('path');
@@ -117,7 +101,9 @@ jobs:
             const LIB_PATH   = process.env.LIB_PATH;
             const PENDING    = process.env.PENDING_DIR;
             const APPLIED    = process.env.APPLIED_DIR;
-            const DRY_RUN    = (core.getInput('dry_run') === 'true');
+
+            // read from workflow_dispatch inputs; default true if absent
+            const DRY_RUN = String(github.context.payload?.inputs?.dry_run ?? "true") === "true";
             const PROJECT_ID = '${{ steps.projid.outputs.projectId }}';
             const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
 

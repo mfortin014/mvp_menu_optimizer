@@ -15,25 +15,30 @@ async function resolveByUidViaSearch({ octokit, owner, repo, uid }) {
 }
 
 async function resolveProjectItemId({ octokit, projectId, issueNodeId }) {
-  // GraphQL: find the project item that references this issue, in projectId
-  const query = `
-    query($projectId: ID!, $contentId: ID!) {
-      node(id: $projectId) {
+  const q = `
+    query($projectId:ID!, $after:String) {
+      node(id:$projectId) {
         ... on ProjectV2 {
-          items(first: 50, query: "") {
-            nodes {
-              id
-              content { ... on Issue { id } }
-            }
+          items(first:100, after:$after) {
+            nodes { id content { __typename ... on Issue { id } } }
+            pageInfo { hasNextPage endCursor }
           }
         }
       }
     }`;
-  // NOTE: For scale, you’ll want a targeted query (or server-side filter) later.
-  const r = await octokit.graphql(query, { projectId, contentId: issueNodeId });
-  const items = r?.node?.items?.nodes || [];
-  const hit = items.find((n) => n?.content?.id === issueNodeId);
-  return hit?.id || null;
+  let after = null;
+  while (true) {
+    const r = await octokit.graphql(q, { projectId, after });
+    const items = r?.node?.items?.nodes || [];
+    const hit = items.find(
+      (n) => n?.content?.__typename === "Issue" && n.content.id === issueNodeId
+    );
+    if (hit) return hit.id;
+    const pi = r?.node?.items?.pageInfo;
+    if (!pi?.hasNextPage) break;
+    after = pi.endCursor;
+  }
+  return null;
 }
 
 module.exports = { resolveByUidViaSearch, resolveProjectItemId };
