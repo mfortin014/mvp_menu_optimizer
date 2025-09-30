@@ -258,7 +258,7 @@ jobs:
                 }
                 value = { singleSelectOptionId: option.id };
               } else {
-                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link", "PR Link"
+                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link"
                 value = { text: String(rawValue) };
               }
 
@@ -355,7 +355,6 @@ jobs:
                     target:   'Target Release',  // TEXT
                     area:     'Area',            // SINGLE_SELECT
                     doc:      'Doc Link',        // TEXT
-                    pr:       'PR Link'          // TEXT
                   };
 
                   for (const [seedKey, fieldName] of Object.entries(map)) {
