@@ -483,6 +483,8 @@ jobs:
         env:
           CREATED: ${{ steps.create.outputs.created }}
           LIB_PATH: ${{ env.LIB_PATH }}
+          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+          DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |

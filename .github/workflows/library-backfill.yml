@@ -53,41 +53,120 @@ jobs:
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
           script: |
-            const raw = process.env.PROJECT_URL;
-            const mu = raw.match(/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
-            const mo = raw.match(/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
-            const mr = raw.match(/github\.com\/repos\/([^/]+)\/([^/]+)\/projects\/(\d+)/i);
+            const fs = require('fs');
+            const path = require('path');
+            const { readJsonFile, writeJsonAtomic, stableSortRecords, dedupeByUid, validateRecord } = require('./scripts/lib/json_io');
+            const { resolveProjectItemId } = require('./scripts/lib/uid_resolver');
 
-            let projectId = "";
+            const created = JSON.parse(process.env.CREATED || '[]');
+            const LIB_PATH = process.env.LIB_PATH || '.github/project-seeds/library.json';
+            const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
 
-            if (mu) {
-              const [, login, num] = mu; const number = parseInt(num, 10);
-              const q = `query($login:String!, $number:Int!){
-                user(login:$login){ projectV2(number:$number){ id } }
-              }`;
-              const r = await github.graphql(q, { login, number });
-              projectId = r?.user?.projectV2?.id || "";
-            } else if (mo) {
-              const [, org, num] = mo; const number = parseInt(num, 10);
-              const q = `query($org:String!, $number:Int!){
-                organization(login:$org){ projectV2(number:$number){ id } }
-              }`;
-              const r = await github.graphql(q, { org, number });
-              projectId = r?.organization?.projectV2?.id || "";
-            } else if (mr) {
-              const [, owner, repo, num] = mr; const number = parseInt(num, 10);
-              const q = `query($owner:String!, $repo:String!, $number:Int!){
-                repository(owner:$owner, name:$repo){ projectV2(number:$number){ id } }
-              }`;
-              const r = await github.graphql(q, { owner, repo, number });
-              projectId = r?.repository?.projectV2?.id || "";
-            } else {
-              core.setFailed(`Unsupported PROJECT_URL format: ${raw}`);
+            // Resolve the SAME Project used by the seed: meta.project_url > project:"test" > default MAIN
+            async function resolveProjectIdForItem(meta) {
+              const route = String(meta.project || '').trim().toLowerCase();
+              const chosenUrl =
+                (meta.project_url && String(meta.project_url)) ||
+                (route === 'test'
+                  ? (process.env.DEFAULT_PROJECT_URL_TEST || process.env.DEFAULT_PROJECT_URL)
+                  : process.env.DEFAULT_PROJECT_URL) ||
+                '';
+
+              if (!chosenUrl) return null;
+
+              const mu = chosenUrl.match(/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
+              const mo = chosenUrl.match(/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
+              const mr = chosenUrl.match(/github\.com\/repos\/([^/]+)\/([^/]+)\/projects\/(\d+)/i);
+
+              if (mu) {
+                const [, login, n] = mu; const number = parseInt(n,10);
+                const r = await github.graphql(
+                  `query($login:String!, $number:Int!){
+                    user(login:$login){ projectV2(number:$number){ id } }
+                  }`,
+                  { login, number }
+                );
+                return r?.user?.projectV2?.id || null;
+              }
+              if (mo) {
+                const [, org, n] = mo; const number = parseInt(n,10);
+                const r = await github.graphql(
+                  `query($org:String!, $number:Int!){
+                    organization(login:$org){ projectV2(number:$number){ id } }
+                  }`,
+                  { org, number }
+                );
+                return r?.organization?.projectV2?.id || null;
+              }
+              if (mr) {
+                const [, o, rname, n] = mr; const number = parseInt(n,10);
+                const r = await github.graphql(
+                  `query($owner:String!, $repo:String!, $number:Int!){
+                    repository(owner:$owner,name:$repo){ projectV2(number:$number){ id } }
+                  }`,
+                  { owner: o, repo: rname, number }
+                );
+                return r?.repository?.projectV2?.id || null;
+              }
+              return null;
             }
 
-            if (!projectId) core.setFailed(`Could not resolve project ID from URL: ${raw}`);
-            core.setOutput('projectId', projectId);
-            core.notice(`Resolved Project ID: ${projectId}`);
+            // Load existing library (if any)
+            let lib = readJsonFile(LIB_PATH);
+            if (!Array.isArray(lib)) lib = [];
+
+            // Build/merge records for newly created items
+            for (const item of created) {
+              const uid = item.uid;
+              const issue_number = item.number;
+
+              // Resolve issue node id
+              const issueQ = `query($o:String!, $r:String!, $n:Int!){
+                repository(owner:$o,name:$r){ issue(number:$n){ id number } }
+              }`;
+              const issueRes = await github.graphql(issueQ, { o: owner, r: repo, n: issue_number });
+              const issue_node_id = issueRes?.repository?.issue?.id || null;
+
+              // Per-seed project selection (Main/Test/custom URL)
+              const projectIdForItem = await resolveProjectIdForItem(item.meta || {});
+              let project_item_id = null;
+              if (projectIdForItem && issue_node_id) {
+                try {
+                  project_item_id = await resolveProjectItemId({
+                    octokit: github,
+                    projectId: projectIdForItem,
+                    issueNodeId: issue_node_id
+                  });
+                } catch (e) {
+                  core.warning(`library upsert: project item lookup failed for #${issue_number}: ${String(e)}`);
+                }
+              }
+
+              const parent_uid = (item.meta && item.meta.parent_uid) ? String(item.meta.parent_uid) : null;
+
+              const record = {
+                uid, parent_uid, owner, repo,
+                issue_number, issue_node_id, project_item_id,
+                created_at: new Date().toISOString()
+              };
+
+              const i = lib.findIndex(r => r.uid === uid);
+              if (i === -1) lib.push(record);
+              else {
+                const keepCreatedAt = lib[i].created_at || record.created_at;
+                lib[i] = { ...lib[i], ...record, created_at: keepCreatedAt };
+              }
+            }
+
+            // Clean, validate, write atomically
+            const clean = stableSortRecords(dedupeByUid(lib));
+            const bad = clean.filter(r => !validateRecord(r)).map(r => r.uid);
+            if (bad.length) core.warning(`library.json invalid entries (still writing): ${bad.join(', ')}`);
+
+            const dir = path.dirname(LIB_PATH);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            writeJsonAtomic(LIB_PATH, clean);
+            core.notice(`library.json upserted with ${created.length} item(s).`);
 
       - name: Backfill library.json (collect, resolve, write/dry-run)
         id: backfill
