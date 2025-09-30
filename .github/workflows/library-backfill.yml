@@ -1,0 +1,187 @@
+name: Library Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_url_override:
+        description: "Optional: override Project URL (use Test Project here)"
+        required: false
+        type: string
+      dry_run:
+        description: "If true, do not write library.json (log preview only)"
+        required: true
+        type: boolean
+        default: true
+  # Optional, uncomment if you want nightly backfill
+  # schedule:
+  #   - cron: "23 3 * * *"
+
+env:
+  LIB_PATH: .github/project-seeds/library.json
+  PENDING_DIR: .github/project-seeds/pending
+  APPLIED_DIR: .github/project-seeds/applied
+  DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+
+jobs:
+  library_backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Project URL
+        id: proj
+        run: |
+          if [ -n "${{ github.event.inputs.project_url_override }}" ]; then
+            echo "url=${{ github.event.inputs.project_url_override }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${DEFAULT_PROJECT_URL}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Resolve Project ID (GraphQL)
+        id: projid
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          # pass URL as an input so core.getInput('url') works
+          url: ${{ steps.proj.outputs.url }}
+          script: |
+            const url = core.getInput('url', { required: true });
+            const u = new URL(url);
+            const parts = u.pathname.split('/').filter(Boolean);
+            const number = Number(parts.pop());
+
+            const vars = { number };
+
+            if (url.includes('/users/')) {
+              const login = parts[1];
+              vars.login = login;
+            } else if (url.includes('/orgs/')) {
+              const org = parts[1];
+              vars.org = org;
+            } else if (url.includes('/repos/')) {
+              const owner = parts[1];
+              const repo  = parts[2];
+              vars.owner = owner; vars.repo = repo;
+            }
+
+            const q = `
+              query($login:String,$org:String,$owner:String,$repo:String,$number:Int!){
+                user(login:$login){ projectV2(number:$number){ id } }
+                organization(login:$org){ projectV2(number:$number){ id } }
+                repository(owner:$owner,name:$repo){ projectV2(number:$number){ id } }
+              }`;
+
+            const res = await github.graphql(q, vars);
+            const id =
+              res?.user?.projectV2?.id ||
+              res?.organization?.projectV2?.id ||
+              res?.repository?.projectV2?.id || "";
+
+            core.setOutput('projectId', id);
+            core.notice(`Project URL: ${url} -> projectId: ${id || "(not resolved)"}`);
+
+      - name: Backfill library.json (collect, resolve, write/dry-run)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          # expose dry_run to core.getInput('dry_run')
+          dry_run: ${{ inputs.dry_run }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readJsonFile, writeJsonAtomic, stableSortRecords, dedupeByUid, validateRecord } = require('./scripts/lib/json_io');
+            const { parseSeedHeader } = require('./scripts/lib/seed_parse');
+            const { resolveByUidViaSearch, resolveProjectItemId } = require('./scripts/lib/uid_resolver');
+
+            const LIB_PATH   = process.env.LIB_PATH;
+            const PENDING    = process.env.PENDING_DIR;
+            const APPLIED    = process.env.APPLIED_DIR;
+            const DRY_RUN    = (core.getInput('dry_run') === 'true');
+            const PROJECT_ID = '${{ steps.projid.outputs.projectId }}';
+            const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+
+            function listSeeds(dir) {
+              if (!dir || !fs.existsSync(dir)) return [];
+              return fs.readdirSync(dir).filter(f => f.endsWith('.md')).map(f => path.join(dir, f));
+            }
+
+            const seeds = [...listSeeds(PENDING), ...listSeeds(APPLIED)];
+            if (seeds.length === 0) {
+              core.notice('No seed files found; nothing to backfill.');
+              return;
+            }
+
+            const candidates = [];
+            for (const p of seeds) {
+              const md = fs.readFileSync(p, 'utf8');
+              const h = parseSeedHeader(md);
+              const uid = (h.uid || '').toString().trim();
+              if (!uid) continue;
+              const parent_uid = (h.parent_uid || '').toString().trim() || null;
+              candidates.push({ uid, parent_uid });
+            }
+
+            core.notice(`Found ${candidates.length} candidate UIDs from seeds.`);
+
+            const records = [];
+            for (const c of candidates) {
+              const hit = await resolveByUidViaSearch({ octokit: github, owner, repo, uid: c.uid });
+              if (!hit) {
+                core.warning(`UID not found by search: ${c.uid}`);
+                continue;
+              }
+              let project_item_id = null;
+              if (PROJECT_ID) {
+                try {
+                  project_item_id = await resolveProjectItemId({ octokit: github, projectId: PROJECT_ID, issueNodeId: hit.issue_node_id });
+                } catch (e) {
+                  core.warning(`Project item lookup failed for UID ${c.uid}: ${String(e)}`);
+                }
+              }
+              records.push({
+                uid: c.uid,
+                parent_uid: c.parent_uid,
+                owner, repo,
+                issue_number: hit.issue_number,
+                issue_node_id: hit.issue_node_id,
+                project_item_id,
+                created_at: new Date().toISOString()
+              });
+            }
+
+            const existing = readJsonFile(LIB_PATH);
+            const merged = Array.isArray(existing) ? [...existing] : [];
+
+            function upsert(record) {
+              const i = merged.findIndex(r => r.uid === record.uid);
+              if (i === -1) {
+                merged.push(record);
+                return { inserted: 1, updated: 0 };
+              } else {
+                const old = merged[i];
+                const created_at = old.created_at || record.created_at;
+                merged[i] = { ...old, ...record, created_at };
+                return { inserted: 0, updated: 1 };
+              }
+            }
+
+            let ins = 0, upd = 0;
+            for (const r of records) {
+              const { inserted, updated } = upsert(r);
+              ins += inserted; upd += updated;
+            }
+
+            const clean = stableSortRecords(dedupeByUid(merged));
+            const invalids = clean.filter(r => !validateRecord(r)).map(r => r.uid);
+            if (invalids.length) core.warning(`Invalid records (writing anyway unless dry_run): ${invalids.join(', ')}`);
+
+            if (DRY_RUN) {
+              core.notice(`DRY RUN: would write ${clean.length} records (new:${ins} updated:${upd}) to ${LIB_PATH}`);
+              core.notice(`Unresolved UIDs were warned above.`);
+            } else {
+              const dir = path.dirname(LIB_PATH);
+              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+              writeJsonAtomic(LIB_PATH, clean);
+              core.notice(`WROTE ${clean.length} records (new:${ins} updated:${upd}) to ${LIB_PATH}`);
+            }
