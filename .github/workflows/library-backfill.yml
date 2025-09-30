@@ -51,40 +51,55 @@ jobs:
           # pass URL as an input so core.getInput('url') works
           url: ${{ steps.proj.outputs.url }}
           script: |
-            const url = core.getInput('url', { required: true });
-            const u = new URL(url);
-            const parts = u.pathname.split('/').filter(Boolean);
-            const number = Number(parts.pop());
+            const raw = core.getInput('url', { required: true });
 
-            const vars = { number };
+            // Match supported PROJECT_URL shapes
+            const mu = raw.match(/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
+            const mo = raw.match(/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
+            const mr = raw.match(/github\.com\/repos\/([^/]+)\/([^/]+)\/projects\/(\d+)/i);
 
-            if (url.includes('/users/')) {
-              const login = parts[1];
-              vars.login = login;
-            } else if (url.includes('/orgs/')) {
-              const org = parts[1];
-              vars.org = org;
-            } else if (url.includes('/repos/')) {
-              const owner = parts[1];
-              const repo  = parts[2];
-              vars.owner = owner; vars.repo = repo;
+            let projectId = "";
+
+            if (mu) {
+              const [, login, num] = mu;
+              const number = parseInt(num, 10);
+              const q = `
+                query($login:String!, $number:Int!){
+                  user(login:$login){ projectV2(number:$number){ id } }
+                }`;
+              const r = await github.graphql(q, { login, number });
+              projectId = r?.user?.projectV2?.id || "";
+              core.notice(`Scope=user login=${login} number=${number}`);
+            } else if (mo) {
+              const [, org, num] = mo;
+              const number = parseInt(num, 10);
+              const q = `
+                query($org:String!, $number:Int!){
+                  organization(login:$org){ projectV2(number:$number){ id } }
+                }`;
+              const r = await github.graphql(q, { org, number });
+              projectId = r?.organization?.projectV2?.id || "";
+              core.notice(`Scope=org org=${org} number=${number}`);
+            } else if (mr) {
+              const [, owner, repo, num] = mr;
+              const number = parseInt(num, 10);
+              const q = `
+                query($owner:String!, $repo:String!, $number:Int!){
+                  repository(owner:$owner, name:$repo){ projectV2(number:$number){ id } }
+                }`;
+              const r = await github.graphql(q, { owner, repo, number });
+              projectId = r?.repository?.projectV2?.id || "";
+              core.notice(`Scope=repo owner=${owner} repo=${repo} number=${number}`);
+            } else {
+              core.setFailed(`Unsupported PROJECT_URL format: ${raw}`);
             }
 
-            const q = `
-              query($login:String,$org:String,$owner:String,$repo:String,$number:Int!){
-                user(login:$login){ projectV2(number:$number){ id } }
-                organization(login:$org){ projectV2(number:$number){ id } }
-                repository(owner:$owner,name:$repo){ projectV2(number:$number){ id } }
-              }`;
-
-            const res = await github.graphql(q, vars);
-            const id =
-              res?.user?.projectV2?.id ||
-              res?.organization?.projectV2?.id ||
-              res?.repository?.projectV2?.id || "";
-
-            core.setOutput('projectId', id);
-            core.notice(`Project URL: ${url} -> projectId: ${id || "(not resolved)"}`);
+            if (!projectId) {
+              core.setFailed(`Could not resolve project ID from URL: ${raw}`);
+            } else {
+              core.setOutput('projectId', projectId);
+              core.notice(`Resolved Project ID: ${projectId}`);
+            }
 
       - name: Backfill library.json (collect, resolve, write/dry-run)
         uses: actions/github-script@v7
