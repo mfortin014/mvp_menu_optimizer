@@ -1,0 +1,92 @@
+[
+  {
+    "uid": "auto-gh-A",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 31,
+    "issue_node_id": "I_kwDOPB2irc7OKsA0",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuU",
+    "created_at": "2025-09-30T21:54:47.603Z"
+  },
+  {
+    "uid": "auto-gh-B",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 32,
+    "issue_node_id": "I_kwDOPB2irc7OKsBH",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuY",
+    "created_at": "2025-09-30T21:54:48.303Z"
+  },
+  {
+    "uid": "auto-gh-C",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 33,
+    "issue_node_id": "I_kwDOPB2irc7OKsBe",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFug",
+    "created_at": "2025-09-30T21:54:48.930Z"
+  },
+  {
+    "uid": "auto-gh-D",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 34,
+    "issue_node_id": "I_kwDOPB2irc7OKsBt",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuk",
+    "created_at": "2025-09-30T21:54:49.709Z"
+  },
+  {
+    "uid": "auto-gh-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 35,
+    "issue_node_id": "I_kwDOPB2irc7OKsB6",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFt8",
+    "created_at": "2025-09-30T21:54:50.288Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 25,
+    "issue_node_id": "I_kwDOPB2irc7N675A",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLKao",
+    "created_at": "2025-09-30T21:54:51.025Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-first-export",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 26,
+    "issue_node_id": "I_kwDOPB2irc7N7Vlc",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLK5k",
+    "created_at": "2025-09-30T21:54:51.613Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-schema",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 27,
+    "issue_node_id": "I_kwDOPB2irc7N7VmH",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLKxw",
+    "created_at": "2025-09-30T21:54:52.247Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-workflow",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 28,
+    "issue_node_id": "I_kwDOPB2irc7N7Vm1",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLK4k",
+    "created_at": "2025-09-30T21:54:52.856Z"
+  }
+]
