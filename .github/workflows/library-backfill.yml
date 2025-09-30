@@ -12,6 +12,11 @@ on:
         required: true
         type: boolean
         default: true
+  pull_request:
+    paths:
+      - ".github/workflows/library-backfill.yml"
+      - "scripts/**"
+      - ".github/project-seeds/**"
   # Optional, uncomment if you want nightly backfill
   # schedule:
   #   - cron: "23 3 * * *"
