@@ -1,4 +1,6 @@
 name: Library Backfill
+permissions:
+  contents: write
 
 on:
   workflow_dispatch:
@@ -88,6 +90,7 @@ jobs:
             core.notice(`Resolved Project ID: ${projectId}`);
 
       - name: Backfill library.json (collect, resolve, write/dry-run)
+        id: backfill
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
@@ -122,6 +125,7 @@ jobs:
             const seeds = [...listSeeds(PENDING), ...listSeeds(APPLIED)];
             if (seeds.length === 0) {
               core.notice('No seed files found; nothing to backfill.');
+              core.setOutput('wrote', 'false');
               return;
             }
 
@@ -192,9 +196,24 @@ jobs:
             if (DRY_RUN) {
               core.notice(`DRY RUN: would write ${clean.length} records (new:${ins} updated:${upd}) to ${LIB_PATH}`);
               core.notice(`Unresolved UIDs were warned above.`);
+              core.setOutput('wrote', 'false');
             } else {
               const dir = path.dirname(LIB_PATH);
               if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
               writeJsonAtomic(LIB_PATH, clean);
               core.notice(`WROTE ${clean.length} records (new:${ins} updated:${upd}) to ${LIB_PATH}`);
+              core.setOutput('wrote', 'true');
             }
+      - name: Commit library.json to current branch
+        if: steps.backfill.outputs.wrote == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/project-seeds/library.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(automation-c): add/update library.json (backfill)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
