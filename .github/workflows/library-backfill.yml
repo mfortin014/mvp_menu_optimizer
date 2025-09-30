@@ -17,11 +17,11 @@ on:
   pull_request:
     paths:
       - ".github/workflows/library-backfill.yml"
-      - "scripts/**"
-      - ".github/project-seeds/**"
-  # Optional, uncomment if you want nightly backfill
-  # schedule:
-  #   - cron: "23 3 * * *"
+      - "scripts/lib/json_io.js"
+      - "scripts/lib/seed_parse.js"
+      - "scripts/lib/uid_resolver.js"
+  schedule:
+    - cron: "17 4 * * 1" # weekly Monday 04:17 UTC (optional)
 
 env:
   LIB_PATH: .github/project-seeds/library.json
