@@ -1,4 +1,6 @@
 name: Seed Project Items
+env:
+  LIB_PATH: .github/project-seeds/library.json
 
 on:
   push:
@@ -256,7 +258,7 @@ jobs:
                 }
                 value = { singleSelectOptionId: option.id };
               } else {
-                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link", "PR Link"
+                // Treat as TEXT; covers the policy fields "Target Release", "Doc Link"
                 value = { text: String(rawValue) };
               }
 
@@ -353,7 +355,6 @@ jobs:
                     target:   'Target Release',  // TEXT
                     area:     'Area',            // SINGLE_SELECT
                     doc:      'Doc Link',        // TEXT
-                    pr:       'PR Link'          // TEXT
                   };
 
                   for (const [seedKey, fieldName] of Object.entries(map)) {
@@ -475,6 +476,105 @@ jobs:
               core.info(`Linked child #${item.number} under epic #${parent.number}`);
             }
 
+      - name: Upsert library.json (maintain)
+        if: steps.create.outputs.created != ''
+        uses: actions/github-script@v7
+        env:
+          CREATED: ${{ steps.create.outputs.created }}
+          LIB_PATH: ${{ env.LIB_PATH }}
+          DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
+          DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readJsonFile, writeJsonAtomic, stableSortRecords, dedupeByUid, validateRecord } = require('./scripts/lib/json_io');
+            const { resolveProjectItemId } = require('./scripts/lib/uid_resolver');
+
+            const created = JSON.parse(process.env.CREATED || '[]');
+            const LIB_PATH = process.env.LIB_PATH || '.github/project-seeds/library.json';
+            const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+
+            // Resolve Project ID for field writes routing (use the same logic as create step)
+            // We don’t need per-seed URLs here; just check the default Project for item linkage.
+            async function resolveDefaultProjectId() {
+              const url = process.env.PROJECT_URL || (process.env.DEFAULT_PROJECT_URL || '');
+              if (!url) return null;
+              const mu = url.match(/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
+              const mo = url.match(/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
+              const mr = url.match(/github\.com\/repos\/([^/]+)\/([^/]+)\/projects\/(\d+)/i);
+              if (mu) {
+                const [, login, n] = mu; const number = parseInt(n,10);
+                const r = await github.graphql(`query($login:String!, $number:Int!){ user(login:$login){ projectV2(number:$number){ id } } }`, { login, number });
+                return r?.user?.projectV2?.id || null;
+              }
+              if (mo) {
+                const [, org, n] = mo; const number = parseInt(n,10);
+                const r = await github.graphql(`query($org:String!, $number:Int!){ organization(login:$org){ projectV2(number:$number){ id } } }`, { org, number });
+                return r?.organization?.projectV2?.id || null;
+              }
+              if (mr) {
+                const [, o, rname, n] = mr; const number = parseInt(n,10);
+                const r = await github.graphql(`query($owner:String!, $repo:String!, $number:Int!){ repository(owner:$owner,name:$repo){ projectV2(number:$number){ id } } }`, { owner:o, repo:rname, number });
+                return r?.repository?.projectV2?.id || null;
+              }
+              return null;
+            }
+
+            const PROJECT_ID = await resolveDefaultProjectId();
+
+            // Load existing library (if any)
+            let lib = readJsonFile(LIB_PATH);
+            if (!Array.isArray(lib)) lib = [];
+
+            // Build/merge records for newly created items
+            for (const item of created) {
+              const uid = item.uid;
+              const issue_number = item.number;
+
+              // Resolve issue node id
+              const issueQ = `query($o:String!, $r:String!, $n:Int!){ repository(owner:$o,name:$r){ issue(number:$n){ id number } } }`;
+              const issueRes = await github.graphql(issueQ, { o: owner, r: repo, n: issue_number });
+              const issue_node_id = issueRes?.repository?.issue?.id || null;
+
+              // Optional: resolve project item id in the default/main project (may be null if not on it)
+              let project_item_id = null;
+              if (PROJECT_ID && issue_node_id) {
+                try {
+                  project_item_id = await resolveProjectItemId({ octokit: github, projectId: PROJECT_ID, issueNodeId: issue_node_id });
+                } catch (e) {
+                  core.warning(`library upsert: project item lookup failed for #${issue_number}: ${String(e)}`);
+                }
+              }
+
+              // parent_uid is a seed UID; it lives in the seed meta that was echoed back in create step
+              const parent_uid = (item.meta && item.meta.parent_uid) ? String(item.meta.parent_uid) : null;
+
+              const record = {
+                uid, parent_uid, owner, repo,
+                issue_number, issue_node_id, project_item_id,
+                created_at: new Date().toISOString()
+              };
+
+              const i = lib.findIndex(r => r.uid === uid);
+              if (i === -1) lib.push(record);
+              else {
+                const keepCreatedAt = lib[i].created_at || record.created_at;
+                lib[i] = { ...lib[i], ...record, created_at: keepCreatedAt };
+              }
+            }
+
+            // Clean, validate, write atomically
+            const clean = stableSortRecords(dedupeByUid(lib));
+            const bad = clean.filter(r => !validateRecord(r)).map(r => r.uid);
+            if (bad.length) core.warning(`library.json invalid entries (still writing): ${bad.join(', ')}`);
+
+            const dir = path.dirname(LIB_PATH);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            writeJsonAtomic(LIB_PATH, clean);
+            core.notice(`library.json upserted with ${created.length} item(s).`);
+
       - name: Move processed seeds (pending → applied) and open PR if allowed
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
@@ -534,7 +634,13 @@ jobs:
             }
             const branch = `automation/consume/${branchBase}-${Date.now()}`;
 
-            // Commit moves to a short-lived branch (never push to main directly)
+            // Use the branch the workflow ran on as the PR base (feature branches stay clean)
+            const baseBranch =
+              (context.eventName === 'pull_request' && context.payload.pull_request?.base?.ref)
+              || process.env.GITHUB_REF_NAME
+              || 'main';
+
+            // Commit moves to a short-lived branch (never push to base directly)
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
             execSync(`git checkout -b "${branch}"`);
@@ -545,12 +651,14 @@ jobs:
               execSync(`git mv "${f}" "${target}"`);
             }
 
-            execSync('git add -A');
+            execSync('git add -A .github/project-seeds');
             execSync('git commit -m "chore(automation): consume seeds → applied/ [' + uids.join(', ') + ']"');
-            execSync(`git push --set-upstream origin "${branch}"`);
+            execSync(`git push --quiet --set-upstream origin "${branch}"`);
+
+            core.notice(`Consume branch: ${branch}`);
 
             // Open PR only when explicitly allowed; otherwise provide the compare link as a notice
-            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
+            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${encodeURIComponent(baseBranch)}...${encodeURIComponent(branch)}?expand=1&template=consume.md`;
 
             if (!allowPR) {
               core.notice('Auto-PR disabled by ALLOW_AUTOCONSUME_PR=false. Open manually: ' + compareUrl);
@@ -560,11 +668,14 @@ jobs:
             try {
               const pr = await github.rest.pulls.create({
                 owner: context.repo.owner, repo: context.repo.repo,
-                head: branch, base: 'main',
+                head: branch, base: baseBranch,
                 title: `chore(automation): consume seeds → applied/ [${uids.join(', ')}]`,
                 body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
               });
               core.notice(`Opened consume PR #${pr.data.number}`);
+              core.notice(`Consume PR: ${pr.data.html_url} (base=${baseBranch})`);
+              core.notice(`(Heads up) Ignore any earlier 'Create a pull request...' link from git; it always targets the default branch.`);
+
             } catch (e) {
               // If policy still blocks PR creation, fall back to manual link
               core.warning('Auto-PR failed; open manually: ' + compareUrl + ` | reason: ${e.message}`);

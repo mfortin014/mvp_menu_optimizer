@@ -1,0 +1,164 @@
+name: "Auto-approve & merge consume PRs"
+
+on:
+  workflow_run:
+    workflows: ["Seed Project Items"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto_merge_consume:
+    # Only act when the seeder succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------- When triggered by workflow_run, find the consume PR ----------
+      - name: "Locate consume PR from seeder run"
+        if: ${{ github.event_name == 'workflow_run' }}
+        id: locate
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const headBranch = context.payload.workflow_run.head_branch; // branch that ran the seeder (e.g., auto-gh-C)
+            // List open PRs whose base == headBranch and head starts with automation/consume/
+            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100, base: headBranch });
+            const consume = prs.find(p =>
+              p.user?.login === 'github-actions[bot]' &&
+              p.head?.ref?.startsWith('automation/consume/')
+            );
+            if (!consume) {
+              core.notice(`No consume PR found targeting base=${headBranch}. Nothing to do.`);
+              return;
+            }
+            core.setOutput('number', String(consume.number));
+            core.setOutput('base', consume.base.ref);
+            core.setOutput('head', consume.head.ref);
+            core.notice(`Found consume PR #${consume.number} (base=${consume.base.ref} head=${consume.head.ref})`);
+
+      # ---------- Normalize PR number for subsequent steps ----------
+      - name: "Select PR number (pull_request or workflow_run)"
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ steps.locate.outputs.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Abort if no consume PR (workflow_run path)"
+        if: ${{ steps.pick.outputs.number == '' }}
+        run: echo "No consume PR to merge; exiting."
+
+      # ---------- Path guard ----------
+      - name: "Fetch changed files"
+        if: ${{ steps.pick.outputs.number != '' }}
+        id: files
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {owner, repo} = context.repo;
+            const number = Number(core.getInput('number'));
+            const files = await github.paginate(
+              github.rest.pulls.listFiles, { owner, repo, pull_number: number, per_page: 100 }
+            );
+            core.setOutput('paths', JSON.stringify(files.map(f => f.filename)));
+          result-encoding: string
+          # pass PR number to the script
+          number: ${{ steps.pick.outputs.number }}
+
+      - name: "Validate paths are restricted to .github/project-seeds/**"
+        if: ${{ steps.pick.outputs.number != '' }}
+        uses: actions/github-script@v7
+        env:
+          CHANGED_PATHS_JSON: ${{ steps.files.outputs.paths }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const paths = JSON.parse(process.env.CHANGED_PATHS_JSON || '[]');
+            const ok = paths.every(p => p.startsWith('.github/project-seeds/'));
+            if (!ok) {
+              core.setFailed('Refusing to auto-merge: files outside .github/project-seeds/ detected: ' + paths.join(', '));
+            } else {
+              core.notice(`All files confined to .github/project-seeds/ (${paths.length} files).`);
+            }
+
+      # ---------- Approve & merge ----------
+      - name: "Approve PR"
+        if: ${{ steps.pick.outputs.number != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(core.getInput('number')),
+              event: 'APPROVE',
+              body: 'Automated approval for consume PR (files restricted to .github/project-seeds/).'
+            });
+          result-encoding: string
+          number: ${{ steps.pick.outputs.number }}
+
+      - name: "Try squash-merge"
+        if: ${{ steps.pick.outputs.number != '' }}
+        id: merge
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const number = Number(core.getInput('number'));
+            const { owner, repo } = context.repo;
+            const res = await github.rest.pulls.merge({
+              owner, repo, pull_number: number, merge_method: 'squash',
+              commit_title: `chore(automation): consume seeds → applied/ (#${number})`
+            });
+            core.setOutput('merged', String(!!res.data.merged));
+          result-encoding: string
+          number: ${{ steps.pick.outputs.number }}
+
+      - name: "Cleanup branch on success"
+        if: ${{ steps.merge.outputs.merged == 'true' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const ref = 'heads/' + (core.getInput('head') || context.payload.pull_request?.head?.ref || '');
+            if (!ref.endsWith('/')) {
+              await github.rest.git.deleteRef({ owner, repo, ref });
+              core.notice('Merged and deleted consume branch: ' + ref);
+            } else {
+              core.notice('Skipped branch delete (head ref not available).');
+            }
+          result-encoding: string
+          head: ${{ steps.locate.outputs.head }}
+
+      - name: "If merge blocked, label + comment"
+        if: ${{ steps.pick.outputs.number != '' && steps.merge.outputs.merged != 'true' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number(core.getInput('number'));
+            try {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ['manual-merge-required'] });
+            } catch {}
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: number,
+              body: [
+                'Auto-merge could not proceed (branch protection or repo setting).',
+                'If desired, allow Actions to approve/merge PRs or merge this PR manually.',
+                'This PR only alters `.github/project-seeds/**` and is generated by the seeder.'
+              ].join('\n')
+            });
+          result-encoding: string
+          number: ${{ steps.pick.outputs.number }}
