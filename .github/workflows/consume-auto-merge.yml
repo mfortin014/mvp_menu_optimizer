@@ -55,23 +55,21 @@ jobs:
         if: ${{ steps.pick.outputs.number == '' }}
         run: echo "No consume PR to merge; exiting."
 
-      # ---------- Path guard ----------
       - name: "Fetch changed files"
         if: ${{ steps.pick.outputs.number != '' }}
         id: files
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pick.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const {owner, repo} = context.repo;
-            const number = Number(core.getInput('number'));
+            const number = Number(process.env.PR_NUMBER);
             const files = await github.paginate(
               github.rest.pulls.listFiles, { owner, repo, pull_number: number, per_page: 100 }
             );
             core.setOutput('paths', JSON.stringify(files.map(f => f.filename)));
-          result-encoding: string
-          # pass PR number to the script
-          number: ${{ steps.pick.outputs.number }}
 
       - name: "Validate paths are restricted to .github/project-seeds/**"
         if: ${{ steps.pick.outputs.number != '' }}
@@ -89,76 +87,83 @@ jobs:
               core.notice(`All files confined to .github/project-seeds/ (${paths.length} files).`);
             }
 
-      # ---------- Approve & merge ----------
-      - name: "Approve PR"
+      - name: "Maybe approve PR (skip self-approval)"
         if: ${{ steps.pick.outputs.number != '' }}
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pick.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: Number(core.getInput('number')),
-              event: 'APPROVE',
-              body: 'Automated approval for consume PR (files restricted to .github/project-seeds/).'
-            });
-          result-encoding: string
-          number: ${{ steps.pick.outputs.number }}
+            const { owner, repo } = context.repo;
+            const number = Number(process.env.PR_NUMBER);
+            const pr = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+            const author = pr.user?.login || '';
+            if (author === 'github-actions[bot]') {
+              core.notice('Skipping approval: PR is authored by github-actions[bot] (self-approval not allowed).');
+            } else {
+              await github.rest.pulls.createReview({
+                owner, repo, pull_number: number, event: 'APPROVE',
+                body: 'Automated approval for consume PR (files restricted to .github/project-seeds/).'
+              });
+              core.notice('Approved consume PR as non-bot reviewer.');
+            }
 
       - name: "Try squash-merge"
         if: ${{ steps.pick.outputs.number != '' }}
         id: merge
         continue-on-error: true
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pick.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const number = Number(core.getInput('number'));
             const { owner, repo } = context.repo;
+            const number = Number(process.env.PR_NUMBER);
             const res = await github.rest.pulls.merge({
               owner, repo, pull_number: number, merge_method: 'squash',
               commit_title: `chore(automation): consume seeds → applied/ (#${number})`
             });
             core.setOutput('merged', String(!!res.data.merged));
-          result-encoding: string
-          number: ${{ steps.pick.outputs.number }}
 
       - name: "Cleanup branch on success"
         if: ${{ steps.merge.outputs.merged == 'true' }}
         uses: actions/github-script@v7
+        env:
+          HEAD_REF: ${{ steps.locate.outputs.head }}
+          PR_NUMBER: ${{ steps.pick.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const ref = 'heads/' + (core.getInput('head') || context.payload.pull_request?.head?.ref || '');
-            if (!ref.endsWith('/')) {
+            const prNum = Number(process.env.PR_NUMBER);
+            const ref = 'heads/' + (process.env.HEAD_REF || '');
+            if (ref && !ref.endsWith('/')) {
               await github.rest.git.deleteRef({ owner, repo, ref });
-              core.notice('Merged and deleted consume branch: ' + ref);
+              core.notice(`Merged and deleted consume branch: ${ref} (PR #${prNum})`);
             } else {
               core.notice('Skipped branch delete (head ref not available).');
             }
-          result-encoding: string
-          head: ${{ steps.locate.outputs.head }}
 
       - name: "If merge blocked, label + comment"
         if: ${{ steps.pick.outputs.number != '' && steps.merge.outputs.merged != 'true' }}
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pick.outputs.number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const number = Number(core.getInput('number'));
+            const number = Number(process.env.PR_NUMBER);
             try {
               await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ['manual-merge-required'] });
             } catch {}
             await github.rest.issues.createComment({
               owner, repo, issue_number: number,
               body: [
-                'Auto-merge could not proceed (branch protection or repo setting).',
-                'If desired, allow Actions to approve/merge PRs or merge this PR manually.',
-                'This PR only alters `.github/project-seeds/**` and is generated by the seeder.'
+                'Auto-merge could not proceed (branch protection or required reviews).',
+                'Either allow a separate bot/user to approve, or merge this PR manually.',
+                'This PR only alters `.github/project-seeds/**` and was generated by the seeder.'
               ].join('\n')
             });
-          result-encoding: string
-          number: ${{ steps.pick.outputs.number }}
