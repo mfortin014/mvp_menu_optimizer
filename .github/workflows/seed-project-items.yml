@@ -653,7 +653,7 @@ jobs:
 
             execSync('git add -A .github/project-seeds');
             execSync('git commit -m "chore(automation): consume seeds → applied/ [' + uids.join(', ') + ']"');
-            execSync(`git push --set-upstream origin "${branch}"`);
+            execSync(`git push --quiet --set-upstream origin "${branch}"`);
 
             core.notice(`Consume branch: ${branch}`);
 
@@ -673,6 +673,9 @@ jobs:
                 body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
               });
               core.notice(`Opened consume PR #${pr.data.number}`);
+              core.notice(`Consume PR: ${pr.data.html_url} (base=${baseBranch})`);
+              core.notice(`(Heads up) Ignore any earlier 'Create a pull request...' link from git; it always targets the default branch.`);
+
             } catch (e) {
               // If policy still blocks PR creation, fall back to manual link
               core.warning('Auto-PR failed; open manually: ' + compareUrl + ` | reason: ${e.message}`);
