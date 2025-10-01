@@ -43,15 +43,24 @@ jobs:
               | grep -E "^\.github/project-seeds/pending/.*\.md$" || true ) > seeds.txt
           fi
 
-          FILES="$(paste -sd, seeds.txt || true)"
+          # Keep only files that still exist in the checked-out workspace
+          awk '{print}' seeds.txt | while read -r f; do
+            [ -f "$f" ] && echo "$f"
+          done > seeds_existing.txt
+
+          FILES="$(paste -sd, seeds_existing.txt || true)"
           echo "files=${FILES}" >> "$GITHUB_OUTPUT"
-          echo "Seeds to process:"
+
+          echo "Seeds in diff:"
           cat seeds.txt || true
+          echo "Seeds that still exist:"
+          cat seeds_existing.txt || true
 
       - name: Create issues (create-only) and add to Project
         id: create
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
+
         # IMPORTANT: use PAT so GraphQL can write to Projects v2
         with:
           github-token: ${{ secrets.PROJECTS_TOKEN }}
