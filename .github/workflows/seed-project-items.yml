@@ -598,7 +598,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            const files = (process.env.FILES || '').split(',').filter(Boolean);
+            const files = (process.env.FILES || '').split(',').map(s => s.trim()).filter(f => f && fs.existsSync(f));
             if (!files.length) { core.info('No seeds to consume'); return; }
 
             // Parse guard (explicitly opt-in)
