@@ -658,7 +658,7 @@ jobs:
             core.notice(`Consume branch: ${branch}`);
 
             // Open PR only when explicitly allowed; otherwise provide the compare link as a notice
-            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${encodeURIComponent(baseBranch)}...${encodeURIComponent(branch)}?expand=1`;
+            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${encodeURIComponent(baseBranch)}...${encodeURIComponent(branch)}?expand=1&template=consume.md`;
 
             if (!allowPR) {
               core.notice('Auto-PR disabled by ALLOW_AUTOCONSUME_PR=false. Open manually: ' + compareUrl);
