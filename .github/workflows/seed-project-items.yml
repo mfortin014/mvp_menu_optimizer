@@ -70,8 +70,9 @@ jobs:
             const path = require('path');
 
             // ------------------ env ------------------
-            const files = (process.env.FILES || '').split(',').filter(Boolean);
-            if (!files.length) { core.setOutput('created','[]'); return; }
+            const filesRaw = (process.env.FILES || '');
+            const files = filesRaw.split(',').map(s => s.trim()).filter(f => f && fs.existsSync(f));
+            if (!files.length) { core.info('No existing seed files to process.'); core.setOutput('created','[]'); return; }
 
             // Prefer PROJECT_ID if you have it (GraphQL node id like "PVT_xxx")
             const PROJECT_ID_OVERRIDE = process.env.PROJECT_ID || '';
