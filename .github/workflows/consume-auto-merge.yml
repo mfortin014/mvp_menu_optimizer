@@ -13,6 +13,12 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'automation/consume/') }}
     runs-on: ubuntu-latest
     steps:
+      - name: "Debug context"
+        run: |
+          echo "author=${{ github.event.pull_request.user.login }}"
+          echo "base=${{ github.event.pull_request.base.ref }}"
+          echo "head=${{ github.event.pull_request.head.ref }}"
+
       - name: "Preflight: only act on github-actions PRs"
         if: ${{ github.event.pull_request.user.login == 'github-actions[bot]' }}
         run: echo "Author ok"
