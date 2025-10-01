@@ -1,4 +1,4 @@
-name: Auto-approve & merge consume PRs
+name: "Auto-approve & merge consume PRs"
 
 on:
   pull_request_target:
@@ -10,47 +10,43 @@ permissions:
 
 jobs:
   auto_merge_consume:
-    if: >
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'automation/consume/')
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'automation/consume/') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Preflight: only act on github-actions PRs
-        if: github.event.pull_request.user.login == 'github-actions[bot]'
+      - name: "Preflight: only act on github-actions PRs"
+        if: ${{ github.event.pull_request.user.login == 'github-actions[bot]' }}
         run: echo "Author ok"
 
-      - name: Fetch changed files
+      - name: "Fetch changed files"
         id: files
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const {owner, repo, number} = {
-              owner: context.repo.owner, repo: context.repo.repo, number: context.payload.pull_request.number
-            };
+            const {owner, repo} = context.repo;
+            const number = context.payload.pull_request.number;
             const files = await github.paginate(
               github.rest.pulls.listFiles, { owner, repo, pull_number: number, per_page: 100 }
             );
             core.setOutput('count', String(files.length));
             core.setOutput('paths', JSON.stringify(files.map(f => f.filename)));
 
-      - name: Validate paths are restricted to .github/project-seeds/**
+      - name: "Validate paths are restricted to .github/project-seeds/**"
         uses: actions/github-script@v7
+        env:
+          CHANGED_PATHS_JSON: ${{ steps.files.outputs.paths }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const paths = JSON.parse(core.getInput('paths', { required: true }));
+            const paths = JSON.parse(process.env.CHANGED_PATHS_JSON || '[]');
             const ok = paths.every(p => p.startsWith('.github/project-seeds/'));
             if (!ok) {
               core.setFailed('Refusing to auto-merge: files outside .github/project-seeds/ detected: ' + paths.join(', '));
             } else {
-              core.notice('All files confined to .github/project-seeds/ (' + paths.length + ' files).');
+              core.notice(`All files confined to .github/project-seeds/ (${paths.length} files).`);
             }
-          result-encoding: string
-        env:
-          paths: ${{ steps.files.outputs.paths }}
 
-      - name: Approve PR
+      - name: "Approve PR"
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +59,7 @@ jobs:
               body: 'Automated approval for consume PR (files restricted to .github/project-seeds/).'
             });
 
-      - name: Try squash-merge
+      - name: "Try squash-merge"
         id: merge
         continue-on-error: true
         uses: actions/github-script@v7
@@ -78,8 +74,8 @@ jobs:
             });
             core.setOutput('merged', String(!!res.data.merged));
 
-      - name: Cleanup branch on success
-        if: steps.merge.outputs.merged == 'true'
+      - name: "Cleanup branch on success"
+        if: ${{ steps.merge.outputs.merged == 'true' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -89,8 +85,8 @@ jobs:
             await github.rest.git.deleteRef({ owner, repo, ref });
             core.notice('Merged and deleted consume branch: ' + ref);
 
-      - name: If merge blocked, label + comment
-        if: steps.merge.outputs.merged != 'true'
+      - name: "If merge blocked, label + comment"
+        if: ${{ steps.merge.outputs.merged != 'true' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
