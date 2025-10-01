@@ -138,5 +138,15 @@
     "issue_node_id": "I_kwDOPB2irc7O_1-0",
     "project_item_id": null,
     "created_at": "2025-10-01T09:50:53.783Z"
+  },
+  {
+    "uid": "test-c-maintain-test-006",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 79,
+    "issue_node_id": "I_kwDOPB2irc7PCVcS",
+    "project_item_id": null,
+    "created_at": "2025-10-01T13:07:35.285Z"
   }
 ]
