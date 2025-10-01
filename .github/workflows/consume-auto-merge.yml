@@ -1,11 +1,6 @@
 name: "Auto-approve & merge consume PRs"
 
 on:
-  # Fires for human PRs (e.g., #68) — keep if you still want that.
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, labeled]
-
-  # NEW: Fires right after the seeder finishes, even if it created the PR via GITHUB_TOKEN.
   workflow_run:
     workflows: ["Seed Project Items"]
     types: [completed]
@@ -16,16 +11,10 @@ permissions:
 
 jobs:
   auto_merge_consume:
-    # If triggered by pull_request: only act on consume branches (prevents running on #68)
-    if: ${{
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'automation/consume/'))
-      ||
-      (github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success')
-      }}
+    # Only act when the seeder succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
     steps:
       # ---------- When triggered by workflow_run, find the consume PR ----------
       - name: "Locate consume PR from seeder run"
