@@ -634,7 +634,13 @@ jobs:
             }
             const branch = `automation/consume/${branchBase}-${Date.now()}`;
 
-            // Commit moves to a short-lived branch (never push to main directly)
+            // Use the branch the workflow ran on as the PR base (feature branches stay clean)
+            const baseBranch =
+              (context.eventName === 'pull_request' && context.payload.pull_request?.base?.ref)
+              || process.env.GITHUB_REF_NAME
+              || 'main';
+
+            // Commit moves to a short-lived branch (never push to base directly)
             execSync('git config user.name "github-actions[bot]"');
             execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
             execSync(`git checkout -b "${branch}"`);
@@ -652,7 +658,7 @@ jobs:
             core.notice(`Consume branch: ${branch}`);
 
             // Open PR only when explicitly allowed; otherwise provide the compare link as a notice
-            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${encodeURIComponent(branch)}?expand=1`;
+            const compareUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${encodeURIComponent(baseBranch)}...${encodeURIComponent(branch)}?expand=1`;
 
             if (!allowPR) {
               core.notice('Auto-PR disabled by ALLOW_AUTOCONSUME_PR=false. Open manually: ' + compareUrl);
@@ -662,7 +668,7 @@ jobs:
             try {
               const pr = await github.rest.pulls.create({
                 owner: context.repo.owner, repo: context.repo.repo,
-                head: branch, base: 'main',
+                head: branch, base: baseBranch,
                 title: `chore(automation): consume seeds → applied/ [${uids.join(', ')}]`,
                 body: 'Move processed seeds from pending/ to applied/ to enforce create-only snapshots.'
               });
