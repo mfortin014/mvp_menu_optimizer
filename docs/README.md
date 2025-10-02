@@ -22,6 +22,7 @@ Repo = Library (durable truth). GitHub = Town Square (work-in-progress). OneDriv
 - First Run — (to be added in Phase 1). [MVP]
 - Rollback — (to be added in Phase 2). [v1]
 - [DB Security Hardening](runbooks/db_security_hardening.md)
+- [DB Backups](runbooks/db_backups_runbook.md)
 
 ## Environments & Secrets
 
