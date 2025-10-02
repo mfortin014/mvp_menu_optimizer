@@ -1,0 +1,192 @@
+.
+├── .github
+│   ├── ISSUE_TEMPLATE
+│   │   ├── spec_review.md
+│   │   └── work_item.md
+│   ├── PULL_REQUEST_TEMPLATE
+│   │   └── consume.md
+│   ├── project-seeds
+│   │   ├── applied
+│   │   │   ├── auto-gh-A.md
+│   │   │   ├── auto-gh-B.md
+│   │   │   ├── auto-gh-C.md
+│   │   │   ├── auto-gh-C1-auto-merge-consume-prs.md
+│   │   │   ├── auto-gh-D.md
+│   │   │   ├── auto-gh-epic.md
+│   │   │   ├── phase1a-epic.md
+│   │   │   ├── phase1a-first-export.md
+│   │   │   ├── phase1a-schema.md
+│   │   │   └── phase1a-workflow.md
+│   │   ├── hold
+│   │   ├── pending
+│   │   │   └── .gitkeep
+│   │   └── library.json
+│   ├── workflows
+│   │   ├── ci.yml
+│   │   ├── consume-auto-merge.yml
+│   │   ├── library-backfill.yml
+│   │   └── seed-project-items.yml
+│   └── pull_request_template.md
+├── .ruff_cache
+│   ├── 0.13.1
+│   │   ├── 15303535225207274766
+│   │   ├── 2734649222373132862
+│   │   ├── 4862196216010610225
+│   │   ├── 9197418806920851759
+│   │   └── 9447696069874308193
+│   ├── 0.6.8
+│   │   ├── 1154151359620513117
+│   │   ├── 12526296425791170776
+│   │   ├── 14792270648220210559
+│   │   ├── 17851464995738533836
+│   │   ├── 3704221467505297124
+│   │   ├── 4879223633704541869
+│   │   ├── 6585194902085170572
+│   │   ├── 8907089595450365449
+│   │   ├── 918489930911913660
+│   │   └── 9379814276718360695
+│   ├── .gitignore
+│   └── CACHEDIR.TAG
+├── .streamlit
+│   ├── config.toml
+│   ├── secrets.toml
+│   └── secrets.toml.example
+├── archive
+├── assets
+│   ├── LogoSurLeFeu.png
+│   ├── LogoSurLeFeunotagline.png
+│   ├── chef_logo.png
+│   └── chef_logo.png:Zone.Identifier
+├── backups
+│   └── backup_20250909_163604.sql
+├── components
+│   ├── active_client_badge.py
+│   └── tenant_switcher.py
+├── config
+│   └── branding_config.json
+├── data
+│   └── sample_data
+│       └── 2025-09-09
+│           ├── public.ingredients.csv
+│           ├── public.profiles.csv
+│           ├── public.recipe_lines.csv
+│           ├── public.recipes.csv
+│           ├── public.ref_ingredient_categories.csv
+│           ├── public.ref_storage_type.csv
+│           ├── public.ref_uom_conversion.csv
+│           └── public.sales.csv
+├── docs
+│   ├── policy
+│   │   ├── branching_and_prs.md
+│   │   ├── ci_cd_constitution.md
+│   │   ├── ci_minimal.md
+│   │   ├── commits_and_changelog.md
+│   │   ├── docs_policy.md
+│   │   ├── env_and_secrets.md
+│   │   ├── issues_workflow.md
+│   │   └── specs_workflow.md
+│   ├── reference
+│   │   └── glossary.md
+│   ├── runbooks
+│   │   ├── github_projects_setup.md
+│   │   └── release_playbook.md
+│   ├── specs
+│   │   └── spec_template.md
+│   └── README.md
+├── migrations
+│   ├── sql
+│   │   ├── V001__create_tenants_and_memberships.sql
+│   │   ├── V002__add_tenant_id.sql
+│   │   ├── V003__soft_delete.sql
+│   │   ├── V004__uniques_and_indexes.sql
+│   │   ├── V005__cross_tenant_guards.sql
+│   │   ├── V006__rls_enable_and_policies.sql
+│   │   ├── V007__fix_uniques_make_uom_global_and_update_views.sql
+│   │   ├── V008__cross_tenant_guards_and_policies.sql
+│   │   ├── V009__tenant_functions_add.sql
+│   │   ├── V010__normalize_rls_for_global_uom.sql
+│   │   └── V011__tenant_branding_and_default.sql
+│   ├── 20250916-223441__release_0.6.0.sql
+│   └── MIGRATION_PLAN__V010_tenant_claim_rls.md
+├── pages
+│   ├── Clients.py
+│   ├── IngredientCategories.py
+│   ├── Ingredients.py
+│   ├── RecipeEditor.py
+│   ├── Recipes.py
+│   ├── Settings.py
+│   └── UOM_Conversion.py
+├── patches
+├── schema
+│   ├── archive
+│   │   ├── 2025_09_24_2011_prod.sql
+│   │   ├── supabase_schema_2025-07-08.sql
+│   │   ├── supabase_schema_2025-09-03.sql
+│   │   ├── supabase_schema_2025-09-04_01.sql
+│   │   ├── supabase_schema_2025-09-05_01.sql
+│   │   ├── supabase_schema_2025-09-08_01.sql
+│   │   ├── supabase_schema_2025-09-09_01.sql
+│   │   ├── supabase_schema_2025-09-10_01.sql
+│   │   ├── supabase_schema_2025-09-11_01.sql
+│   │   ├── supabase_schema_2025-09-15_01.sql
+│   │   └── supabase_schema_2025-09-16_01.sql
+│   ├── current
+│   │   └── prod.schema.sql
+│   ├── migrations
+│   │   └── recipes_as_ingredients_v0.1.3
+│   │       └── recipes_as_ingredients_v0.1.3.sql
+│   ├── releases
+│   └── .gitkeep
+├── scripts
+│   ├── lib
+│   │   ├── json_io.js
+│   │   ├── seed_parse.js
+│   │   └── uid_resolver.js
+│   ├── add_db_imports.py
+│   ├── codemod_supabase_calls.py
+│   ├── codemod_supabase_multiline_selects.py
+│   └── codemod_updates_and_deletes.py
+├── shortcuts
+│   ├── App.bat
+│   ├── ChatGPTProject.bat
+│   ├── MVP_MenuOptimizer_Workspace.bat
+│   ├── VSCode-old.bat
+│   ├── codex.bat
+│   ├── github.bat
+│   ├── runApp.bat
+│   └── supabase.bat
+├── utils
+│   ├── __init__.py
+│   ├── auth.py
+│   ├── branding.py
+│   ├── cache.py
+│   ├── data.py
+│   ├── db.py
+│   ├── supabase.py
+│   ├── tenant_db.py
+│   ├── tenant_state.py
+│   ├── theme.py
+│   └── version.py
+├── .editorconfig
+├── .env
+├── .env.example
+├── .gitattributes
+├── .gitignore
+├── .pre-commit-config.yaml
+├── AGENTS.md
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── Home.py
+├── README.md
+├── VERSION
+├── archive_merged.sh
+├── dump_sample_data.sh
+├── dump_schema.sh
+├── menu_optimizer.code-workspace
+├── migrate.sh
+├── pyproject.toml
+├── repo_tree.py
+├── requirements-dev.txt
+├── requirements.txt
+├── seed_supabase.py
+└── setup.sh
