@@ -100,6 +100,76 @@
     "created_at": "2025-09-30T21:54:52.856Z"
   },
   {
+    "uid": "SEC-000",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 102,
+    "issue_node_id": "I_kwDOPB2irc7PUXB-",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tM",
+    "created_at": "2025-10-02T16:55:42.006Z"
+  },
+  {
+    "uid": "SEC-001",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 103,
+    "issue_node_id": "I_kwDOPB2irc7PUXDw",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tg",
+    "created_at": "2025-10-02T16:55:42.344Z"
+  },
+  {
+    "uid": "SEC-002",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 104,
+    "issue_node_id": "I_kwDOPB2irc7PUXFK",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tw",
+    "created_at": "2025-10-02T16:55:42.896Z"
+  },
+  {
+    "uid": "SEC-003",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 105,
+    "issue_node_id": "I_kwDOPB2irc7PUXGY",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5uM",
+    "created_at": "2025-10-02T16:55:43.540Z"
+  },
+  {
+    "uid": "SEC-004",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 106,
+    "issue_node_id": "I_kwDOPB2irc7PUXHs",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5uc",
+    "created_at": "2025-10-02T16:55:44.125Z"
+  },
+  {
+    "uid": "SEC-005",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 107,
+    "issue_node_id": "I_kwDOPB2irc7PUXIp",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5vE",
+    "created_at": "2025-10-02T16:55:44.469Z"
+  },
+  {
+    "uid": "SEC-006",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 108,
+    "issue_node_id": "I_kwDOPB2irc7PUXJ_",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5vg",
+    "created_at": "2025-10-02T16:55:44.872Z"
+  },
+  {
     "uid": "test-c1-auto-consume-test-001",
     "parent_uid": "auto-gh-epic",
     "owner": "mfortin014",
