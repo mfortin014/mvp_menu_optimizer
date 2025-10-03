@@ -1,0 +1,49 @@
+name: Auto — Link native parent/child from library
+
+on:
+  push:
+    branches: [auto-gh-b] # TEMP for testing this branch only
+    paths:
+      - ".github/workflows/auto-link-subissues.yml"
+      - "scripts/lib/link_sub_issues.js"
+      - ".github/project-seeds/library.json"
+  workflow_run:
+    workflows: ["Library Backfill"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print planned links only (true/false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  link:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (use triggering ref)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
+
+      - name: Link from library.json
+        uses: actions/github-script@v7
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        with:
+          script: |
+            const { linkFromLibrary } = require('./scripts/lib/link_sub_issue.js'); // <-- note /lib/
+            const dryRun = (process.env.DRY_RUN || 'false').toLowerCase() === 'true';
+            await linkFromLibrary({
+              octokit: github,
+              core,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              dryRun,
+              libraryPath: '.github/project-seeds/library.json',
+            });
