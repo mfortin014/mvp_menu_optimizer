@@ -26,8 +26,10 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (use triggering ref)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
 
       - name: Link from library.json
         uses: actions/github-script@v7
@@ -35,7 +37,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         with:
           script: |
-            const { linkFromLibrary } = require('./scripts/link_sub_issue.js');
+            const { linkFromLibrary } = require('./scripts/lib/link_sub_issue.js'); // <-- note /lib/
             const dryRun = (process.env.DRY_RUN || 'false').toLowerCase() === 'true';
             await linkFromLibrary({
               octokit: github,
