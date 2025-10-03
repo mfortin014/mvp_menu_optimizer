@@ -6,7 +6,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 31,
     "issue_node_id": "I_kwDOPB2irc7OKsA0",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuU",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:47.603Z"
   },
   {
@@ -14,9 +14,9 @@
     "parent_uid": "auto-gh-epic",
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 32,
-    "issue_node_id": "I_kwDOPB2irc7OKsBH",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuY",
+    "issue_number": 117,
+    "issue_node_id": "I_kwDOPB2irc7Pin7X",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:48.303Z"
   },
   {
@@ -26,7 +26,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 33,
     "issue_node_id": "I_kwDOPB2irc7OKsBe",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFug",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:48.930Z"
   },
   {
@@ -34,8 +34,8 @@
     "parent_uid": "auto-gh-epic",
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 90,
-    "issue_node_id": "I_kwDOPB2irc7PE6N4",
+    "issue_number": 97,
+    "issue_node_id": "I_kwDOPB2irc7PSSxS",
     "project_item_id": null,
     "created_at": "2025-10-01T15:52:18.622Z"
   },
@@ -46,7 +46,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 34,
     "issue_node_id": "I_kwDOPB2irc7OKsBt",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFuk",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:49.709Z"
   },
   {
@@ -56,7 +56,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 115,
     "issue_node_id": "I_kwDOPB2irc7PiAvP",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfenys",
+    "project_item_id": null,
     "created_at": "2025-10-03T16:56:28.125Z"
   },
   {
@@ -66,7 +66,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 35,
     "issue_node_id": "I_kwDOPB2irc7OKsB6",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfOFt8",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:50.288Z"
   },
   {
@@ -76,7 +76,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 25,
     "issue_node_id": "I_kwDOPB2irc7N675A",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLKao",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:51.025Z"
   },
   {
@@ -86,7 +86,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 26,
     "issue_node_id": "I_kwDOPB2irc7N7Vlc",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLK5k",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:51.613Z"
   },
   {
@@ -96,7 +96,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 27,
     "issue_node_id": "I_kwDOPB2irc7N7VmH",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLKxw",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:52.247Z"
   },
   {
@@ -106,7 +106,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 28,
     "issue_node_id": "I_kwDOPB2irc7N7Vm1",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfLK4k",
+    "project_item_id": null,
     "created_at": "2025-09-30T21:54:52.856Z"
   },
   {
@@ -116,7 +116,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 102,
     "issue_node_id": "I_kwDOPB2irc7PUXB-",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tM",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:42.006Z"
   },
   {
@@ -126,7 +126,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 103,
     "issue_node_id": "I_kwDOPB2irc7PUXDw",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tg",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:42.344Z"
   },
   {
@@ -136,7 +136,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 104,
     "issue_node_id": "I_kwDOPB2irc7PUXFK",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5tw",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:42.896Z"
   },
   {
@@ -146,7 +146,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 105,
     "issue_node_id": "I_kwDOPB2irc7PUXGY",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5uM",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:43.540Z"
   },
   {
@@ -156,7 +156,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 106,
     "issue_node_id": "I_kwDOPB2irc7PUXHs",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5uc",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:44.125Z"
   },
   {
@@ -166,7 +166,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 107,
     "issue_node_id": "I_kwDOPB2irc7PUXIp",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5vE",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:44.469Z"
   },
   {
@@ -176,47 +176,7 @@
     "repo": "mvp_menu_optimizer",
     "issue_number": 108,
     "issue_node_id": "I_kwDOPB2irc7PUXJ_",
-    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgfb5vg",
+    "project_item_id": null,
     "created_at": "2025-10-02T16:55:44.872Z"
-  },
-  {
-    "uid": "test-b-link-001",
-    "parent_uid": "auto-gh-epic",
-    "owner": "mfortin014",
-    "repo": "mvp_menu_optimizer",
-    "issue_number": 111,
-    "issue_node_id": "I_kwDOPB2irc7PgDfi",
-    "project_item_id": null,
-    "created_at": "2025-10-03T14:14:57.999Z"
-  },
-  {
-    "uid": "test-b-link-002",
-    "parent_uid": "auto-gh-epic",
-    "owner": "mfortin014",
-    "repo": "mvp_menu_optimizer",
-    "issue_number": 113,
-    "issue_node_id": "I_kwDOPB2irc7PgTyl",
-    "project_item_id": null,
-    "created_at": "2025-10-03T14:33:13.024Z"
-  },
-  {
-    "uid": "test-c1-auto-consume-test-001",
-    "parent_uid": "auto-gh-epic",
-    "owner": "mfortin014",
-    "repo": "mvp_menu_optimizer",
-    "issue_number": 92,
-    "issue_node_id": "I_kwDOPB2irc7PHhaH",
-    "project_item_id": null,
-    "created_at": "2025-10-01T19:33:26.060Z"
-  },
-  {
-    "uid": "test-c1-auto-consume-test-002",
-    "parent_uid": "auto-gh-epic",
-    "owner": "mfortin014",
-    "repo": "mvp_menu_optimizer",
-    "issue_number": 94,
-    "issue_node_id": "I_kwDOPB2irc7PHpCG",
-    "project_item_id": null,
-    "created_at": "2025-10-01T19:44:29.193Z"
   }
 ]
