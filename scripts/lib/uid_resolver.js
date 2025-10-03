@@ -27,7 +27,7 @@ function readLibrary(libraryPath) {
 
 /**
  * Try to resolve from library.json
- * @returns { issue_number:number, issue_node_id:string } | null
+ * @returns {{ issue_number:number, issue_node_id:string } | null}
  */
 function resolveFromLibrary({ uid, libraryPath }) {
   const records = readLibrary(libraryPath);
@@ -50,7 +50,7 @@ function resolveFromLibrary({ uid, libraryPath }) {
 /**
  * Fallback: search for the embedded "seed-uid:<uid>" marker in issue bodies.
  * Uses REST search API; filters out PRs.
- * @returns { issue_number:number, issue_node_id:string } | null
+ * @returns {{ issue_number:number, issue_node_id:string } | null}
  */
 async function resolveByUidViaSearch({ octokit, owner, repo, uid }) {
   const q = `repo:${owner}/${repo} is:issue in:body "seed-uid:${uid}"`;
@@ -79,16 +79,44 @@ async function resolveByUidViaSearch({ octokit, owner, repo, uid }) {
 }
 
 /**
+ * Page through a ProjectV2 and find the item whose content is our Issue node id.
+ * Returns the Project item id or null.
+ */
+async function resolveProjectItemId({ octokit, projectId, issueNodeId }) {
+  const q = `
+    query($projectId:ID!, $after:String) {
+      node(id:$projectId) {
+        ... on ProjectV2 {
+          items(first: 100, after: $after) {
+            nodes {
+              id
+              content { __typename ... on Issue { id } }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }`;
+  let after = null;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const r = await octokit.graphql(q, { projectId, after });
+    const items = r?.node?.items?.nodes || [];
+    const hit = items.find(
+      (n) => n?.content?.__typename === "Issue" && n.content.id === issueNodeId
+    );
+    if (hit) return hit.id;
+    const pi = r?.node?.items?.pageInfo;
+    if (!pi?.hasNextPage) break;
+    after = pi.endCursor;
+  }
+  return null;
+}
+
+/**
  * Public: resolveIssueByUid
  * Priority: library → search.
- * @param {object} params
- * @param {*} params.octokit
- * @param {string} params.owner
- * @param {string} params.repo
- * @param {string} params.uid
- * @param {string} [params.libraryPath=".github/project-seeds/library.json"]
- * @param {*} [params.core] - optional @actions/core for notices/warnings
- * @returns {Promise<{issue_number:number, issue_node_id:string}|null>}
+ * @returns {Promise<{issue_number:number, issue_node_id:string} | null>}
  */
 async function resolveIssueByUid({
   octokit,
@@ -98,7 +126,6 @@ async function resolveIssueByUid({
   libraryPath = ".github/project-seeds/library.json",
   core,
 }) {
-  // 1) library
   const lib = resolveFromLibrary({ uid, libraryPath });
   if (lib) {
     core?.notice?.(`[resolver] library hit uid=${uid} → #${lib.issue_number}`);
@@ -109,7 +136,6 @@ async function resolveIssueByUid({
     );
   }
 
-  // 2) search
   const viaSearch = await resolveByUidViaSearch({ octokit, owner, repo, uid });
   if (!viaSearch) {
     core?.warning?.(`[resolver] no match for uid=${uid} (library+search)`);
@@ -124,6 +150,6 @@ async function resolveIssueByUid({
 module.exports = {
   resolveIssueByUid,
   resolveByUidViaSearch,
-  // keep a named export for internal testing if you add tests later
+  resolveProjectItemId,
   __internal: { readLibrary, resolveFromLibrary },
 };
