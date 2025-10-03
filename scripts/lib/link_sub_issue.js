@@ -6,7 +6,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { addSubIssueIfMissing } = require("./lib/sub_issues.js");
+const { addSubIssueIfMissing } = require("./sub_issues.js");
 
 function readLibrary(libraryPath = ".github/project-seeds/library.json") {
   try {
