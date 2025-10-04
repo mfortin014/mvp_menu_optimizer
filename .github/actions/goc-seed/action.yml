@@ -10,14 +10,19 @@ runs:
     - shell: bash
       run: |
         echo "::notice::[goc-seed] setup Node toolchain"
-        npm ci --ignore-scripts
+        npm i --no-audit --no-fund --ignore-scripts
         npm run build:goc
     - shell: bash
       env:
+        # Inputs come from the workflow 'with:' block
         INPUT_SEEDS_GLOB: ${{ inputs.seeds_glob }}
         INPUT_PROJECT_URL_OVERRIDE: ${{ inputs.project_url_override }}
         INPUT_LINK_AFTER_SEED: ${{ inputs.link_after_seed }}
-        PROJECT_URL: ${{ vars.PROJECT_URL }}
-        PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+        # IMPORTANT: Project URLs and tokens must be provided by the workflow env.
+        # Do NOT reference 'vars.*' here; composite actions cannot access the 'vars' context.
+        PROJECT_URL: ${{ env.PROJECT_URL }}
+        PROJECT_URL_TEST: ${{ env.PROJECT_URL_TEST }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PROJECTS_TOKEN: ${{ env.PROJECTS_TOKEN }}
       run: |
         node dist/goc/runners.goc-seed.js
