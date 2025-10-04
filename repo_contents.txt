@@ -7,11 +7,19 @@
 │   │   └── consume.md
 │   ├── project-seeds
 │   │   ├── applied
+│   │   │   ├── SEC-000__supabase-linter-remediation.md
+│   │   │   ├── SEC-001__views-security-invoker.md
+│   │   │   ├── SEC-002__rls-profiles-and-schema_migrations.md
+│   │   │   ├── SEC-003__pin-function-search_path.md
+│   │   │   ├── SEC-004__auth-leaked-password-protection.md
+│   │   │   ├── SEC-005__postgres-patch-upgrade.md
+│   │   │   ├── SEC-006__runbook-db-security-hardening.md
 │   │   │   ├── auto-gh-A.md
 │   │   │   ├── auto-gh-B.md
 │   │   │   ├── auto-gh-C.md
 │   │   │   ├── auto-gh-C1-auto-merge-consume-prs.md
 │   │   │   ├── auto-gh-D.md
+│   │   │   ├── auto-gh-E.md
 │   │   │   ├── auto-gh-epic.md
 │   │   │   ├── phase1a-epic.md
 │   │   │   ├── phase1a-first-export.md
@@ -22,6 +30,7 @@
 │   │   │   └── .gitkeep
 │   │   └── library.json
 │   ├── workflows
+│   │   ├── auto-link-subissues.yml
 │   │   ├── ci.yml
 │   │   ├── consume-auto-merge.yml
 │   │   ├── library-backfill.yml
@@ -58,6 +67,12 @@
 │   ├── chef_logo.png
 │   └── chef_logo.png:Zone.Identifier
 ├── backups
+│   ├── 20251002_151110_staging_pre-upgrade
+│   │   ├── db_full.dump
+│   │   ├── extensions.tsv
+│   │   ├── schema.sql
+│   │   ├── version.txt
+│   │   └── views_reloptions.tsv
 │   └── backup_20250909_163604.sql
 ├── components
 │   ├── active_client_badge.py
@@ -88,6 +103,9 @@
 │   ├── reference
 │   │   └── glossary.md
 │   ├── runbooks
+│   │   ├── db_backups_runbook.md
+│   │   ├── db_restore_runbook.md
+│   │   ├── db_security_hardening.md
 │   │   ├── github_projects_setup.md
 │   │   └── release_playbook.md
 │   ├── specs
@@ -105,7 +123,10 @@
 │   │   ├── V008__cross_tenant_guards_and_policies.sql
 │   │   ├── V009__tenant_functions_add.sql
 │   │   ├── V010__normalize_rls_for_global_uom.sql
-│   │   └── V011__tenant_branding_and_default.sql
+│   │   ├── V011__tenant_branding_and_default.sql
+│   │   ├── V012__views_security_invoker.sql
+│   │   ├── V013__rls_profiles_and_schema_migrations.sql
+│   │   └── V014__pin_function_search_path.sql
 │   ├── 20250916-223441__release_0.6.0.sql
 │   └── MIGRATION_PLAN__V010_tenant_claim_rls.md
 ├── pages
@@ -140,12 +161,16 @@
 ├── scripts
 │   ├── lib
 │   │   ├── json_io.js
+│   │   ├── link_sub_issue.js
 │   │   ├── seed_parse.js
+│   │   ├── sub_issues.js
 │   │   └── uid_resolver.js
 │   ├── add_db_imports.py
+│   ├── backup_db.sh
 │   ├── codemod_supabase_calls.py
 │   ├── codemod_supabase_multiline_selects.py
-│   └── codemod_updates_and_deletes.py
+│   ├── codemod_updates_and_deletes.py
+│   └── restore_public.sh
 ├── shortcuts
 │   ├── App.bat
 │   ├── ChatGPTProject.bat
@@ -185,6 +210,7 @@
 ├── menu_optimizer.code-workspace
 ├── migrate.sh
 ├── pyproject.toml
+├── repo_contents.txt
 ├── repo_tree.py
 ├── requirements-dev.txt
 ├── requirements.txt
