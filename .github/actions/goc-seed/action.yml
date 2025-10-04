@@ -1,8 +1,9 @@
 name: goc-seed
-description: "Stub: logs inputs/env only (safe mode)"
+description: "Parse-only: logs seed headers and routing (no API calls)"
 inputs:
   seeds_glob:
     required: false
+    description: "Glob 'dir/*.md' or single file"
   project_url_override:
     required: false
   link_after_seed:
@@ -12,6 +13,12 @@ runs:
   steps:
     - shell: bash
       run: |
-        echo "::notice title=goc-seed(stub)::seeds_glob='${{ inputs.seeds_glob }}' project_url_override='${{ inputs.project_url_override }}' link_after_seed='${{ inputs.link_after_seed }}'"
-        echo "::notice::PROJECT_URL(from env)='${{ env.PROJECT_URL }}'"
-        echo "::notice::PROJECT_URL_TEST(from env)='${{ env.PROJECT_URL_TEST }}'"
+        node --version
+        echo "::notice::[goc-seed] parse-only run"
+        node scripts/goc/runner.goc-seed.js
+      env:
+        INPUT_SEEDS_GLOB: ${{ inputs.seeds_glob }}
+        INPUT_PROJECT_URL_OVERRIDE: ${{ inputs.project_url_override }}
+        INPUT_LINK_AFTER_SEED: ${{ inputs.link_after_seed }}
+        PROJECT_URL: ${{ env.PROJECT_URL }}
+        PROJECT_URL_TEST: ${{ env.PROJECT_URL_TEST }}
