@@ -1,5 +1,5 @@
 name: gh-link-hierarchy
-description: Create native Sub-issues links (E2.2 wiring)
+description: Stub: logs inputs only (safe mode)
 inputs:
   parent_number: { required: false }
   parent_uid: { required: false }
@@ -11,15 +11,4 @@ runs:
   steps:
     - shell: bash
       run: |
-        echo "::notice::[gh-link-hierarchy] setup Node toolchain"
-        npm ci --ignore-scripts
-        npm run build:goc
-    - shell: bash
-      env:
-        INPUT_PARENT_NUMBER: ${{ inputs.parent_number }}
-        INPUT_PARENT_UID: ${{ inputs.parent_uid }}
-        INPUT_CHILD_NUMBER: ${{ inputs.child_number }}
-        INPUT_CHILD_UID: ${{ inputs.child_uid }}
-        INPUT_LIBRARY_PATH: ${{ inputs.library_path }}
-      run: |
-        node dist/goc/runners.gh-link-hierarchy.js
+        echo "::notice title=gh-link-hierarchy(stub)::parent#='${{ inputs.parent_number }}' parent_uid='${{ inputs.parent_uid }}' child#='${{ inputs.child_number }}' child_uid='${{ inputs.child_uid }}' lib='${{ inputs.library_path }}'"

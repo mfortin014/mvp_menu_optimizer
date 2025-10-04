@@ -1,28 +1,17 @@
 name: goc-seed
-description: Parse seed, create issue, add to Project, write fields (E2.2 wiring; behavior neutral until workflows use it)
+description: Stub: logs inputs/env only (safe mode)
 inputs:
-  seeds_glob: { required: false, description: Glob or file path for seed(s) }
-  project_url_override: { required: false }
-  link_after_seed: { required: false }
+  seeds_glob:
+    required: false
+  project_url_override:
+    required: false
+  link_after_seed:
+    required: false
 runs:
   using: composite
   steps:
     - shell: bash
       run: |
-        echo "::notice::[goc-seed] setup Node toolchain"
-        npm i --no-audit --no-fund --ignore-scripts
-        npm run build:goc
-    - shell: bash
-      env:
-        # Inputs come from the workflow 'with:' block
-        INPUT_SEEDS_GLOB: ${{ inputs.seeds_glob }}
-        INPUT_PROJECT_URL_OVERRIDE: ${{ inputs.project_url_override }}
-        INPUT_LINK_AFTER_SEED: ${{ inputs.link_after_seed }}
-        # IMPORTANT: Project URLs and tokens must be provided by the workflow env.
-        # Do NOT reference 'vars.*' here; composite actions cannot access the 'vars' context.
-        PROJECT_URL: ${{ env.PROJECT_URL }}
-        PROJECT_URL_TEST: ${{ env.PROJECT_URL_TEST }}
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-        PROJECTS_TOKEN: ${{ env.PROJECTS_TOKEN }}
-      run: |
-        node dist/goc/runners.goc-seed.js
+        echo "::notice title=goc-seed(stub)::seeds_glob='${{ inputs.seeds_glob }}' project_url_override='${{ inputs.project_url_override }}' link_after_seed='${{ inputs.link_after_seed }}'"
+        echo "::notice::PROJECT_URL(from env)='${{ env.PROJECT_URL }}'"
+        echo "::notice::PROJECT_URL_TEST(from env)='${{ env.PROJECT_URL_TEST }}'"
