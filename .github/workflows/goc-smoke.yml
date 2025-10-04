@@ -2,11 +2,6 @@ name: GOC Smoke (manual)
 
 on:
   workflow_dispatch:
-    inputs:
-      project_url_override:
-        description: "Override Project URL (leave empty to use PROJECT_URL_TEST)"
-        required: false
-        type: string
 
 jobs:
   smoke:
@@ -22,8 +17,6 @@ jobs:
         uses: ./.github/actions/goc-seed
         with:
           seeds_glob: ".github/project-seeds/_smoke/*.md"
-          project_url_override: ${{ inputs.project_url_override || vars.PROJECT_URL_TEST }}
-          link_after_seed: "false"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
