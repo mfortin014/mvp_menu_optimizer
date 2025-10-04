@@ -1,5 +1,5 @@
 name: goc-seed
-description: "Parse + route + dry-run search (no creates/writes)"
+description: "Parse + route + dry-run search; optionally apply (create + project + fields)"
 inputs:
   seeds_glob:
     required: false
@@ -10,20 +10,24 @@ inputs:
     required: false
   dry_run:
     required: false
+  apply:
+    required: false
 runs:
   using: composite
   steps:
     - shell: bash
       run: |
         node --version
-        echo "::notice::[goc-seed] parse+search (dry-run)"
+        echo "::notice::[goc-seed] parse+search (+apply if enabled)"
         node scripts/goc/runner.goc-seed.js
       env:
         INPUT_SEEDS_GLOB: ${{ inputs.seeds_glob }}
         INPUT_PROJECT_URL_OVERRIDE: ${{ inputs.project_url_override }}
         INPUT_LINK_AFTER_SEED: ${{ inputs.link_after_seed }}
         INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        INPUT_APPLY: ${{ inputs.apply }}
         PROJECT_URL: ${{ env.PROJECT_URL }}
         PROJECT_URL_TEST: ${{ env.PROJECT_URL_TEST }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PROJECTS_TOKEN: ${{ env.PROJECTS_TOKEN }}
         GITHUB_REPOSITORY: ${{ env.GITHUB_REPOSITORY }}
