@@ -1,0 +1,16 @@
+name: gh-auto-merge-pr (stub)
+description: Enable auto-merge on a PR (E1 stub: logs inputs only)
+inputs:
+  pr_number: { required: false, description: PR number }
+  merge_method: { required: false, description: SQUASH|MERGE|REBASE }
+  require_checks_green: { required: false, description: If 'true', require green checks }
+outputs:
+  automerge_enabled:
+    description: Stubbed flag
+    value: "false"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        echo "::notice title=gh-auto-merge-pr(stub)::pr_number=${{ inputs.pr_number }} method=${{ inputs.merge_method }} require_checks=${{ inputs.require_checks_green }}"

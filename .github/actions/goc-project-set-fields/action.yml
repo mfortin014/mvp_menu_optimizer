@@ -1,0 +1,18 @@
+name: goc-project-set-fields (stub)
+description: Write Project fields for an issue (E1 stub: logs inputs only)
+inputs:
+  project_url: { required: false }
+  issue_node_id: { required: false }
+  type: { required: false }
+  status: { required: false }
+  priority: { required: false }
+  target: { required: false }
+  area: { required: false }
+  doc: { required: false }
+  pr: { required: false }
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        echo "::notice title=goc-project-set-fields(stub)::issue=${{ inputs.issue_node_id }} project=${{ inputs.project_url }} type=${{ inputs.type }} status=${{ inputs.status }} priority=${{ inputs.priority }} target=${{ inputs.target }} area=${{ inputs.area }} doc=${{ inputs.doc }} pr=${{ inputs.pr }}"
