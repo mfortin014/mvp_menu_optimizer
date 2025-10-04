@@ -1,15 +1,24 @@
 name: goc-project-set-fields
-description: Stub: logs inputs only (safe mode)
+description: "Stub: logs inputs only (safe mode)"
 inputs:
-  project_url: { required: false }
-  issue_node_id: { required: false }
-  type: { required: false }
-  status: { required: false }
-  priority: { required: false }
-  target: { required: false }
-  area: { required: false }
-  doc: { required: false }
-  pr: { required: false }
+  project_url:
+    required: false
+  issue_node_id:
+    required: false
+  type:
+    required: false
+  status:
+    required: false
+  priority:
+    required: false
+  target:
+    required: false
+  area:
+    required: false
+  doc:
+    required: false
+  pr:
+    required: false
 runs:
   using: composite
   steps:

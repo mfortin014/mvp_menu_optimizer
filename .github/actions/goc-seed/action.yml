@@ -1,5 +1,5 @@
 name: goc-seed
-description: Stub: logs inputs/env only (safe mode)
+description: "Stub: logs inputs/env only (safe mode)"
 inputs:
   seeds_glob:
     required: false

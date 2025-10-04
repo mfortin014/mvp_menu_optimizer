@@ -1,11 +1,16 @@
 name: gh-link-hierarchy
-description: Stub: logs inputs only (safe mode)
+description: "Stub: logs inputs only (safe mode)"
 inputs:
-  parent_number: { required: false }
-  parent_uid: { required: false }
-  child_number: { required: false }
-  child_uid: { required: false }
-  library_path: { required: false }
+  parent_number:
+    required: false
+  parent_uid:
+    required: false
+  child_number:
+    required: false
+  child_uid:
+    required: false
+  library_path:
+    required: false
 runs:
   using: composite
   steps:
