@@ -1,0 +1,25 @@
+name: gh-move-files-commit (stub)
+description: Move files and commit (E1 stub: logs inputs only)
+inputs:
+  base:
+    description: Base branch
+    required: false
+  head:
+    description: Head branch (to push)
+    required: false
+  moves_json:
+    description: JSON array of {from,to}
+    required: false
+  commit_message:
+    description: Commit message
+    required: false
+  dry_run:
+    description: If 'true', do not write
+    required: false
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        echo "::notice title=gh-move-files-commit(stub)::base=${{ inputs.base }} head=${{ inputs.head }} dry_run=${{ inputs.dry_run }}"
+        echo "::notice::moves_json=${{ inputs.moves_json }}"

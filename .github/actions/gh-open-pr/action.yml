@@ -1,0 +1,26 @@
+name: gh-open-pr (stub)
+description: Open or update a PR (E1 stub: logs inputs only)
+inputs:
+  base: { required: false, description: Base branch }
+  head: { required: false, description: Head branch }
+  title: { required: false, description: PR title }
+  body: { required: false, description: PR body }
+  draft: { required: false, description: Draft flag }
+  labels_json: { required: false, description: Labels as JSON array }
+  reviewers_json: { required: false, description: Reviewers as JSON array }
+  team_reviewers_json: { required: false, description: Team reviewers as JSON array }
+  update_if_exists: { required: false, description: Update existing PR if found }
+outputs:
+  pr_number:
+    description: Stubbed PR number
+    value: "0"
+  pr_url:
+    description: Stubbed PR URL
+    value: "about:blank"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        echo "::notice title=gh-open-pr(stub)::base=${{ inputs.base }} head=${{ inputs.head }} title=${{ inputs.title }} draft=${{ inputs.draft }}"
+        echo "::notice::labels_json=${{ inputs.labels_json }}"
