@@ -1,5 +1,4 @@
-# Automation E2 — Swap-in generic bricks & rewire workflows (minimal behavior delta)
-
+<!--
 Type: Chore
 Labels: ["ci","github-admin","phase:phase-0"]
 uid: auto-gh-E2
@@ -8,6 +7,9 @@ priority: P2
 status: Todo
 area: ci
 target: mvp-0.7.0
+-->
+
+# Automation E2 — Swap-in generic bricks & rewire workflows (minimal behavior delta)
 
 ## Summary
 

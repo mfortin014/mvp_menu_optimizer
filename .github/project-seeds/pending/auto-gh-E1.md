@@ -1,5 +1,4 @@
-# Automation E1 — Establish GOC skeleton (no behavior change)
-
+<!--
 Type: Chore
 Labels: ["ci","github-admin","phase:phase-0"]
 uid: auto-gh-E1
@@ -8,6 +7,9 @@ priority: P2
 status: Todo
 area: ci
 target: mvp-0.7.0
+-->
+
+# Automation E1 — Establish GOC skeleton (no behavior change)
 
 ## Summary
 
