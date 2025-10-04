@@ -1,5 +1,5 @@
-name: goc-project-set-fields (stub)
-description: Write Project fields for an issue (E1 stub: logs inputs only)
+name: goc-project-set-fields
+description: Write Project fields for an issue (E2.2 wiring)
 inputs:
   project_url: { required: false }
   issue_node_id: { required: false }
@@ -15,4 +15,19 @@ runs:
   steps:
     - shell: bash
       run: |
-        echo "::notice title=goc-project-set-fields(stub)::issue=${{ inputs.issue_node_id }} project=${{ inputs.project_url }} type=${{ inputs.type }} status=${{ inputs.status }} priority=${{ inputs.priority }} target=${{ inputs.target }} area=${{ inputs.area }} doc=${{ inputs.doc }} pr=${{ inputs.pr }}"
+        echo "::notice::[goc-project-set-fields] setup Node toolchain"
+        npm ci --ignore-scripts
+        npm run build:goc
+    - shell: bash
+      env:
+        INPUT_PROJECT_URL: ${{ inputs.project_url }}
+        INPUT_ISSUE_NODE_ID: ${{ inputs.issue_node_id }}
+        INPUT_TYPE: ${{ inputs.type }}
+        INPUT_STATUS: ${{ inputs.status }}
+        INPUT_PRIORITY: ${{ inputs.priority }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_AREA: ${{ inputs.area }}
+        INPUT_DOC: ${{ inputs.doc }}
+        INPUT_PR: ${{ inputs.pr }}
+      run: |
+        node dist/goc/runners.goc-project-set-fields.js
