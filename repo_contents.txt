@@ -20,6 +20,8 @@
 │   │   │   ├── auto-gh-C1-auto-merge-consume-prs.md
 │   │   │   ├── auto-gh-D.md
 │   │   │   ├── auto-gh-E.md
+│   │   │   ├── auto-gh-E1.md
+│   │   │   ├── auto-gh-E2.md
 │   │   │   ├── auto-gh-epic.md
 │   │   │   ├── phase1a-epic.md
 │   │   │   ├── phase1a-first-export.md
@@ -92,7 +94,13 @@
 │           └── public.sales.csv
 ├── docs
 │   ├── policy
+│   │   ├── goc
+│   │   │   ├── README.md
+│   │   │   ├── ci_minimal_goc_projects.md
+│   │   │   ├── github_objects_creation.md
+│   │   │   └── seed_schema.md
 │   │   ├── branching_and_prs.md
+│   │   ├── chatbot_collaboration_playbook.md
 │   │   ├── ci_cd_constitution.md
 │   │   ├── ci_minimal.md
 │   │   ├── commits_and_changelog.md
@@ -137,6 +145,8 @@
 │   ├── Recipes.py
 │   ├── Settings.py
 │   └── UOM_Conversion.py
+├── patch
+│   └── 20251004-goc-docs-addon.patch
 ├── patches
 ├── schema
 │   ├── archive
