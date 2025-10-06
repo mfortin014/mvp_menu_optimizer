@@ -1,0 +1,50 @@
+name: GOC Seed (prod)
+
+on:
+  push:
+    paths:
+      - ".github/project-seeds/pending/**.md"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply changes? (true/false). Defaults to repo var GOC_SEED_APPLY or false."
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Dry run? (true/false). Defaults to true for safety."
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: goc-seed-prod
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # Tokens & URLs
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+      PROJECT_URL: ${{ vars.PROJECT_URL }}
+      PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+      # Resolve flags with safe defaults:
+      # - dry_run: true unless explicitly false
+      # - apply: use manual input; else repo var; else false
+      INPUT_DRY_RUN: ${{ inputs.dry_run != '' && inputs.dry_run || 'true' }}
+      INPUT_APPLY: ${{ inputs.apply != '' && inputs.apply || (vars.GOC_SEED_APPLY != '' && vars.GOC_SEED_APPLY || 'false') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seed project items (prod, safe by default)
+        uses: ./.github/actions/goc-seed
+        with:
+          seeds_glob: ".github/project-seeds/pending/**.md"
+          dry_run: ${{ env.INPUT_DRY_RUN }}
+          apply:   ${{ env.INPUT_APPLY }}
