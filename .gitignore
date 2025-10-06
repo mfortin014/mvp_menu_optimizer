@@ -10,3 +10,4 @@ backups/
 schema/archive/
 *.Zone.Identifier
 patch/
+docs_external

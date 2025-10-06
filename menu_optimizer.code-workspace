@@ -1,7 +1,8 @@
 {
-  "folders": [
-    { "path": "/home/mathieu/mvp_apps/menu_optimizer" }
-  ],
-  "settings": {},
-  "remoteAuthority": "wsl+Ubuntu-22.04"
+  "folders": [{ "path": "." }, { "path": "docs_external" }],
+  "settings": {
+    "files.exclude": {
+      "../.git": true
+    }
+  }
 }
