@@ -1,19 +1,25 @@
 name: gh-link-hierarchy
-description: "Stub: logs inputs only (safe mode)"
+description: "Create native Sub-issues links (dry-run by default)"
 inputs:
-  parent_number:
-    required: false
-  parent_uid:
-    required: false
-  child_number:
-    required: false
-  child_uid:
-    required: false
-  library_path:
-    required: false
+  parent_number: { required: false }
+  parent_uid:    { required: false }
+  child_number:  { required: false }
+  child_uid:     { required: false }
+  dry_run:       { required: false }
+  apply:         { required: false }
 runs:
   using: composite
   steps:
     - shell: bash
       run: |
-        echo "::notice title=gh-link-hierarchy(stub)::parent#='${{ inputs.parent_number }}' parent_uid='${{ inputs.parent_uid }}' child#='${{ inputs.child_number }}' child_uid='${{ inputs.child_uid }}' lib='${{ inputs.library_path }}'"
+        node --version
+        node scripts/goc/runner.gh-link-hierarchy.js
+      env:
+        INPUT_PARENT_NUMBER: ${{ inputs.parent_number }}
+        INPUT_PARENT_UID:    ${{ inputs.parent_uid }}
+        INPUT_CHILD_NUMBER:  ${{ inputs.child_number }}
+        INPUT_CHILD_UID:     ${{ inputs.child_uid }}
+        INPUT_DRY_RUN:       ${{ inputs.dry_run }}
+        INPUT_APPLY:         ${{ inputs.apply }}
+        GITHUB_TOKEN:        ${{ env.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY:   ${{ env.GITHUB_REPOSITORY }}

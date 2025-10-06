@@ -2,6 +2,17 @@ name: GOC Smoke (manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply changes? (true/false)"
+        required: false
+        default: "false"
+        type: string
+      dry_run:
+        description: "Dry run? (true/false)"
+        required: false
+        default: "true"
+        type: string
 
 jobs:
   smoke:
@@ -17,10 +28,30 @@ jobs:
         uses: ./.github/actions/goc-seed
         with:
           seeds_glob: ".github/project-seeds/_smoke/*.md"
-          apply: "true"
-          dry_run: "false"
+          apply: ${{ inputs.apply }}
+          dry_run: ${{ inputs.dry_run }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
           PROJECT_URL: ${{ vars.PROJECT_URL }}
           PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
+
+      - name: Link hierarchy (epic -> A)
+        uses: ./.github/actions/gh-link-hierarchy
+        with:
+          parent_uid: goc-smoke-epic
+          child_uid:  goc-smoke-a
+          apply: ${{ inputs.apply }}
+          dry_run: ${{ inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Link hierarchy (epic -> B)
+        uses: ./.github/actions/gh-link-hierarchy
+        with:
+          parent_uid: goc-smoke-epic
+          child_uid:  goc-smoke-b
+          apply: ${{ inputs.apply }}
+          dry_run: ${{ inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
