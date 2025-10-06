@@ -106,16 +106,27 @@ async function resolveProjectNodeId(projectUrl, token) {
   const mu = projectUrl.match(/^https:\/\/github\.com\/users\/([^/]+)\/projects\/(\d+)/i);
   const mo = projectUrl.match(/^https:\/\/github\.com\/orgs\/([^/]+)\/projects\/(\d+)/i);
   if (!mu && !mo) throw new Error(`Unsupported Project URL: ${projectUrl}`);
-  const login = mu?.[1] || null, org = mo?.[1] || null;
-  const number = parseInt(mu?.[2] || mo?.[2], 10);
-  const q = `query($login:String,$org:String,$number:Int!){
-    user(login:$login){ projectV2(number:$number){ id } }
-    organization(login:$org){ projectV2(number:$number){ id } }
-  }`;
-  const d = await gql(q, { login, org, number }, token);
-  const id = d.user?.projectV2?.id || d.organization?.projectV2?.id;
-  if (!id) throw new Error(`Project not found for ${projectUrl}`);
-  return id;
+  const numberRaw = mu?.[2] || mo?.[2];
+  const number = parseInt(numberRaw, 10);
+  if (!Number.isInteger(number)) throw new Error(`Invalid project number in URL: ${projectUrl}`);
+
+  if (mu) {
+    const login = mu[1];
+    const qUser = `query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id } } }`;
+    const dUser = await gql(qUser, { login, number }, token);
+    const id = dUser.user?.projectV2?.id;
+    if (id) return id;
+  }
+
+  if (mo) {
+    const org = mo[1];
+    const qOrg = `query($org:String!,$number:Int!){ organization(login:$org){ projectV2(number:$number){ id } } }`;
+    const dOrg = await gql(qOrg, { org, number }, token);
+    const id = dOrg.organization?.projectV2?.id;
+    if (id) return id;
+  }
+
+  throw new Error(`Project not found for ${projectUrl}`);
 }
 
 async function projectAddItem(projectId, issueNodeId, token) {
