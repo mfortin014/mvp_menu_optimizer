@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   seed:
+    if: ${{ vars.GOC_LEGACY_SEED_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (full history so diffs work)
