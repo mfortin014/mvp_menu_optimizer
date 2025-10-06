@@ -10,17 +10,33 @@ function mustEnv(n){ const v=process.env[n]; if(!v) throw new Error(`${n} not se
 function repo(){ const rr = mustEnv('GITHUB_REPOSITORY'); const [owner,repo] = rr.split('/'); return {owner,repo}; }
 function seedMarker(uid){ return `<!-- seed-uid:${uid} -->`; }
 
+/** Search issue by seed UID with two strategies:
+ *  1) exact comment marker
+ *  2) plain text fallback: "seed-uid:UID" (no comment)
+ */
 async function searchIssueByUid(uid, token) {
   const { owner, repo: r } = repo();
-  const q = encodeURIComponent(`repo:${owner}/${r} "${seedMarker(uid)}" in:body is:issue`);
-  const res = await fetch(`https://api.github.com/search/issues?q=${q}&per_page=1`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-  });
-  if (!res.ok) throw new Error(`Search HTTP ${res.status}: ${await res.text()}`);
-  const j = await res.json();
-  const it = j.items?.[0];
-  if (!it) return null;
-  return { number: it.number };
+
+  async function doSearch(q) {
+    const url = `https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=1`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (!res.ok) throw new Error(`Search HTTP ${res.status}: ${await res.text()}`);
+    const j = await res.json();
+    const it = j.items?.[0];
+    return it ? { number: it.number } : null;
+  }
+
+  // 1) exact HTML comment
+  const q1 = `repo:${owner}/${r} "${seedMarker(uid)}" in:body is:issue`;
+  let hit = await doSearch(q1);
+  if (hit) return hit;
+
+  // 2) plain text fallback
+  const q2 = `repo:${owner}/${r} "seed-uid:${uid}" in:body is:issue`;
+  hit = await doSearch(q2);
+  return hit; // may be null
 }
 
 async function link(childNum, parentNum, token){
@@ -47,18 +63,34 @@ async function main(){
   const parentUid = process.env.INPUT_PARENT_UID || '';
   const childUid  = process.env.INPUT_CHILD_UID  || '';
 
-  if (!Number.isInteger(parentNum) && !parentUid) throw new Error('Provide parent_number or parent_uid');
-  if (!Number.isInteger(childNum)  && !childUid)  throw new Error('Provide child_number or child_uid');
+  if (!Number.isInteger(parentNum) && !parentUid) {
+    const msg = 'Provide parent_number or parent_uid';
+    if (dryRun) { console.log(`::warning::${msg}`); return; }
+    throw new Error(msg);
+  }
+  if (!Number.isInteger(childNum)  && !childUid)  {
+    const msg = 'Provide child_number or child_uid';
+    if (dryRun) { console.log(`::warning::${msg}`); return; }
+    throw new Error(msg);
+  }
 
   // Resolve numbers from UIDs if needed
   if (!Number.isInteger(parentNum)) {
     const r = await searchIssueByUid(parentUid, token);
-    if (!r) throw new Error(`Parent not found for uid=${parentUid}`);
+    if (!r) {
+      const msg = `Parent not found for uid=${parentUid}`;
+      if (dryRun) { console.log(`::warning::${msg}`); return; }
+      throw new Error(msg);
+    }
     parentNum = r.number;
   }
   if (!Number.isInteger(childNum)) {
     const r = await searchIssueByUid(childUid, token);
-    if (!r) throw new Error(`Child not found for uid=${childUid}`);
+    if (!r) {
+      const msg = `Child not found for uid=${childUid}`;
+      if (dryRun) { console.log(`::warning::${msg}`); return; }
+      throw new Error(msg);
+    }
     childNum = r.number;
   }
 
