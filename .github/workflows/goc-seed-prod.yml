@@ -9,12 +9,12 @@ on:
       apply:
         description: "Apply changes? (true/false). Defaults to repo var GOC_SEED_APPLY or false."
         required: false
-        default: ""
+        default: "true"
         type: string
       dry_run:
         description: "Dry run? (true/false). Defaults to true for safety."
         required: false
-        default: ""
+        default: "false"
         type: string
 
 concurrency:
@@ -47,4 +47,4 @@ jobs:
         with:
           seeds_glob: ".github/project-seeds/pending/**.md"
           dry_run: ${{ env.INPUT_DRY_RUN }}
-          apply:   ${{ env.INPUT_APPLY }}
+          apply: ${{ env.INPUT_APPLY }}
