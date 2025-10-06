@@ -10,42 +10,51 @@ function mustEnv(n){ const v=process.env[n]; if(!v) throw new Error(`${n} not se
 function repo(){ const rr = mustEnv('GITHUB_REPOSITORY'); const [owner,repo] = rr.split('/'); return {owner,repo}; }
 function seedMarker(uid){ return `<!-- seed-uid:${uid} -->`; }
 
-/** Search issue by seed UID with two strategies:
- *  1) exact comment marker
- *  2) plain text fallback: "seed-uid:UID" (no comment)
- */
+/** Search issue by seed UID (two strategies: exact HTML comment → plain text fallback) */
 async function searchIssueByUid(uid, token) {
   const { owner, repo: r } = repo();
-
   async function doSearch(q) {
     const url = `https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=1`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-    });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }});
     if (!res.ok) throw new Error(`Search HTTP ${res.status}: ${await res.text()}`);
     const j = await res.json();
     const it = j.items?.[0];
     return it ? { number: it.number } : null;
   }
-
-  // 1) exact HTML comment
   const q1 = `repo:${owner}/${r} "${seedMarker(uid)}" in:body is:issue`;
   let hit = await doSearch(q1);
   if (hit) return hit;
-
-  // 2) plain text fallback
   const q2 = `repo:${owner}/${r} "seed-uid:${uid}" in:body is:issue`;
   hit = await doSearch(q2);
   return hit; // may be null
 }
 
+/** Get full issue to read its 'id' (needed by sub_issues endpoint) */
+async function getIssueByNumber(num, token){
+  const { owner, repo: r } = repo();
+  const res = await fetch(`https://api.github.com/repos/${owner}/${r}/issues/${num}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+  });
+  if (!res.ok) throw new Error(`Get issue #${num} HTTP ${res.status}: ${await res.text()}`);
+  return await res.json(); // includes 'id' and 'number'
+}
+
+/** Link child to parent using REST: POST /repos/{o}/{r}/issues/{PARENT}/sub_issues { sub_issue_id } */
 async function link(childNum, parentNum, token){
   const { owner, repo: r } = repo();
-  // POST /repos/{owner}/{repo}/issues/{issue_number}/sub-issues
-  const res = await fetch(`https://api.github.com/repos/${owner}/${r}/issues/${childNum}/sub-issues`, {
+
+  // We need the child 'id' (not issue number)
+  const child = await getIssueByNumber(childNum, token);
+  const body = { sub_issue_id: child.id }; // required by Add sub-issue endpoint
+
+  const res = await fetch(`https://api.github.com/repos/${owner}/${r}/issues/${parentNum}/sub_issues`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ parent_issue_number: parentNum })
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(`Sub-issues link HTTP ${res.status}: ${await res.text()}`);
   return true;
