@@ -73,4 +73,4 @@ async function main(){
   console.log(`::notice title=linked::parent#=${parentNum} <- child#=${childNum}`);
 }
 
-main().catch(e => { console.log(\`::error::\${e.message || e}\`); process.exit(1); });
+main().catch(e => { console.log(`::error::${e.message || e}`); process.exit(1); });
