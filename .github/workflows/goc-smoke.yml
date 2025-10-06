@@ -17,6 +17,8 @@ jobs:
         uses: ./.github/actions/goc-seed
         with:
           seeds_glob: ".github/project-seeds/_smoke/*.md"
+          apply: "true"
+          dry_run: "false"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
