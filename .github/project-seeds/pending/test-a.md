@@ -12,7 +12,6 @@ area: ci
 project: "test"
 doc: ""
 pr: ""
-
 -->
 
 # Test A — routing + field write + Link
