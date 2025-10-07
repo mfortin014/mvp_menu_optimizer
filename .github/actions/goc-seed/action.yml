@@ -1,23 +1,19 @@
-name: goc-seed
-description: Parse seed, create issue, add to Project, write fields (E2.2 wiring; behavior neutral until workflows use it)
+name: goc-seed (stub)
+description: Parse seed, create issue, add to Project, write fields (E1 stub: logs inputs only)
 inputs:
-  seeds_glob: { required: false, description: Glob or file path for seed(s) }
+  seeds_glob: { required: false, description: Glob of seed files }
   project_url_override: { required: false }
   link_after_seed: { required: false }
+outputs:
+  created:
+    description: Count created (stubbed)
+    value: "0"
+  skipped:
+    description: Count skipped (stubbed)
+    value: "0"
 runs:
   using: composite
   steps:
     - shell: bash
       run: |
-        echo "::notice::[goc-seed] setup Node toolchain"
-        npm ci --ignore-scripts
-        npm run build:goc
-    - shell: bash
-      env:
-        INPUT_SEEDS_GLOB: ${{ inputs.seeds_glob }}
-        INPUT_PROJECT_URL_OVERRIDE: ${{ inputs.project_url_override }}
-        INPUT_LINK_AFTER_SEED: ${{ inputs.link_after_seed }}
-        PROJECT_URL: ${{ vars.PROJECT_URL }}
-        PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
-      run: |
-        node dist/goc/runners.goc-seed.js
+        echo "::notice title=goc-seed(stub)::seeds_glob='${{ inputs.seeds_glob }}' project_url_override='${{ inputs.project_url_override }}' link_after_seed='${{ inputs.link_after_seed }}'"
