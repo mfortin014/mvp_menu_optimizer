@@ -1,3 +1,4 @@
+# .github/workflows/goc-seed-prod.yml
 name: GOC Seed (prod)
 
 on:
@@ -7,14 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       apply:
-        description: "Apply changes? (true/false). Defaults to repo var GOC_SEED_APPLY or false."
-        required: false
-        default: "true"
-        type: string
-      dry_run:
-        description: "Dry run? (true/false). Defaults to true for safety."
+        description: "Apply changes? (true/false). For manual runs only."
         required: false
         default: "false"
+        type: string
+      dry_run:
+        description: "Dry run? (true/false). For manual runs only."
+        required: false
+        default: "true"
         type: string
 
 concurrency:
@@ -27,24 +28,31 @@ jobs:
     permissions:
       contents: read
       issues: write
+
+    # Resolve flags differently for push vs manual:
+    # - For push: use repo vars (set in Settings → Actions → Variables)
+    #   - GOC_SEED_APPLY_PUSH: "true" to actually create; default "false"
+    #   - GOC_SEED_DRY_RUN_PUSH: "true" or "false" (default "true")
+    # - For workflow_dispatch: use the UI inputs
     env:
-      # Tokens & URLs
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
       PROJECT_URL: ${{ vars.PROJECT_URL }}
       PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
-      # Resolve flags with safe defaults:
-      # - dry_run: true unless explicitly false
-      # - apply: use manual input; else repo var; else false
-      INPUT_DRY_RUN: ${{ inputs.dry_run != '' && inputs.dry_run || 'true' }}
-      INPUT_APPLY: ${{ inputs.apply != '' && inputs.apply || (vars.GOC_SEED_APPLY != '' && vars.GOC_SEED_APPLY || 'false') }}
+      # Decide flags per event
+      INPUT_APPLY: ${{ github.event_name == 'push'
+        && (vars.GOC_SEED_APPLY_PUSH != '' && vars.GOC_SEED_APPLY_PUSH || 'false')
+        || (inputs.apply != '' && inputs.apply || 'false') }}
+      INPUT_DRY_RUN: ${{ github.event_name == 'push'
+        && (vars.GOC_SEED_DRY_RUN_PUSH != '' && vars.GOC_SEED_DRY_RUN_PUSH || 'true')
+        || (inputs.dry_run != '' && inputs.dry_run || 'true') }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Seed project items (prod, safe by default)
+      - name: Seed project items (prod)
         uses: ./.github/actions/goc-seed
         with:
           seeds_glob: ".github/project-seeds/pending/**.md"
-          dry_run: ${{ env.INPUT_DRY_RUN }}
           apply: ${{ env.INPUT_APPLY }}
+          dry_run: ${{ env.INPUT_DRY_RUN }}
