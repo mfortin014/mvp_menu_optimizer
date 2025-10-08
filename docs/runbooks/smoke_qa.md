@@ -18,7 +18,7 @@ Purpose: rehearse the Golden Path on every deploy without touching production da
 
 ## 1. Prepare Environment
 1. Confirm staging credentials in GitHub → **Environments → staging**.  
-2. Ensure the staging database has seed data (run the provisioning script or load `data/sample_data/2025-09-09`).
+2. Ensure the staging database has seed data (run the provisioning script or load `data/exports/2025-09-09`).
 
 ## 2. Run Automated Smoke Tests
 ```bash
@@ -42,4 +42,3 @@ Expected: quick pass (<5s). Tests only import modules, check version metadata, a
 ## 5. Escalate Issues
 - If automation fails → create a bug issue and block deploy.  
 - If manual QA fails but smoke passes → flag the gap and open a follow-up task.
-

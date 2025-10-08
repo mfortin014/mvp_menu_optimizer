@@ -41,8 +41,8 @@ index dc30425..71c8c5b 100644
  .env
 -data/
 +data/*
-+!data/sample/
-+!data/sample/**
++!data/fixtures/
++!data/fixtures/**
  .streamlit/secrets.toml
  shortcuts/
  backups/
@@ -164,8 +164,8 @@ index 50c00a6..a85c5e8 100644
 -```bash
 -streamlit run Home.py
 -```
-+- Lightweight fixtures for docs/tests: `data/sample/` (e.g., `ingredients.csv`).
-+- Full Supabase export: `data/sample_data/2025-09-09/` (read-only, used for manual exploration).
++- Lightweight fixtures for docs/tests: `data/fixtures/` (e.g., `ingredients.csv`).
++- Full Supabase export: `data/exports/2025-09-09/` (read-only, used for manual exploration).
 +
 +Never commit local edits to either directory; create new fixtures instead.
  
@@ -187,8 +187,8 @@ index 50c00a6..a85c5e8 100644
 -└── README.md
 +├── components/
 +├── data/
-+│   ├── sample/
-+│   └── sample_data/
++│   ├── fixtures/
++│   └── exports/
 +├── docs/
 +├── migrations/
 +│   └── sql/
@@ -230,11 +230,11 @@ index 50c00a6..a85c5e8 100644
 -MIT
 \ No newline at end of file
 +MIT
-diff --git a/data/sample/ingredients.csv b/data/sample/ingredients.csv
+diff --git a/data/fixtures/ingredients.csv b/data/fixtures/ingredients.csv
 new file mode 100644
 index 0000000..0964ae6
 --- /dev/null
-+++ b/data/sample/ingredients.csv
++++ b/data/fixtures/ingredients.csv
 @@ -0,0 +1,4 @@
 +ingredient,unit_cost,currency
 +Lemon,0.35,CAD
@@ -336,7 +336,7 @@ index 0000000..bcc3f7b
 +## Data Safety
 +
 +- Avoid destructive ops (`DROP`, `DELETE`) unless the accompanying spec approves it.  
-+- Seed data lives under `data/sample_data/`; the lightweight fixtures for tests live in `data/sample/` (no secrets).  
++- Seed data lives under `data/exports/`; the lightweight fixtures for tests live in `data/fixtures/` (no secrets).  
 +- When altering reference data, update the relevant source `.md` documents (Data Dictionary, changelog).
 +
 diff --git a/docs/reference/repo_structure.md b/docs/reference/repo_structure.md
@@ -356,8 +356,8 @@ index 0000000..b5985e6
 +
 +### MVP now
 +- `Home.py`, `pages/`, `components/`, `utils/` — Streamlit MVP surface area.
-+- `data/sample/` — tiny, non-sensitive CSV fixtures used in docs and smoke tests.
-+- `data/sample_data/` — larger Supabase export snapshots (do not commit edits).
++- `data/fixtures/` — tiny, non-sensitive CSV fixtures used in docs and smoke tests.
++- `data/exports/` — larger Supabase export snapshots (do not commit edits).
 +- `migrations/sql/` — ordered `V###__desc.sql` migrations (apply via Supabase/psql; never edit in place).
 +- `schema/current/` — latest production schema dump (`prod.schema.sql`).
 +- `schema/releases/` — tagged release snapshots (one file per shipped release).
@@ -446,8 +446,8 @@ index 0000000..5054290
 +- Use `mise` or `direnv` to keep secrets scoped per environment.
 +
 +## 5. Pull Sample Data (Optional)
-+- Lightweight fixtures: `data/sample/` (CSV) for tests and demos (e.g., `ingredients.csv`).  
-+- Full Supabase dump: `data/sample_data/` for deeper local exploration (never edit in place).
++- Lightweight fixtures: `data/fixtures/` (CSV) for tests and demos (e.g., `ingredients.csv`).  
++- Full Supabase dump: `data/exports/` for deeper local exploration (never edit in place).
 +
 +## 6. Run Quality Gates Locally
 +```bash
@@ -495,7 +495,7 @@ index 0000000..a85bcd1
 +
 +## 1. Prepare Environment
 +1. Confirm staging credentials in GitHub → **Environments → staging**.  
-+2. Ensure the staging database has seed data (run the provisioning script or load `data/sample_data/2025-09-09`).
++2. Ensure the staging database has seed data (run the provisioning script or load `data/exports/2025-09-09`).
 +
 +## 2. Run Automated Smoke Tests
 +```bash
@@ -569,11 +569,11 @@ index d0899e9..b281a7e 100644
  isort>=5.13.2
  pre-commit>=3.7
 +pytest>=8.3
-diff --git a/tests/smoke/test_sample_data.py b/tests/smoke/test_sample_data.py
+diff --git a/tests/smoke/test_exports.py b/tests/smoke/test_exports.py
 new file mode 100644
 index 0000000..46b7465
 --- /dev/null
-+++ b/tests/smoke/test_sample_data.py
++++ b/tests/smoke/test_exports.py
 @@ -0,0 +1,19 @@
 +from __future__ import annotations
 +
@@ -582,7 +582,7 @@ index 0000000..46b7465
 +
 +
 +def test_sample_ingredients_fixture_parses() -> None:
-+    fixture = Path("data/sample/ingredients.csv")
++    fixture = Path("data/fixtures/ingredients.csv")
 +    assert fixture.exists(), "Expected sample ingredients fixture"
 +
 +    with fixture.open(encoding="utf-8") as handle:

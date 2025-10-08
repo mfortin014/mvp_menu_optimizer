@@ -47,8 +47,8 @@ This installs the Streamlit app, lint/test tooling, and smoke dependencies.
 - Use `mise` or `direnv` to keep secrets scoped per environment.
 
 ## 5. Pull Sample Data (Optional)
-- Lightweight fixtures: `data/sample/` (CSV) for tests and demos (e.g., `ingredients.csv`).  
-- Full Supabase dump: `data/sample_data/` for deeper local exploration (never edit in place).
+- Lightweight fixtures: `data/fixtures/` (CSV) for tests and demos (e.g., `ingredients.csv`).  
+- Full Supabase dump: `data/exports/` for deeper local exploration (ignored by Git; never edit in place).
 
 ## 6. Run Quality Gates Locally
 ```bash

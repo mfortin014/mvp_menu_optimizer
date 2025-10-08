@@ -51,6 +51,5 @@ Purpose: keep database drift under control while the MVP evolves. Pair with `dum
 ## Data Safety
 
 - Avoid destructive ops (`DROP`, `DELETE`) unless the accompanying spec approves it.  
-- Seed data lives under `data/sample_data/`; the lightweight fixtures for tests live in `data/sample/` (no secrets).  
+- Seed data lives under `data/exports/`; the lightweight fixtures for tests live in `data/fixtures/` (no secrets).  
 - When altering reference data, update the relevant source `.md` documents (Data Dictionary, changelog).
-

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def test_sample_ingredients_fixture_parses() -> None:
-    fixture = Path("data/sample/ingredients.csv")
+    fixture = Path("data/fixtures/ingredients.csv")
     assert fixture.exists(), "Expected sample ingredients fixture"
 
     with fixture.open(encoding="utf-8") as handle:

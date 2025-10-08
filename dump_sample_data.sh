@@ -10,7 +10,7 @@ source <(grep DATABASE_URL .env)
 
 # Output dir
 DATESTAMP=$(date +%F)
-OUTDIR="data/sample_data/$DATESTAMP"
+OUTDIR="data/exports/$DATESTAMP"
 mkdir -p "$OUTDIR"
 
 # Choose schemas (default public)

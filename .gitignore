@@ -4,8 +4,8 @@ __pycache__/
 *.pyc
 .env
 data/*
-!data/sample/
-!data/sample/**
+!data/fixtures/
+!data/fixtures/**
 .streamlit/secrets.toml
 shortcuts/
 backups/

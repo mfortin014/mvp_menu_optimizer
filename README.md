@@ -47,8 +47,8 @@ Branch protection requires the `check` job to pass. Stage/production deploy chor
 
 ## Sample Data
 
-- Lightweight fixtures for docs/tests: `data/sample/` (e.g., `ingredients.csv`).
-- Full Supabase export: `data/sample_data/2025-09-09/` (read-only, used for manual exploration).
+- Lightweight fixtures for docs/tests: `data/fixtures/` (e.g., `ingredients.csv`).
+- Full Supabase export: `data/exports/2025-09-09/` (read-only, ignored by Git).
 
 Never commit local edits to either directory; create new fixtures instead.
 
@@ -61,8 +61,8 @@ Never commit local edits to either directory; create new fixtures instead.
 ├── Home.py
 ├── components/
 ├── data/
-│   ├── sample/
-│   └── sample_data/
+│   ├── fixtures/
+│   └── exports/
 ├── docs/
 ├── migrations/
 │   └── sql/

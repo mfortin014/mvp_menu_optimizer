@@ -9,8 +9,8 @@ Purpose: quick map of the directories you will touch during Phase-1 work. Pair t
 
 ### MVP now
 - `Home.py`, `pages/`, `components/`, `utils/` — Streamlit MVP surface area.
-- `data/sample/` — tiny, non-sensitive CSV fixtures used in docs and smoke tests.
-- `data/sample_data/` — larger Supabase export snapshots (do not commit edits).
+- `data/fixtures/` — tiny, non-sensitive CSV fixtures used in docs and smoke tests.
+- `data/exports/` — larger Supabase export snapshots (ignored; keep local only).
 - `migrations/sql/` — ordered `V###__desc.sql` migrations (apply via Supabase/psql; never edit in place).
 - `schema/current/` — latest production schema dump (`prod.schema.sql`).
 - `schema/releases/` — tagged release snapshots (one file per shipped release).
@@ -43,4 +43,3 @@ Purpose: quick map of the directories you will touch during Phase-1 work. Pair t
 - Keep generated assets (`dist/`, `archive/`) read-only in Git.  
 - When adding new directories, update this file and `docs/README.md`.  
 - Coordinate cross-cutting refactors through specs (`docs/specs/`).
-
