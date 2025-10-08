@@ -3,7 +3,9 @@
 __pycache__/
 *.pyc
 .env
-data/
+data/*
+!data/sample/
+!data/sample/**
 .streamlit/secrets.toml
 shortcuts/
 backups/

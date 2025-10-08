@@ -15,6 +15,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **Reverted:** 2 change(s)
 - **Other:** 10 change(s)
 
+### Added
+- Unit and smoke test scaffolds under `tests/` with lightweight fixtures for CI.
+
+### Documentation
+- Phase-1 operational docs: repo structure, migrations discipline, first-run and smoke runbooks, specs index.
+- Refreshed README to highlight MVP workflows and doc entry points.
+
+### Chore
+- CI workflow installs dev dependencies and executes unit/smoke pytest suites on PRs.
+
 ## [0.6.0] - 2025-09-16
 [Tag: mvp-0.6.0](https://github.com/mfortin014/mvp_menu_optimizer/releases/tag/mvp-0.6.0)
 

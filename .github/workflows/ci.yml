@@ -30,13 +30,10 @@ jobs:
           python-version: "3.11"
           cache: "pip"  # speed up pip installs
 
-      - name: Install lint/format tooling
+      - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "ruff>=0.6" black isort
-          ruff --version
-          black --version
-          isort --version
+          pip install -r requirements-dev.txt
 
       - name: Ruff (lint)
         run: ruff check . --output-format=github
@@ -46,6 +43,12 @@ jobs:
 
       - name: isort (import order check)
         run: isort . --check-only
+
+      - name: Pytest (unit)
+        run: pytest tests/unit --maxfail=1 --disable-warnings -q
+
+      - name: Pytest (smoke)
+        run: pytest tests/smoke --maxfail=1 --disable-warnings -q
 
       # Thin, non-destructive smoke: compile all .py files.
       # This catches syntax errors across the repo without running the app,

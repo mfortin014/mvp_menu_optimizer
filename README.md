@@ -1,83 +1,97 @@
-# Menu Optimizer v1.1 – README
+# Menu Optimizer — MVP Guide
 
-## Overview
-
-This MVP supports Chef's culinary consulting work by allowing them to manage and analyze recipes, ingredient costs, and performance. It is a prototype built in **Streamlit** using a **Supabase** backend. The project will later be migrated to a React + Supabase architecture inside the OpsForge platform.
+Menu Optimizer helps Chef’s culinary consulting team track recipe costs, performance, and menu health. The MVP is delivered in **Streamlit** on top of **Supabase**. React/web workers arrive in v1.
 
 ---
 
-## Key Features
+## Quick Start (MVP)
 
-### 🥦 Ingredient Management
-- Add/Edit/Delete ingredients (soft delete only)
-- Yield percentage support (for post-prep loss)
-- Ingredient categories (linked to `ref_ingredient_categories`)
-- Clean layout with editable form sidebar and data editor
-- Radio-style selection behavior in the ingredient table
+1. Follow the runbook: [First Clone → First Run](docs/runbooks/first_run.md).
+2. Launch the app with staging credentials: `streamlit run Home.py`.
+3. Keep the quality gates green before opening a PR:
+   - `ruff check .`
+   - `black --check .`
+   - `isort . --check-only`
+   - `pytest tests/unit`
+   - `pytest tests/smoke`
 
-### 📄 Recipe Summary & Breakdown
-- View recipe performance from `recipe_summary`
-- Total cost, price, and margin calculation
-- Uses latest cost view logic with `yield_pct`
-
-### 📊 MPM Quadrant (Menu Performance Matrix)
-- Visual graph (popularity vs profitability)
-- Table format with quadrant filter (coming soon)
+Need more detail? The docs index lives at [docs/README.md](docs/README.md).
 
 ---
 
-## Tech Stack
+## Documentation & Runbooks
 
-- Frontend: [Streamlit](https://streamlit.io)
-- Backend: [Supabase](https://supabase.com)
-  - PostgreSQL
-  - RPC for recipe breakdown
-  - View logic for costing
+### MVP now
+- [Project Bible (Index)](docs/README.md) — authoritative map of all docs.
+- [Repo Structure & Paths](docs/reference/repo_structure.md) — where things live.
+- [CI/CD Policies](docs/policy/ci_minimal.md) and [Migrations & Schema Discipline](docs/policy/migrations_and_schema.md).
+- [Smoke QA](docs/runbooks/smoke_qa.md) — staging checks and evidence.
+- [Specs Index](docs/specs/README.md) — templates and active specs.
 
----
-
-## Dev Setup
-
-1. Clone this repo
-2. Create `.env` file or set `secrets.toml` in `.streamlit/`
-```env
-SUPABASE_URL=...
-SUPABASE_KEY=...
-```
-3. Install requirements
-```bash
-pip install -r requirements.txt
-```
-4. Run app:
-```bash
-streamlit run Home.py
-```
+### v1 later
+- React client docs, ADRs, and production hardening runbooks move in once the platform migrates.
 
 ---
 
-## Project Structure
+## Quality & CI
+
+GitHub Actions runs on every PR (`.github/workflows/ci.yml`):
+- Ruff, Black, and isort in check mode.
+- Unit tests (`tests/unit/`) for pure logic and guardrails.
+- Smoke tests (`tests/smoke/`) that load lightweight fixtures only.
+- Syntax compilation sweep to catch regressions without hitting the network.
+
+Branch protection requires the `check` job to pass. Stage/production deploy choreography lives in the `ci` Phase-1 issue.
+
+---
+
+## Sample Data
+
+- Lightweight fixtures for docs/tests: `data/sample/` (e.g., `ingredients.csv`).
+- Full Supabase export: `data/sample_data/2025-09-09/` (read-only, used for manual exploration).
+
+Never commit local edits to either directory; create new fixtures instead.
+
+---
+
+## Project Structure (MVP excerpt)
 
 ```
 .
 ├── Home.py
-├── pages/
-│   └── Ingredients.py
-├── utils/
-│   ├── data.py
-│   └── supabase.py
-├── requirements.txt
-├── .env
-└── README.md
+├── components/
+├── data/
+│   ├── sample/
+│   └── sample_data/
+├── docs/
+├── migrations/
+│   └── sql/
+├── schema/
+│   ├── current/
+│   └── releases/
+├── tests/
+│   ├── smoke/
+│   └── unit/
+└── utils/
 ```
+
+See [Repo Structure & Paths](docs/reference/repo_structure.md) for the full breakdown and naming rules.
 
 ---
 
-## Known Issues / To Do
+## Tech Stack
+- Frontend: [Streamlit](https://streamlit.io)
+- Backend: [Supabase](https://supabase.com) (PostgreSQL + RPC)
+- Tooling: Ruff, Black, isort, Pytest
 
-- Ingredient "Select" column behavior not fully radio-style yet
-- Recipe breakdown page still uses outdated cost logic
-- Ref tables management (e.g., categories, UOM) not yet exposed in UI
-- Inline editing in `st.data_editor` is currently disabled for validation consistency
+---
+
+## Roadmap Snapshots
+
+- MVP: Streamlit app, Supabase staging/prod, manual deploys supported by runbooks.
+- v1: React front-end, automated deploy pipeline, richer analytics schemas.
+
+Track progress in GitHub Issues/Projects linked from the docs index.
 
 ---
 
