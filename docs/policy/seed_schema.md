@@ -52,6 +52,12 @@ pr: <https://github.com/...>                                                # OP
 - Extra keys are ignored.
 - **Arrays must be JSON** (square brackets, quoted strings, comma separated).
 
+### Routing quick reference
+
+- Use `project: "test"` to route a seed into the sandbox Project whose URL is stored in `vars.PROJECT_URL_TEST`.
+- Use `project: "main"` (or omit the key) to route into the production Project referenced by `vars.PROJECT_URL`.
+- Provide `project_url: "https://github.com/.../projects/<n>"` to override both `project` values. The seeder resolves this key first, mirroring the logic documented in `docs/policy/ci_github_object_creation.md`.
+
 ---
 
 ## 3) Supported keys (reference)
@@ -166,6 +172,30 @@ pr: ""
 # Automation D — CI perms + Seed schema & examples (policy)
 
 Deliverables and acceptance.
+```
+
+### D) Quick-start seed (copy/paste)
+
+```md
+<!--
+title: Quick-start — Test seed
+labels: ["ci"]
+assignees: ["opsforge-bot"]
+uid: quick-start-test
+type: Feature
+status: Todo
+priority: P2
+target: mvp-0.7.0
+area: ci
+project: "test"
+children_uids: ["uidA","uidB"]
+doc: "docs/policy/seed_schema.md"
+pr: "https://github.com/opsforge/menu-optimizer/pull/123"
+-->
+
+# Quick-start — Test seed
+
+Copy this into `.github/project-seeds/pending/quick-start-test.md`, adjust the body, and run the automation. It will land in the Test Project, write Project fields, and leave the seed ready for child linking.
 ```
 
 ---
