@@ -1,17 +1,8 @@
-import os
-
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
-load_dotenv()
+from utils.secrets import get as get_secret
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-# Replace with your actual DB URI from Supabase
-DATABASE_URL = (
-    "postgresql://postgres:[YOUR_DB_PASSWORD]@db.[YOUR_PROJECT].supabase.co:5432/postgres"
-)
+DATABASE_URL = get_secret("DATABASE_URL", required=True)
 
 
 def get_engine():
