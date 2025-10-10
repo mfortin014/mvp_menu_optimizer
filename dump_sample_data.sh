@@ -1,12 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
-# Load DATABASE_URL from .env
-if [ ! -f .env ]; then
-  echo "❌ .env file not found."
+# Load DATABASE_URL, preferring environment (direnv/BWS)
+if [ -z "${DATABASE_URL:-}" ]; then
+  if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+  fi
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "❌ DATABASE_URL is not set. Export it via direnv/BWS or provide it in .env."
   exit 1
 fi
-source <(grep DATABASE_URL .env)
 
 # Output dir
 DATESTAMP=$(date +%F)
