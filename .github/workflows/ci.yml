@@ -2,76 +2,101 @@ name: CI
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: [codex-phase1, main]
+  push:
+    branches: [codex-phase1]
   workflow_dispatch:
-
-# If you push multiple updates to the same PR, cancel older runs to save time
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-# Least-privilege token; this workflow only reads code
-permissions:
-  contents: read
 
 jobs:
   check:
-    name: check
-    runs-on: ubuntu-latest
+    name: Lint & Unit Tests
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
 
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"  # speed up pip installs
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Ruff (lint)
-        run: ruff check . --output-format=github
-
-      - name: Black (format check)
-        run: black --check .
-
-      - name: isort (import order check)
-        run: isort . --check-only
-
-      - name: Pytest (unit)
-        run: pytest tests/unit --maxfail=1 --disable-warnings -q
-
-      - name: Pytest (smoke)
-        run: pytest tests/smoke --maxfail=1 --disable-warnings -q
-
-      # Thin, non-destructive smoke: compile all .py files.
-      # This catches syntax errors across the repo without running the app,
-      # touching the network, or requiring secrets/DB access.
-      - name: Thin smoke — syntax compile
+      - name: Ruff / Black / Isort (check only)
         run: |
-          python - <<'PY'
-          import os, sys, py_compile
-          SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "docs", "schema", "backups", ".streamlit"}
-          failures = []
-          for root, dirs, files in os.walk("."):
-              if any(part in SKIP_DIRS for part in root.split(os.sep)):
-                  continue
-              for f in files:
-                  if f.endswith(".py"):
-                      path = os.path.join(root, f)
-                      try:
-                          py_compile.compile(path, doraise=True)
-                      except Exception as e:
-                          failures.append((path, str(e)))
-          if failures:
-              for path, msg in failures:
-                  print(f"SMOKE: compile failed: {path} :: {msg}", file=sys.stderr)
-              sys.exit(1)
-          print("SMOKE: syntax OK across repository")
-          PY
+          ruff check .
+          black --check .
+          isort --check-only .
+
+      - name: Unit tests
+        run: pytest tests/unit -q
+
+  smoke:
+    name: Thin Smoke (staging)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [check]
+    # Use the staging environment so we can read its env secrets/vars
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # ---- Derive non-secret URL pieces & synthesize DATABASE_URL (no logging) ----
+      - name: Derive SUPABASE_URL and DB_USER + synthesize DATABASE_URL
+        shell: bash
+        env:
+          # Prefer environment VARIABLES (vars.*); fall back to SECRETS if not set
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
+          DB_HOST: ${{ vars.DB_HOST || secrets.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT || secrets.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME || secrets.DB_NAME }}
+          # Secrets
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          : "${DB_NAME:=postgres}"
+          : "${DB_PORT:=5432}"
+          # Derive non-secrets on runner (not stored)
+          export DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
+          {
+            echo "SUPABASE_URL=https://${SUPABASE_PROJECT_ID}.supabase.co"
+          } >> "$GITHUB_ENV"
+
+          # Build DATABASE_URL (percent-encode + sslmode=require) without echoing value
+          scripts/synthesize_db_url.sh
+
+      # ---- Smoke tests that rely on env (DATABASE_URL, SUPABASE_URL, etc.) ----
+      - name: Smoke tests
+        run: pytest tests/smoke -q
