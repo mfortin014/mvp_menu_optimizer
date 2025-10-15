@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL, Engine
+from sqlalchemy.engine import URL, Engine, make_url
 
 from utils.secrets import get as get_secret
 
@@ -12,7 +12,10 @@ def _compute_database_url() -> str:
     """
     url = get_secret("DATABASE_URL")
     if url:
-        return url
+        parsed = make_url(url)
+        if parsed.drivername in {"postgresql", "postgresql+psycopg2", "postgres"}:
+            parsed = parsed.set(drivername="postgresql+psycopg")
+        return parsed.render_as_string(hide_password=False)
 
     host = get_secret("DB_HOST", required=True)
     port = int(get_secret("DB_PORT", default="5432"))
@@ -28,7 +31,7 @@ def _compute_database_url() -> str:
         port=port,
         database=name,
     )
-    return str(safe)
+    return safe.render_as_string(hide_password=False)
 
 
 def get_engine() -> Engine:

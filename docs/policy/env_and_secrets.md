@@ -33,17 +33,27 @@ See also: [Minimal CI (Week 1)](ci_minimal.md) and [Release Playbook](../runbook
 
 Name → purpose (and whether secret):
 
-- `APP_ENV` → `staging` or `production` (not secret).
-- `APP_VERSION` → injected from `VERSION`/tag (not secret).
-- `SUPABASE_URL` → project URL (treat with care; not a secret but avoid leaking).
+- `APP_ENV` → `staging` or `production` (not secret). \*not implemented yet
+- `APP_VERSION` → injected from `VERSION`/tag (not secret). \*not implemented yet
+- `CHEF_PASSWORD` → temporary page guard for Streamlit (secret; local/staging only;
+- `DB_HOST` → used to create `DATABASE_URL` (not secret)
+- `DB_NAME` → used to create `DATABASE_URL` (not secret)
+- `DB_PASSWORD` → non-encoded database password, is encoded and then used to create `DATABASE_URL` (secret)
+- `DB_PORT` → used to create `DATABASE_URL` (not secret)
+- `FEATURE_FLAGS_JSON` → optional JSON for defaults (not secret). \*not implemented yet
+- `LOG_LEVEL` → `INFO`/`DEBUG` (not secret). \*not implemented yet
+- `SENTRY_DSN` → error reporting (secret). \*not implemented yet
 - `SUPABASE_ANON_KEY` → public client key (handle carefully; not admin).
-- `SUPABASE_SERVICE_KEY` → service role key (secret; **never** ship to browser; **CI-only**).
+- `SUPABASE_PROJECT_ID` → non-secret project ref used to derive URL & DB user;
+  will be replaced).
+- `SUPABASE_SCHEMA` → primary schema name if non-default (not secret). \*not implemented yet
+- `SUPABASE_SERVICE_KEY` → service role key (secret; **never** ship to browser; **CI-only**)
+
+The following are no longer stored as variables/secrets and are derived at runtime:
+
+- `DB_USER` → created using `DB_NAME` and `SUPABASE_PROJECT_ID` and is used to create `DATABASE_URL`
+- `SUPABASE_URL` → project URL (treat with care; not a secret but avoid leaking).
 - `DATABASE_URL` → SQLAlchemy connection string (secret).
-- `CHEF_PASSWORD` → temporary page guard for Streamlit (secret; local/staging only; will be replaced).
-- `SUPABASE_SCHEMA` → primary schema name if non-default (not secret).
-- `SENTRY_DSN` → error reporting (secret).
-- `LOG_LEVEL` → `INFO`/`DEBUG` (not secret).
-- `FEATURE_FLAGS_JSON` → optional JSON for defaults (not secret).
 
 If you add more, update this list and the templates.
 

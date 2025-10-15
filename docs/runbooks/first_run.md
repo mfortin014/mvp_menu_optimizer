@@ -11,8 +11,10 @@ Purpose: help a new contributor bootstrap the MVP locally with **no plaintext se
 - macOS/Linux (or WSL Ubuntu 22.04) with Python 3.11.
 - Git + VS Code (recommended).
 - **Bitwarden Secrets Manager** access to the `menu-optimizer-staging` project and a **Machine Token**.
+  - it holds: `DB_PASSWORD`, `SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_ID`, `DB_HOST`, `DB_PORT` & `DB_NAME`.
 - **bws** CLI installed and on `PATH`.
 - **direnv** installed with the shell hook enabled (e.g., add `eval "$(direnv hook bash)"` to `~/.bashrc`).
+  - `.envrc` derives `SUPABASE_URL` and `DB_USER` and synthesizes `DATABASE_URL`.
 - GitHub access to clone the repository.
 
 > Local runs do **not** use `.env` or `.streamlit/secrets.toml`. Env vars are injected at shell runtime from Bitwarden via direnv. The app reads environment variables first (see `utils/secrets.py`) and falls back to `st.secrets` only in CI.
