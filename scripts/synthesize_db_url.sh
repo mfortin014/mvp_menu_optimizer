@@ -21,7 +21,13 @@ print(f"postgresql://{u}:{urllib.parse.quote(p, safe='')}@{h}:{port}/{d}")
 PY
 )"
 
-# Export for this job without printing the value
+# Enforce SSL for Supabase; avoid printing the value
+if [[ "$encoded_url" == *"?"* ]]; then
+  encoded_url="${encoded_url}&sslmode=require"
+else
+  encoded_url="${encoded_url}?sslmode=require"
+fi
+
 {
   printf 'DATABASE_URL=%s\n' "$encoded_url"
 } >>"$GITHUB_ENV"
