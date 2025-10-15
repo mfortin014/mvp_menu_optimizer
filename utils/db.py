@@ -15,7 +15,7 @@ def _compute_database_url() -> str:
         parsed = make_url(url)
         if parsed.drivername in {"postgresql", "postgresql+psycopg2", "postgres"}:
             parsed = parsed.set(drivername="postgresql+psycopg")
-        return str(parsed)
+        return parsed.render_as_string(hide_password=False)
 
     host = get_secret("DB_HOST", required=True)
     port = int(get_secret("DB_PORT", default="5432"))
@@ -31,7 +31,7 @@ def _compute_database_url() -> str:
         port=port,
         database=name,
     )
-    return str(safe)
+    return safe.render_as_string(hide_password=False)
 
 
 def get_engine() -> Engine:
