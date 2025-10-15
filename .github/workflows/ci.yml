@@ -73,6 +73,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
       # ---- Derive non-secret URL pieces & synthesize DATABASE_URL (no logging) ----
