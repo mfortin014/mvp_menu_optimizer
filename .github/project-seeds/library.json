@@ -120,6 +120,16 @@
     "created_at": "2025-10-09T16:04:54.166Z"
   },
   {
+    "uid": "scripts-dump-schema-env-agnostic",
+    "parent_uid": "ci-phase1-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 156,
+    "issue_node_id": "I_kwDOPB2irc7Rky7w",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgf5DkA",
+    "created_at": "2025-10-15T02:12:05.148Z"
+  },
+  {
     "uid": "SEC-000",
     "parent_uid": null,
     "owner": "mfortin014",
@@ -188,5 +198,15 @@
     "issue_node_id": "I_kwDOPB2irc7PUXJ_",
     "project_item_id": null,
     "created_at": "2025-10-02T16:55:44.872Z"
+  },
+  {
+    "uid": "sec-migrate-publishable-key",
+    "parent_uid": "ci-phase1-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 158,
+    "issue_node_id": "I_kwDOPB2irc7RlBi5",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgf5Hns",
+    "created_at": "2025-10-15T02:53:37.773Z"
   }
 ]

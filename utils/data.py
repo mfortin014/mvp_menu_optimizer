@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from utils import tenant_db as db
-from utils.supabase import supabase
+from utils.supabase_client import supabase
 
 # -----------------------------
 # Helpers

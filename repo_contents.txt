@@ -7,12 +7,21 @@
 │   │   └── consume.md
 │   ├── project-seeds
 │   │   ├── applied
+│   │   │   ├── SEC-000__supabase-linter-remediation.md
+│   │   │   ├── SEC-001__views-security-invoker.md
+│   │   │   ├── SEC-002__rls-profiles-and-schema_migrations.md
+│   │   │   ├── SEC-003__pin-function-search_path.md
+│   │   │   ├── SEC-004__auth-leaked-password-protection.md
+│   │   │   ├── SEC-005__postgres-patch-upgrade.md
+│   │   │   ├── SEC-006__runbook-db-security-hardening.md
 │   │   │   ├── auto-gh-A.md
 │   │   │   ├── auto-gh-B.md
 │   │   │   ├── auto-gh-C.md
 │   │   │   ├── auto-gh-C1-auto-merge-consume-prs.md
 │   │   │   ├── auto-gh-D.md
+│   │   │   ├── auto-gh-E.md
 │   │   │   ├── auto-gh-epic.md
+│   │   │   ├── phase1-secrets.md
 │   │   │   ├── phase1a-epic.md
 │   │   │   ├── phase1a-first-export.md
 │   │   │   ├── phase1a-schema.md
@@ -22,11 +31,20 @@
 │   │   │   └── .gitkeep
 │   │   └── library.json
 │   ├── workflows
+│   │   ├── auto-link-subissues.yml
 │   │   ├── ci.yml
 │   │   ├── consume-auto-merge.yml
 │   │   ├── library-backfill.yml
 │   │   └── seed-project-items.yml
 │   └── pull_request_template.md
+├── .pytest_cache
+│   ├── v
+│   │   └── cache
+│   │       ├── nodeids
+│   │       └── stepwise
+│   ├── .gitignore
+│   ├── CACHEDIR.TAG
+│   └── README.md
 ├── .ruff_cache
 │   ├── 0.13.1
 │   │   ├── 15303535225207274766
@@ -39,8 +57,10 @@
 │   │   ├── 12526296425791170776
 │   │   ├── 14792270648220210559
 │   │   ├── 17851464995738533836
+│   │   ├── 2101876151766076789
 │   │   ├── 3704221467505297124
 │   │   ├── 4879223633704541869
+│   │   ├── 6418706564553420852
 │   │   ├── 6585194902085170572
 │   │   ├── 8907089595450365449
 │   │   ├── 918489930911913660
@@ -58,6 +78,12 @@
 │   ├── chef_logo.png
 │   └── chef_logo.png:Zone.Identifier
 ├── backups
+│   ├── 20251002_151110_staging_pre-upgrade
+│   │   ├── db_full.dump
+│   │   ├── extensions.tsv
+│   │   ├── schema.sql
+│   │   ├── version.txt
+│   │   └── views_reloptions.tsv
 │   └── backup_20250909_163604.sql
 ├── components
 │   ├── active_client_badge.py
@@ -65,16 +91,21 @@
 ├── config
 │   └── branding_config.json
 ├── data
-│   └── sample_data
-│       └── 2025-09-09
-│           ├── public.ingredients.csv
-│           ├── public.profiles.csv
-│           ├── public.recipe_lines.csv
-│           ├── public.recipes.csv
-│           ├── public.ref_ingredient_categories.csv
-│           ├── public.ref_storage_type.csv
-│           ├── public.ref_uom_conversion.csv
-│           └── public.sales.csv
+│   ├── exports
+│   │   └── 2025-09-09
+│   │       ├── public.ingredients.csv
+│   │       ├── public.profiles.csv
+│   │       ├── public.recipe_lines.csv
+│   │       ├── public.recipes.csv
+│   │       ├── public.ref_ingredient_categories.csv
+│   │       ├── public.ref_storage_type.csv
+│   │       ├── public.ref_uom_conversion.csv
+│   │       └── public.sales.csv
+│   └── fixtures
+│       └── ingredients.csv
+├── dist
+│   ├── gh
+│   └── goc
 ├── docs
 │   ├── policy
 │   │   ├── branching_and_prs.md
@@ -84,13 +115,21 @@
 │   │   ├── docs_policy.md
 │   │   ├── env_and_secrets.md
 │   │   ├── issues_workflow.md
+│   │   ├── migrations_and_schema.md
 │   │   └── specs_workflow.md
 │   ├── reference
-│   │   └── glossary.md
+│   │   ├── glossary.md
+│   │   └── repo_structure.md
 │   ├── runbooks
+│   │   ├── db_backups_runbook.md
+│   │   ├── db_restore_runbook.md
+│   │   ├── db_security_hardening.md
+│   │   ├── first_run.md
 │   │   ├── github_projects_setup.md
-│   │   └── release_playbook.md
+│   │   ├── release_playbook.md
+│   │   └── smoke_qa.md
 │   ├── specs
+│   │   ├── README.md
 │   │   └── spec_template.md
 │   └── README.md
 ├── migrations
@@ -105,7 +144,10 @@
 │   │   ├── V008__cross_tenant_guards_and_policies.sql
 │   │   ├── V009__tenant_functions_add.sql
 │   │   ├── V010__normalize_rls_for_global_uom.sql
-│   │   └── V011__tenant_branding_and_default.sql
+│   │   ├── V011__tenant_branding_and_default.sql
+│   │   ├── V012__views_security_invoker.sql
+│   │   ├── V013__rls_profiles_and_schema_migrations.sql
+│   │   └── V014__pin_function_search_path.sql
 │   ├── 20250916-223441__release_0.6.0.sql
 │   └── MIGRATION_PLAN__V010_tenant_claim_rls.md
 ├── pages
@@ -116,6 +158,8 @@
 │   ├── Recipes.py
 │   ├── Settings.py
 │   └── UOM_Conversion.py
+├── patch
+│   └── codex-local-working-changes.patch
 ├── patches
 ├── schema
 │   ├── archive
@@ -140,12 +184,16 @@
 ├── scripts
 │   ├── lib
 │   │   ├── json_io.js
+│   │   ├── link_sub_issue.js
 │   │   ├── seed_parse.js
+│   │   ├── sub_issues.js
 │   │   └── uid_resolver.js
 │   ├── add_db_imports.py
+│   ├── backup_db.sh
 │   ├── codemod_supabase_calls.py
 │   ├── codemod_supabase_multiline_selects.py
-│   └── codemod_updates_and_deletes.py
+│   ├── codemod_updates_and_deletes.py
+│   └── restore_public.sh
 ├── shortcuts
 │   ├── App.bat
 │   ├── ChatGPTProject.bat
@@ -155,6 +203,12 @@
 │   ├── github.bat
 │   ├── runApp.bat
 │   └── supabase.bat
+├── tests
+│   ├── smoke
+│   │   └── test_sample_data.py
+│   └── unit
+│       ├── test_docs_index.py
+│       └── test_version.py
 ├── utils
 │   ├── __init__.py
 │   ├── auth.py
@@ -162,7 +216,8 @@
 │   ├── cache.py
 │   ├── data.py
 │   ├── db.py
-│   ├── supabase.py
+│   ├── secrets.py
+│   ├── supabase_client.py
 │   ├── tenant_db.py
 │   ├── tenant_state.py
 │   ├── theme.py
@@ -170,6 +225,7 @@
 ├── .editorconfig
 ├── .env
 ├── .env.example
+├── .envrc
 ├── .gitattributes
 ├── .gitignore
 ├── .pre-commit-config.yaml
@@ -185,6 +241,7 @@
 ├── menu_optimizer.code-workspace
 ├── migrate.sh
 ├── pyproject.toml
+├── repo_contents.txt
 ├── repo_tree.py
 ├── requirements-dev.txt
 ├── requirements.txt

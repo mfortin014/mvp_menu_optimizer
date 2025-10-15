@@ -1,9 +1,8 @@
 # components/tenant_switcher.py
-import os
-
 import streamlit as st
 
-from utils.supabase import supabase
+from utils.secrets import get as get_secret
+from utils.supabase_client import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
 
@@ -20,8 +19,8 @@ def _ensure_active_tenant(tenants):
     if current:
         return current
 
-    want_id = os.getenv("DEFAULT_TENANT_ID", "").strip()
-    want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
+    want_id = (get_secret("DEFAULT_TENANT_ID", default="") or "").strip()
+    want_code = (get_secret("DEFAULT_TENANT_CODE", default="") or "").strip()
 
     if want_id and any(t["id"] == want_id for t in tenants):
         set_active_tenant(want_id)

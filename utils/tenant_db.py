@@ -1,8 +1,8 @@
 # utils/tenant_db.py
-import os
 from typing import Any, Dict, List, Optional, Set
 
-from utils.supabase import supabase
+from utils.secrets import get as get_secret
+from utils.supabase_client import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
 Json = Dict[str, Any]
@@ -64,14 +64,14 @@ def _tid() -> str:
         return tid
 
     # 2) ENV default (ID first, then CODE)
-    want_id = os.getenv("DEFAULT_TENANT_ID", "").strip()
+    want_id = (get_secret("DEFAULT_TENANT_ID", default="") or "").strip()
     if want_id:
         r = supabase.table("tenants").select("id").eq("id", want_id).limit(1).execute()
         if r.data:
             set_active_tenant(want_id)
             return want_id
 
-    want_code = os.getenv("DEFAULT_TENANT_CODE", "").strip()
+    want_code = (get_secret("DEFAULT_TENANT_CODE", default="") or "").strip()
     if want_code:
         r = supabase.table("tenants").select("id").eq("code", want_code).limit(1).execute()
         if r.data:
