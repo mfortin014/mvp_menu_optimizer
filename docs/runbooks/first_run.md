@@ -66,10 +66,12 @@ bws_on   # prompts, injects env from BWS for this terminal only
 bws_off  # clears token + un-injects
 ```
 
-**Verify (names only, values masked):**
+> Secrets and variables are no longer added to bash environment through direnv.
 
-```bash
-env | grep -E '^(DATABASE_URL|SUPABASE_URL|SUPABASE_ANON_KEY|CHEF_PASSWORD)=' | sed 's/=.*$/=****/g'
+Inject secrets and variables using the `bws run` command:
+
+```
+bws run --project-id="$STAGING" -- streamlit run Home.py
 ```
 
 ---
@@ -79,7 +81,7 @@ env | grep -E '^(DATABASE_URL|SUPABASE_URL|SUPABASE_ANON_KEY|CHEF_PASSWORD)=' | 
 From the **injected** terminal:
 
 ```bash
-streamlit run Home.py
+bws run --project-id="$STAGING" -- streamlit run Home.py
 ```
 
 When done: `Ctrl+C`, then `bws_off` (or `unset BWS_ACCESS_TOKEN; direnv reload`).
