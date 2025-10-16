@@ -1,38 +1,49 @@
+from __future__ import annotations
+
+import sys
+
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL, Engine, make_url
+from sqlalchemy.engine import URL, Engine
 
 from utils.secrets import get as get_secret
 
 
-def _compute_database_url() -> str:
+def database_url() -> str:
     """
-    Prefer DATABASE_URL if present (keeps CI/back-compat).
-    Otherwise synthesize it from DB_* components, letting SQLAlchemy
-    percent-encode the password safely.
+    Single source of truth for building a Postgres URL.
+    Always synthesize from DB_* secrets:
+      - DB_HOST (required)
+      - DB_PORT (default 5432)
+      - DB_NAME (default postgres)
+      - DB_USER (required)
+      - DB_PASSWORD (required)
+    Enforces sslmode=require via URL query.
     """
-    url = get_secret("DATABASE_URL")
-    if url:
-        parsed = make_url(url)
-        if parsed.drivername in {"postgresql", "postgresql+psycopg2", "postgres"}:
-            parsed = parsed.set(drivername="postgresql+psycopg")
-        return parsed.render_as_string(hide_password=False)
-
     host = get_secret("DB_HOST", required=True)
     port = int(get_secret("DB_PORT", default="5432"))
     name = get_secret("DB_NAME", default="postgres", required=True)
     user = get_secret("DB_USER", required=True)
     password = get_secret("DB_PASSWORD", required=True)
 
-    safe = URL.create(
-        drivername="postgresql+psycopg",  # or "postgresql" if using psycopg2
+    url = URL.create(
+        drivername="postgresql+psycopg",
         username=user,
-        password=password,  # raw; will be encoded correctly in the URL
+        password=password,  # raw; SQLAlchemy safely percent-encodes
         host=host,
         port=port,
         database=name,
+        query={"sslmode": "require"},
     )
-    return safe.render_as_string(hide_password=False)
+    # include password visibly for downstream CLI consumers (pg_dump/psql)
+    return url.render_as_string(hide_password=False)
 
 
 def get_engine() -> Engine:
-    return create_engine(_compute_database_url(), pool_pre_ping=True)
+    return create_engine(database_url(), pool_pre_ping=True)
+
+
+if __name__ == "__main__":
+    # CLI helper for shell scripts:
+    #   DBURL="$(python -m utils.db)"
+    # Prints the full URL (with sslmode=require) to stdout.
+    sys.stdout.write(database_url())
