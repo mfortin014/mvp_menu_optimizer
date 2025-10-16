@@ -90,6 +90,16 @@ See [Repo Structure & Paths](docs/reference/repo_structure.md) for the full brea
 
 - MVP: Streamlit app, Supabase staging/prod, manual deploys supported by runbooks.
 - v1: React front-end, automated deploy pipeline, richer analytics schemas.
+## Automation
+
+Seed-driven GitHub workflows turn Markdown seeds into issues and Projects entries: pending -> created -> fields -> sub-issues -> applied.
+
+- [CI — GitHub Object Creation Automation](docs/policy/ci_github_object_creation.md) documents tokens, permissions, and troubleshooting for the workflow.
+- [Seed File Schema](docs/policy/seed_schema.md) outlines supported header keys, routing options, and quick-start examples.
+
+---
+
+## Known Issues / To Do
 
 Track progress in GitHub Issues/Projects linked from the docs index.
 
