@@ -15,20 +15,25 @@ def database_url() -> str:
       - DB_HOST (required)
       - DB_PORT (default 5432)
       - DB_NAME (default postgres)
-      - DB_USER (required)
+      - DB_USER (required, or derive as <DB_NAME>.<SUPABASE_PROJECT_ID>)
       - DB_PASSWORD (required)
     Enforces sslmode=require via URL query.
     """
     host = get_secret("DB_HOST", required=True)
     port = int(get_secret("DB_PORT", default="5432"))
     name = get_secret("DB_NAME", default="postgres", required=True)
-    user = get_secret("DB_USER", required=True)
+
+    user = get_secret("DB_USER")
+    if not user:
+        proj = get_secret("SUPABASE_PROJECT_ID", required=True)
+        user = f"{name}.{proj}"
+
     password = get_secret("DB_PASSWORD", required=True)
 
     url = URL.create(
         drivername="postgresql+psycopg",
         username=user,
-        password=password,  # raw; SQLAlchemy safely percent-encodes
+        password=password,  # raw; SQLAlchemy percent-encodes on render
         host=host,
         port=port,
         database=name,
