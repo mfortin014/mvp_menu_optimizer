@@ -79,28 +79,36 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      # ---- Derive non-secret URL pieces & synthesize DATABASE_URL (no logging) ----
-      - name: Derive SUPABASE_URL and DB_USER + synthesize DATABASE_URL
+      # ---- Persist raw DB_* inputs (and light derived) into job env ----
+      - name: Persist DB inputs to $GITHUB_ENV (no synthesis)
         shell: bash
         env:
           # Prefer environment VARIABLES (vars.*); fall back to SECRETS if not set
           SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
-          DB_HOST: ${{ vars.DB_HOST || secrets.DB_HOST }}
-          DB_PORT: ${{ vars.DB_PORT || secrets.DB_PORT }}
-          DB_NAME: ${{ vars.DB_NAME || secrets.DB_NAME }}
+          DB_HOST: ${{ vars.DB_HOST             || secrets.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT             || secrets.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME             || secrets.DB_NAME }}
           # Secrets
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           : "${DB_NAME:=postgres}"
           : "${DB_PORT:=5432}"
-          # Derive non-secrets on runner (not stored)
-          export DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
-          {
-            echo "SUPABASE_URL=https://${SUPABASE_PROJECT_ID}.supabase.co"
-          } >> "$GITHUB_ENV"
 
-          # Build DATABASE_URL (percent-encode + sslmode=require) without echoing value
-          scripts/synthesize_db_url.sh
+          # Derive DB_USER locally if not provided via environment
+          DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
+
+          # Write ONLY to $GITHUB_ENV (never echo to stdout)
+          {
+            printf 'DB_HOST=%s\n' "$DB_HOST"
+            printf 'DB_PORT=%s\n' "$DB_PORT"
+            printf 'DB_NAME=%s\n' "$DB_NAME"
+            printf 'DB_USER=%s\n' "$DB_USER"
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD"
+            # convenience for app/tests
+            if [ -n "${SUPABASE_PROJECT_ID:-}" ]; then
+              printf 'SUPABASE_URL=%s\n' "https://${SUPABASE_PROJECT_ID}.supabase.co"
+            fi
+          } >> "$GITHUB_ENV"
 
       - name: Add repo root to PYTHONPATH
         run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
