@@ -32,12 +32,19 @@ def _from_streamlit(name: str) -> Optional[Any]:
     # Prefer the mapping-style .get when available
     getter = getattr(secrets_obj, "get", None)
     if callable(getter):
-        value = getter(name, None)
+        try:
+            value = getter(name, None)
+        except FileNotFoundError:
+            return None
+        except Exception:
+            value = None
         if value is not None:
             return value
 
     try:
         return secrets_obj[name]
+    except FileNotFoundError:
+        return None
     except Exception:
         return None
 
