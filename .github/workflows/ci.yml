@@ -2,17 +2,24 @@ name: CI
 
 on:
   pull_request:
-    branches: [codex-phase1, main]
-  push:
-    branches: [codex-phase1]
+    branches: ["main"]
   workflow_dispatch:
 
-jobs:
-  check:
-    name: Lint & Unit Tests
-    runs-on: ubuntu-22.04
-    timeout-minutes: 15
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------
+  # Linting / Formatting
+  # ---------------------------
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,17 +37,89 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dev dependencies
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ruff (lint)
+        run: ruff check . --output-format=github
+
+      - name: Black (format check)
+        run: black --check .
+
+      - name: isort (import order check)
+        run: isort . --check-only
+
+  # ---------------------------
+  # Thin syntax smoke
+  # ---------------------------
+  syntax:
+    name: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Thin smoke — syntax compile
+        run: |
+          python - <<'PY'
+          import os, sys, py_compile
+          SKIP = {".git", ".venv", "venv", "node_modules", "docs", "schema", "backups", ".streamlit"}
+          failures = []
+          for root, dirs, files in os.walk("."):
+              parts = set(root.split(os.sep))
+              if SKIP & parts:
+                  continue
+              for f in files:
+                  if f.endswith(".py"):
+                      p = os.path.join(root, f)
+                      try:
+                          py_compile.compile(p, doraise=True)
+                      except Exception as e:
+                          failures.append((p, str(e)))
+          if failures:
+              for p, e in failures:
+                  print(f"SMOKE compile failed: {p} :: {e}", file=sys.stderr)
+              sys.exit(1)
+          print("SMOKE: syntax OK")
+          PY
+
+  # ---------------------------
+  # Unit tests (no secrets / no DB)
+  # ---------------------------
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-
-      - name: Ruff / Black / Isort (check only)
-        run: |
-          ruff check .
-          black --check .
-          isort --check-only .
 
       - name: Add repo root to PYTHONPATH
         run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
@@ -48,14 +127,14 @@ jobs:
       - name: Unit tests
         run: pytest tests/unit -q
 
-  smoke:
-    name: Thin Smoke (staging)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    needs: [check]
-    # Use the staging environment so we can read its env secrets/vars
-    environment: staging
-
+  # ---------------------------
+  # Smoke tests (staging DB)
+  # ---------------------------
+  smoke-staging:
+    name: smoke-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, syntax, unit]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
