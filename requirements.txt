@@ -1,9 +1,9 @@
 supabase
 streamlit==1.35.0
 pandas
-sqlalchemy
 matplotlib
 openpyxl
-psycopg2-binary
 python-dotenv
 streamlit-aggrid
+sqlalchemy>=2.0
+psycopg[binary]>=3.1

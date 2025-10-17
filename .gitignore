@@ -3,9 +3,12 @@
 __pycache__/
 *.pyc
 .env
-data/
+data/*
+!data/fixtures/
+!data/fixtures/**
 .streamlit/secrets.toml
 shortcuts/
 backups/
 schema/archive/
 *.Zone.Identifier
+menu_optimizer.code-workspace

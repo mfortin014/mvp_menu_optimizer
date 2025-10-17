@@ -5,38 +5,42 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# If you push multiple updates to the same PR, cancel older runs to save time
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege token; this workflow only reads code
 permissions:
   contents: read
 
 jobs:
-  check:
-    name: check
+  # ---------------------------
+  # Linting / Formatting
+  # ---------------------------
+  lint:
+    name: lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 10
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"  # speed up pip installs
 
-      - name: Install lint/format tooling
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install tooling
         run: |
           python -m pip install --upgrade pip
-          pip install "ruff>=0.6" black isort
-          ruff --version
-          black --version
-          isort --version
+          pip install -r requirements-dev.txt
 
       - name: Ruff (lint)
         run: ruff check . --output-format=github
@@ -47,28 +51,149 @@ jobs:
       - name: isort (import order check)
         run: isort . --check-only
 
-      # Thin, non-destructive smoke: compile all .py files.
-      # This catches syntax errors across the repo without running the app,
-      # touching the network, or requiring secrets/DB access.
+  # ---------------------------
+  # Thin syntax smoke
+  # ---------------------------
+  syntax:
+    name: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Thin smoke — syntax compile
         run: |
           python - <<'PY'
           import os, sys, py_compile
-          SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "docs", "schema", "backups", ".streamlit"}
+          SKIP = {".git", ".venv", "venv", "node_modules", "docs", "schema", "backups", ".streamlit"}
           failures = []
           for root, dirs, files in os.walk("."):
-              if any(part in SKIP_DIRS for part in root.split(os.sep)):
+              parts = set(root.split(os.sep))
+              if SKIP & parts:
                   continue
               for f in files:
                   if f.endswith(".py"):
-                      path = os.path.join(root, f)
+                      p = os.path.join(root, f)
                       try:
-                          py_compile.compile(path, doraise=True)
+                          py_compile.compile(p, doraise=True)
                       except Exception as e:
-                          failures.append((path, str(e)))
+                          failures.append((p, str(e)))
           if failures:
-              for path, msg in failures:
-                  print(f"SMOKE: compile failed: {path} :: {msg}", file=sys.stderr)
+              for p, e in failures:
+                  print(f"SMOKE compile failed: {p} :: {e}", file=sys.stderr)
               sys.exit(1)
-          print("SMOKE: syntax OK across repository")
+          print("SMOKE: syntax OK")
           PY
+
+  # ---------------------------
+  # Unit tests (no secrets / no DB)
+  # ---------------------------
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: pytest tests/unit -q
+
+  # ---------------------------
+  # Smoke tests (staging DB)
+  # ---------------------------
+  smoke-staging:
+    name: smoke-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, syntax, unit]
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # ---- Persist raw DB_* inputs (and light derived) into job env ----
+      - name: Persist DB inputs to $GITHUB_ENV (no synthesis)
+        shell: bash
+        env:
+          # Prefer environment VARIABLES (vars.*); fall back to SECRETS if not set
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
+          DB_HOST: ${{ vars.DB_HOST             || secrets.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT             || secrets.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME             || secrets.DB_NAME }}
+          # Secrets
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          : "${DB_NAME:=postgres}"
+          : "${DB_PORT:=5432}"
+
+          # Derive DB_USER locally if not provided via environment
+          DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
+
+          # Write ONLY to $GITHUB_ENV (never echo to stdout)
+          {
+            printf 'DB_HOST=%s\n' "$DB_HOST"
+            printf 'DB_PORT=%s\n' "$DB_PORT"
+            printf 'DB_NAME=%s\n' "$DB_NAME"
+            printf 'DB_USER=%s\n' "$DB_USER"
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD"
+            # convenience for app/tests
+            if [ -n "${SUPABASE_PROJECT_ID:-}" ]; then
+              printf 'SUPABASE_URL=%s\n' "https://${SUPABASE_PROJECT_ID}.supabase.co"
+            fi
+          } >> "$GITHUB_ENV"
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
+
+      # ---- Smoke tests that rely on env (DATABASE_URL, SUPABASE_URL, etc.) ----
+      - name: Smoke tests
+        run: pytest tests/smoke -q

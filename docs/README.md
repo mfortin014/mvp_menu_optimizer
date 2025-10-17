@@ -14,12 +14,14 @@ Repo = Library (durable truth). GitHub = Town Square (work-in-progress). OneDriv
 - [Branching & PR Protocol](policy/branching_and_prs.md) — trunk-based, Draft PRs, squash. [MVP]
 - [Conventional Commits & Changelog](policy/commits_and_changelog.md) — commit types, tags, CHANGELOG. [MVP]
 - [Minimal CI (Week 1)](policy/ci_minimal.md) — required checks and shape of Actions. [MVP]
+- [Migrations & Schema Discipline](policy/migrations_and_schema.md) — append-only SQL plus schema dump guardrails. [MVP]
 - [.github/PULL_REQUEST_TEMPLATE.md](../.github/pull_request_template.md) — intent-first structure. [MVP]
 
 ## Runbooks
 
+- [First Clone → First Run](runbooks/first_run.md) — local setup, quality gates, Streamlit boot. [MVP]
+- [Smoke QA](runbooks/smoke_qa.md) — staging validation & evidence checklist. [MVP]
 - [Release Playbook](runbooks/release_playbook.md) — bump → verify → tag → stage → promote → aftercare. [MVP]
-- First Run — (to be added in Phase 1). [MVP]
 - Rollback — (to be added in Phase 2). [v1]
 - [DB Security Hardening](runbooks/db_security_hardening.md)
 - [DB Backups](runbooks/db_backups_runbook.md)
@@ -31,13 +33,15 @@ Repo = Library (durable truth). GitHub = Town Square (work-in-progress). OneDriv
 
 ## Reference
 
+- [Repo Structure & Paths](reference/repo_structure.md) — directories you’ll touch day-to-day. [MVP]
 - [Glossary](reference/glossary.md) — shared language across docs and PRs. [MVP]
 - Data Dictionary — add link under `docs/reference/` when ready. [MVP]
 - Events & Error Model — Phase 3. [v1]
 
 ## Specs / ADRs
 
-- Accepted specs live in `docs/specs/` (Phase 1 adds an index). [MVP]
+- [Specs Index](specs/README.md) — list of active specs, templates, and hygiene rules. [MVP]
+- Accepted specs live in `docs/specs/`. [MVP]
 - ADRs live in `docs/adr/` (template arrives in Phase 2). [v1]
 
 ## Work Tracking & Heavy Files (update these URLs)

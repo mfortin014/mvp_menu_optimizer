@@ -3,7 +3,7 @@ from typing import Optional
 import streamlit as st
 
 from utils.branding import inject_brand_colors
-from utils.supabase import supabase
+from utils.supabase_client import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
 

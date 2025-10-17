@@ -1,7 +1,8 @@
 # utils/auth.py
 import streamlit as st
 
-from utils.supabase import supabase
+from utils.secrets import get as get_secret
+from utils.supabase_client import supabase
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
 
@@ -52,7 +53,12 @@ def require_auth():
         ensure_client_selected_pre_auth()
         st.title("🔐 Secure Access")
         password = st.text_input("Enter password:", type="password")
-        if password == st.secrets.get("CHEF_PASSWORD"):
+        expected_password = get_secret("CHEF_PASSWORD")
+        if expected_password is None:
+            st.error("CHEF_PASSWORD is not configured.")
+            st.stop()
+
+        if password == expected_password:
             st.session_state.authenticated = True
             st.success("Authenticated! You may continue.")
             st.rerun()
