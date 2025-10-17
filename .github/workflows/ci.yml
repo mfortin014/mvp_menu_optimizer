@@ -135,6 +135,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [lint, syntax, unit]
+    environment: staging
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
