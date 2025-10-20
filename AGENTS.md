@@ -1,110 +1,120 @@
-# 🤖 AGENTS.md – Agent Implementation Protocol
+# AGENTS.md — Canonical rules for code agents in this repo
 
-## 📌 Purpose
-
-This file defines how AI agents (e.g., Codex, Copilot, ChatGPT) or human collaborators should contribute to this codebase. It ensures a consistent, migration-aware, and documented approach to development that aligns with the broader OpsForge ecosystem.
-
-This file is always in effect, regardless of the specific feature or module being developed.
+**Audience:** repository-integrated coding agents (e.g., VS Code Codex/Copilot).  
+**Purpose:** encode how to collaborate here.
 
 ---
 
-## 🧠 Agent Responsibilities
+## 1) Mission & scope
 
-### ✅ Always
-
-* Check for relevant `*.Specs.md` or `*.Changelog.md` files before starting work.
-* Follow all instructions defined in:
-
-  * `AGENTS.md` (this file)
-  * `dump_schema.sh` and connection string setup (via `.env` or manual export)
-  * Schema files in `/schema/`
-* Use semantic, atomic Git commits with meaningful messages.
-* Annotate AI-assisted commits with `[aigen]` at the end.
-* Update the following files when your implementation touches them:
-
-  * `Menu_Optimizer_Specs.md`
-  * `Menu_Optimizer_Changelog.md`
-  * `Menu_Optimizer_DataDictionary.md`
-* Ensure features are **fully functional** unless the spec says otherwise. If a new table or view is required, define it in SQL and include it in the feature spec. Do not apply changes directly to the live database.
-
-### ❌ Never
-
-* Assume stub-only implementation unless explicitly scoped in the feature spec
-* Modify unrelated files or refactor without documented reason
-* Leave undocumented assumptions in code or logic
-* Overwrite or rename reference data without updating source `.md` docs
+Work happens through **Issues → Branches → Draft PRs**, with human review at every gate.  
+When you need a rule, **link the exact doc section** rather than paraphrasing it.
 
 ---
 
-## 🔁 Workflow Summary
+## 2) Operating mode (Draft PRs only)
 
-1. **Branch** off from `main`:
+- **Never** commit to `main`.
+- **Always** open a **Draft PR** first, keep diffs **small and reversible**, and explain intent briefly.
+- When unsure, pause and ask in the PR with your best-guess plan.
 
-   ```bash
-   git checkout -b feature/<feature-name>
-   ```
-
-2. **Implement** according to the spec. If a spec doesn’t exist, pause and escalate.
-
-3. **Validate** that all:
-
-   * Code changes are scoped to the task
-   * Frontend + backend logic is consistent
-   * UI changes reflect updated logic (if applicable)
-   * Database schema changes are reflected in `schema/supabase_schema.sql`
-
-4. **Update** affected `.md` files.
-
-5. **Commit** with clear messages:
-
-   ```bash
-   git commit -m "feat(recipes): add service/ingredient booleans [aigen]"
-   ```
-
-6. **Push & PR**:
-
-   * Push to your branch
-   * Open a pull request into `main`
-   * Link it to the relevant spec if possible
+See: `branching_and_prs.md`, `ci_minimal.md`, `ci_cd_constitution.md`.
 
 ---
 
-## 🧪 Testing Expectations
+## 3) Start-here handshake
 
-* All new functionality must be manually tested in the Streamlit UI
-* DB views must be reviewed in SQL format (via pgAdmin, Supabase, or CLI)
-* Feature must work from the user’s perspective, not just technically pass
-
----
-
-## 🔍 Key Patterns to Follow
-
-| Area              | Pattern / Rule                                                                                                                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Commit Format     | `type(area): message [aigen]`                                                                                                                                                                                                                                      |
-| Feature Spec File | `*.Specs.md` with deliverables checklist                                                                                                                                                                                                                           |
-| Schema Sync       | Do not modify the schema dump directly. If a schema change is required, provide the SQL migration statement in the relevant feature spec or in a dedicated `.sql` file. A human will apply it and refresh `schema/supabase_schema.sql` using the provided tooling. |
-|                   |                                                                                                                                                                                                                                                                    |
+1. **Create a branch** from the default branch using our naming (see `branching_and_prs.md`).
+2. **Use the Issue provided in the prompt.**
+   - If an Issue link/number is not provided, stop and request it (do not self-discover Issues).
+3. **If instructed, seed an Issue** via our automation (see `ci_github_object_creation.md` and `issues_workflow.md`).
+   - Generate a minimal seed file under `.github/project-seeds/pending/`, then commit and push.
+4. **Prepare Draft PR content** associated with the issue in mardown format.
+   - Provide a squash-ready **title** and a concise **body** that links the Issue and cites exact policy sections (see `branching_and_prs.md`, `ci_minimal.md`, `commits_and_changelog.md`, and if applicable `migrations_and_schema.md`).
 
 ---
 
-## 🛠 Supported Tools
+## 4) Guardrails & prohibitions
 
-* Supabase Postgres
-* Streamlit (Python)
-* pg\_dump (`dump_schema.sh`)
-* GitHub branching with protection rules enabled
-
----
-
-## 📄 Related Documents
-
-* `dump_schema.sh` — how to keep DB schema up to date
-* `Menu_Optimizer_Specs.md` — global feature specifications
-* `Menu_Optimizer_Changelog.md` — release notes per version
-* `Menu_Optimizer_DataDictionary.md` — table-by-table schema guide
+- **Secrets & env:** you cannot access secrets. **Do not** create/edit env/secret files or instructions about them.  
+  See: `env_and_secrets.md`.
+- **Runtime & DB:** **do not** run the app or connect to any database. Prefer static analysis and compiler/lint checks.
+- **Migrations (authorship allowed, execution forbidden):**
+  - You **may author** migration files **only when the Issue explicitly requests schema changes** and references `migrations_and_schema.md`.
+  - You **must not execute** migrations or perform any DB operations.
+- **Cross-repo writes:** confined to this repo.
+- **Destructive ops:** avoid bulk renames/deletions without explicit rationale and linked policy.
 
 ---
 
-**Maintained by:** Project Owner / OpsForge Architect
-**Audience:** GitHub-based agents (Codex, Copilot), external devs, and collaborators
+## 5) What’s encouraged
+
+- **Tiny, tidy diffs** (split work if >~200–300 LOC across many files).
+- **Inline rationale** where intent isn’t obvious.
+- **Pointer-first help:** include direct relative links to exact doc headings you used.
+- **Ask > assume:** ask questions when facing ambiguity.
+
+---
+
+## 6) PR hygiene
+
+**Keep PR bodies short and useful:**
+
+- One-sentence **problem** and one-sentence **outcome**.
+- Links: **Issue**, **spec** (if any), and **exact policy sections** followed.
+- Verification note: what you checked (e.g., lints/static checks), and whether user-visible changes need a changelog line.
+
+**Commits:** small and topical; final merge uses a clean **squash one-liner** (follow `commits_and_changelog.md`).
+
+See: `commits_and_changelog.md`, `release_playbook.md`, `ci_minimal.md`.
+
+---
+
+## 7) Docs discovery & linking rules
+
+Treat repo docs as the **library of truth**. Always **use relative links**.
+
+Common entry points (not exhaustive):
+
+- Overview & first run — `README.md`, `first_run.md`
+- Issues & seeding — `issues_workflow.md`, `ci_github_object_creation.md`
+- Branching & PRs — `branching_and_prs.md`
+- CI/CD gates — `ci_minimal.md`, `ci_cd_constitution.md`
+- Changelog & releases — `commits_and_changelog.md`, `release_playbook.md`
+- Specs & docs discipline — `specs_workflow.md`, `docs_policy.md`
+- Data & migrations — `migrations_and_schema.md`
+- QA & smoke — `smoke_qa.md`
+- Env & secrets — `env_and_secrets.md`
+
+> When citing a rule, prefer **section-level links** (e.g., `migrations_and_schema.md#naming`) instead of summarizing.
+
+---
+
+## 8) Migration authorship protocol (when explicitly requested)
+
+1. Read the Issue and the relevant sections in `migrations_and_schema.md`.
+2. Generate files **in the correct directory** with the **prescribed naming** and include **up/down** or rollback notes if required.
+3. In the PR body, include a brief **migration plan**: intent, impacted tables/columns, and a link to the exact policy section used.
+4. **Do not run** the migration or connect to any DB; mark as “pending maintainer execution.”
+
+---
+
+## 9) Failure modes & recovery
+
+- **Missing info?** Post a concise assumption list and a minimal plan; request confirmation.
+- **CI failing?** Point to the exact job/log line, propose the smallest corrective change, and stop for review.
+- **Spec vs docs mismatch?** Link both sources, describe the discrepancy, and request guidance—do not resolve solo.
+
+---
+
+## 10) Sidecars (future)
+
+If files like `.cursorrules`, `CLAUDE.md`, or `.github/copilot-instructions.md` are added, they **must** defer to this `AGENTS.md` and only add tool-specific syntax/ergonomics.
+
+---
+
+## 11) GitHub collaboration
+
+- When providing contents for GitHub objects to be manually updated to GitHub by humans, always provide it as markdown codeblocs. If the contents itself contains codeblocs, make sure the outter codebloc is quadruple fenced.
+
+**Prime directive:** reduce risk, increase velocity. Keep diffs tiny, link policy, and ask when unsure.
