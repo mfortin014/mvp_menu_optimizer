@@ -8,7 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 [Compare](https://github.com/mfortin014/mvp_menu_optimizer/compare/v0.7.0...HEAD)
 
-- _TBD_
+### Added
+
+- Bootstrap migration `V000__bootstrap_schema.sql` capturing the 2025-09-09 schema baseline so fresh environments can replay the full chain.
 
 ## [0.7.0] - 2025-10-17
 
