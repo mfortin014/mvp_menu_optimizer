@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 import sys
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
 
 from utils.secrets import get as get_secret
 
+DEFAULT_DRIVER = "postgresql"
+ENGINE_DRIVER = "postgresql+psycopg"
 
-def database_url() -> str:
+
+def database_url(driver: Optional[str] = None) -> str:
     """
     Single source of truth for building a Postgres URL.
     Always synthesize from DB_* secrets:
@@ -19,6 +23,10 @@ def database_url() -> str:
       - DB_USER (required, or derive as <DB_NAME>.<SUPABASE_PROJECT_ID>)
       - DB_PASSWORD (required)
     Enforces sslmode=require via URL query.
+
+    Args:
+        driver: Optional SQLAlchemy drivername (e.g., "postgresql+psycopg").
+                Defaults to "postgresql" for CLI consumers like pg_dump/psql.
     """
     host = get_secret("DB_HOST", required=True)
     port = int(get_secret("DB_PORT", default="5432"))
@@ -32,7 +40,7 @@ def database_url() -> str:
     password = get_secret("DB_PASSWORD", required=True)
 
     url = URL.create(
-        drivername="postgresql+psycopg",
+        drivername=driver or DEFAULT_DRIVER,
         username=user,
         password=password,  # raw; SQLAlchemy percent-encodes on render
         host=host,
@@ -45,7 +53,7 @@ def database_url() -> str:
 
 
 def get_engine() -> Engine:
-    return create_engine(database_url(), pool_pre_ping=True)
+    return create_engine(database_url(ENGINE_DRIVER), pool_pre_ping=True)
 
 
 if __name__ == "__main__":
