@@ -1,3 +1,4 @@
+# nudge - we will modify this file
 #!/bin/bash
 set -euo pipefail
 
@@ -30,7 +31,7 @@ echo "🔎 Schemas: $SCHEMAS"
 for schema in $(echo "$SCHEMAS" | tr ',' ' '); do
   tables=$(psql "$DATABASE_URL" -Atc \
     "SELECT tablename FROM pg_tables WHERE schemaname='${schema}' ORDER BY tablename;")
-  
+
   for tbl in $tables; do
     FILE="$OUTDIR/${schema}.${tbl}.csv"
     echo "→ ${schema}.${tbl}  →  $FILE"
