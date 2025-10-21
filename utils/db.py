@@ -1,10 +1,8 @@
 from __future__ import annotations
 
+import os
 import sys
-from contextlib import ExitStack, redirect_stderr, redirect_stdout
-from functools import lru_cache
-from io import StringIO
-from typing import Any, Callable, Optional
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
@@ -13,22 +11,17 @@ DEFAULT_DRIVER = "postgresql"
 ENGINE_DRIVER = "postgresql+psycopg"
 
 
-@lru_cache(maxsize=1)
-def _lazy_get_secret() -> Callable[..., Any]:
-    """
-    Import utils.secrets lazily to avoid Streamlit's CLI warning
-    when this module is executed from the shell (e.g., python -m utils.db).
-    """
-    buffer = StringIO()
-    with ExitStack() as stack:
-        stack.enter_context(redirect_stderr(buffer))
-        stack.enter_context(redirect_stdout(buffer))
+def _get_secret(name: str, default=None, *, required: bool = False):
+    value = os.environ.get(name)
+    if value is None and "streamlit" in sys.modules:
         from utils.secrets import get as get_secret  # noqa: WPS433 (runtime import)
-    return get_secret
 
-
-def _get_secret(name: str, default: Any = None, *, required: bool = False) -> Any:
-    return _lazy_get_secret()(name, default, required=required)
+        value = get_secret(name, default, required=required)
+    if value is None:
+        value = default
+    if required and value is None:
+        raise RuntimeError(f"Missing required secret: {name}")
+    return value
 
 
 def database_url(driver: Optional[str] = None) -> str:
