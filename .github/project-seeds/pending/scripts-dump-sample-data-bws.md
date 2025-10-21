@@ -26,3 +26,5 @@ Run sample-data exports through `bws run --project-id=…` and synthesize the co
 - `bws run --project-id="$TEST" -- ./dump_sample_data.sh` succeeds without sourcing `.env`.
 - The script fails fast with a clear error if required secrets are missing.
 - No references remain to prod/staging env vars.
+
+<!-- seed-uid:cripts-dump-sample-data-bws -->
