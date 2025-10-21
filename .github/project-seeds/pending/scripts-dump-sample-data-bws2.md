@@ -1,7 +1,7 @@
 <!--
 title: chore,scripts: Make `dump_sample_data.sh` Bitwarden-run aware
 labels: ["ci","db"]
-uid: scripts-dump-sample-data-bws
+uid: scripts-dump-sample-data-bws2
 parent_uid: epic-bws-script-hardening
 type: Chore
 status: Todo
@@ -27,4 +27,4 @@ Run sample-data exports through `bws run --project-id=…` and synthesize the co
 - The script fails fast with a clear error if required secrets are missing.
 - No references remain to prod/staging env vars.
 
-<!-- seed-uid:cripts-dump-sample-data-bws -->
+<!-- seed-uid:cripts-dump-sample-data-bws2 -->
