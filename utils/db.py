@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import os
 import sys
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
 
-from utils.secrets import get as get_secret
+DEFAULT_DRIVER = "postgresql"
+ENGINE_DRIVER = "postgresql+psycopg"
 
 
-def database_url() -> str:
+def _get_secret(name: str, default=None, *, required: bool = False):
+    value = os.environ.get(name)
+    if value is None and "streamlit" in sys.modules:
+        from utils.secrets import get as get_secret  # noqa: WPS433 (runtime import)
+
+        value = get_secret(name, default, required=required)
+    if value is None:
+        value = default
+    if required and value is None:
+        raise RuntimeError(f"Missing required secret: {name}")
+    return value
+
+
+def database_url(driver: Optional[str] = None) -> str:
     """
     Single source of truth for building a Postgres URL.
     Always synthesize from DB_* secrets:
@@ -18,20 +34,24 @@ def database_url() -> str:
       - DB_USER (required, or derive as <DB_NAME>.<SUPABASE_PROJECT_ID>)
       - DB_PASSWORD (required)
     Enforces sslmode=require via URL query.
-    """
-    host = get_secret("DB_HOST", required=True)
-    port = int(get_secret("DB_PORT", default="5432"))
-    name = get_secret("DB_NAME", default="postgres", required=True)
 
-    user = get_secret("DB_USER")
+    Args:
+        driver: Optional SQLAlchemy drivername (e.g., "postgresql+psycopg").
+                Defaults to "postgresql" for CLI consumers like pg_dump/psql.
+    """
+    host = _get_secret("DB_HOST", required=True)
+    port = int(_get_secret("DB_PORT", default="5432"))
+    name = _get_secret("DB_NAME", default="postgres", required=True)
+
+    user = _get_secret("DB_USER")
     if not user:
-        proj = get_secret("SUPABASE_PROJECT_ID", required=True)
+        proj = _get_secret("SUPABASE_PROJECT_ID", required=True)
         user = f"{name}.{proj}"
 
-    password = get_secret("DB_PASSWORD", required=True)
+    password = _get_secret("DB_PASSWORD", required=True)
 
     url = URL.create(
-        drivername="postgresql+psycopg",
+        drivername=driver or DEFAULT_DRIVER,
         username=user,
         password=password,  # raw; SQLAlchemy percent-encodes on render
         host=host,
@@ -44,7 +64,7 @@ def database_url() -> str:
 
 
 def get_engine() -> Engine:
-    return create_engine(database_url(), pool_pre_ping=True)
+    return create_engine(database_url(ENGINE_DRIVER), pool_pre_ping=True)
 
 
 if __name__ == "__main__":
