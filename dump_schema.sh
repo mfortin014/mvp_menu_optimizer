@@ -13,7 +13,7 @@ set -euo pipefail
 #     3. Dumps the schema via pg_dump and writes labelled artifacts:
 #        - schema/current/supabase_schema_<env>.sql
 #        - schema/archive/supabase_schema_<env>_<timestamp>.sql
-#        - schema/releases/supabase_schema_<env>_<release>.sql (only for --mode release, using --tag or timestamp)
+#        - schema/releases/supabase_schema_<env>_<release>.sql (only for --mode release; requires --tag)
 # ------------------------------------------------------------
 
 MODE="latest"
@@ -116,21 +116,20 @@ fetch_database_url() {
   echo "${url}"
 }
 
-ts_utc() { date -u +%Y-%m-%d_%H%MUTC; }
-ts_utc_arch() { date -u +%Y_%m_%d_%H%M; }
+ts_local() { date +%Y-%m-%d_%H%M; }
 git_rev() { git rev-parse --short HEAD 2>/dev/null || echo "unknown"; }
 
 archive_path() {
   local env="$1"
-  local stamp_arch="$2"
-  local base="schema/archive/supabase_schema_${env}_${stamp_arch}.sql"
+  local stamp="$2"
+  local base="schema/archive/supabase_schema_${env}_${stamp}.sql"
   if [[ ! -e "${base}" ]]; then
     echo "${base}"
     return
   fi
   local idx=2
   while :; do
-    local candidate="schema/archive/supabase_schema_${env}_${stamp_arch}_v$(printf "%02d" "${idx}").sql"
+    local candidate="schema/archive/supabase_schema_${env}_${stamp}_v$(printf "%02d" "${idx}").sql"
     [[ ! -e "${candidate}" ]] && { echo "${candidate}"; return; }
     idx=$((idx + 1))
   done
@@ -148,11 +147,11 @@ prepend_header() {
   local mode="$3"
   local tag="$4"
   local project="$5"
+  local stamp="$6"
 
-  local stamp rev tmp
-  stamp="$(ts_utc)"
-  rev="$(git_rev)"
-  tmp="$(mktemp)"
+  local rev tmp
+ rev="$(git_rev)"
+ tmp="$(mktemp)"
 
   {
     echo "-- ------------------------------------------------------------"
@@ -160,7 +159,7 @@ prepend_header() {
     echo "-- Env: ${env}"
     echo "-- Bitwarden project: ${project}"
     echo "-- Mode: ${mode}"
-    echo "-- Timestamp (UTC): ${stamp}"
+    echo "-- Timestamp (local): ${stamp}"
     echo "-- Git commit: ${rev}"
     if [[ -n "${tag}" ]]; then
       echo "-- Release Tag: ${tag}"
@@ -198,14 +197,15 @@ main() {
   echo "🔄 Dumping schema (${MODE}) for ${ENV_NAME} (project ${project_id})..."
   pg_dump "${db_url}" --schema-only --no-owner --no-privileges --file="${tmp}"
 
-  prepend_header "${tmp}" "${ENV_NAME}" "${MODE}" "${RELEASE_TAG}" "${project_id}"
+  local stamp_extract
+  stamp_extract="$(ts_local)"
+  prepend_header "${tmp}" "${ENV_NAME}" "${MODE}" "${RELEASE_TAG}" "${project_id}" "${stamp_extract}"
 
   local current="schema/current/supabase_schema_${ENV_NAME}.sql"
   mv -f "${tmp}" "${current}"
 
-  local stamp_arch arch_path
-  stamp_arch="$(ts_utc_arch)"
-  arch_path="$(archive_path "${ENV_NAME}" "${stamp_arch}")"
+  local arch_path
+  arch_path="$(archive_path "${ENV_NAME}" "${stamp_extract}")"
   cp -f "${current}" "${arch_path}"
   echo "✅ Updated current schema → ${current}"
   echo "🗄️  Archived snapshot     → ${arch_path}"
