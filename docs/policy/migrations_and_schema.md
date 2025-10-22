@@ -37,7 +37,7 @@ Purpose: keep database drift under control while the MVP evolves. Pair with `dum
 
 ### MVP now
 - Never hand-edit files under `schema/`.  
-- After deploying a migration, run `bws run --project-id="$PROD_PROJECT_ID" -- ./dump_schema.sh --mode release --tag <release-name>`, then:
+- After deploying a migration, run `./dump_schema.sh --env prod --mode release --tag <release-name>`, then:
   - Commit the updated `schema/current/supabase_schema_prod.sql`.
   - Commit the release snapshot `schema/releases/supabase_schema_prod_<release-name>.sql`.
 - The script also keeps timestamped snapshots in `schema/archive/` (ignored by Git) for local forensics.

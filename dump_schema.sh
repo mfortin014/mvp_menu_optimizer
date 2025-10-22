@@ -4,26 +4,31 @@ set -euo pipefail
 # ------------------------------------------------------------
 # dump_schema.sh
 #
-#   Collect a schema snapshot using Bitwarden-injected secrets:
-#     bws run --project-id="<project-id>" -- ./dump_schema.sh [--mode release] [--tag <release>]
+#   Usage:
+#     ./dump_schema.sh --env <name> [--mode latest|release] [--tag <release>]
 #
-#   Outputs (with <env> inferred from .envrc exports matching the project id):
-#     - schema/current/supabase_schema_<env>.sql
-#     - schema/archive/supabase_schema_<env>_<timestamp>.sql
-#     - schema/releases/supabase_schema_<env>_<release>.sql (only when --mode release)
+#   The script:
+#     1. Looks up <name> (e.g., staging) in exported variables / .envrc to find the Bitwarden project id.
+#     2. Invokes `bws run --project-id=<id> -- python -m utils.db` to synthesize the database URL.
+#     3. Dumps the schema via pg_dump and writes labelled artifacts:
+#        - schema/current/supabase_schema_<env>.sql
+#        - schema/archive/supabase_schema_<env>_<timestamp>.sql
+#        - schema/releases/supabase_schema_<env>_<release>.sql (only for --mode release, using --tag or timestamp)
 # ------------------------------------------------------------
 
 MODE="latest"
 RELEASE_TAG=""
+ENV_NAME=""
 
 usage() {
   cat <<'EOF'
 Usage:
-  bws run --project-id="<project-id>" -- ./dump_schema.sh [--mode latest|release] [--tag <release-tag>]
+  ./dump_schema.sh --env <name> [--mode latest|release] [--tag <release-tag>]
 
 Options:
-  --mode latest|release   Dump mode to run (default: latest)
-  --tag <release-tag>     Optional release tag used for release snapshot filenames
+  --env <name>            Environment label (e.g., staging, prod); must match an export in .envrc
+  --mode latest|release   Dump mode (default: latest)
+  --tag <release-tag>     Release tag to use in release filenames (required when --mode release)
   -h, --help              Show this help text and exit
 EOF
   exit 1
@@ -31,15 +36,24 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --mode|-m) MODE="${2:-}"; shift 2 ;;
-    --tag|-t)  RELEASE_TAG="${2:-}"; shift 2 ;;
-    --help|-h) usage ;;
-    *)         echo "Unknown arg: $1" >&2; usage ;;
+    --env)      ENV_NAME="${2:-}"; shift 2 ;;
+    --mode|-m)  MODE="${2:-}"; shift 2 ;;
+    --tag|-t)   RELEASE_TAG="${2:-}"; shift 2 ;;
+    --help|-h)  usage ;;
+    *)          echo "Unknown arg: $1" >&2; usage ;;
   esac
 done
 
+if [[ -z "${ENV_NAME}" ]]; then
+  echo "❌ --env <name> is required (e.g., --env staging)" >&2
+  exit 1
+fi
 if [[ "${MODE}" != "latest" && "${MODE}" != "release" ]]; then
   echo "❌ Invalid mode: ${MODE}. Use --mode latest|release" >&2
+  exit 1
+fi
+if [[ "${MODE}" == "release" && -z "${RELEASE_TAG}" ]]; then
+  echo "❌ --tag <release> is required when --mode release" >&2
   exit 1
 fi
 
@@ -61,15 +75,42 @@ resolve_python_bin() {
   return 1
 }
 
-get_database_url() {
+extract_project_id() {
+  local env_name="$1"
+  local varname="${env_name^^}"  # uppercase
+
+  # Check current environment variables first
+  if [[ -n "${!varname:-}" ]]; then
+    echo "${!varname}"
+    return
+  fi
+
+  # Fallback: parse .envrc if available
+  if [[ -f .envrc ]]; then
+    while IFS= read -r line; do
+      line="${line%%#*}"                # strip comments
+      [[ -z "${line// }" ]] && continue # skip blank lines
+      if [[ "${line}" =~ ^[[:space:]]*export[[:space:]]+${varname}=(\"?)([^\"[:space:]]+)\1 ]]; then
+        echo "${BASH_REMATCH[2]}"
+        return
+      fi
+    done < .envrc
+  fi
+
+  echo ""
+}
+
+fetch_database_url() {
   local python_bin="$1"
+  local project_id="$2"
+
   local url
-  if ! url="$("${python_bin}" -m utils.db)"; then
-    echo "❌ Unable to synthesize DATABASE_URL. Run via Bitwarden: bws run --project-id=\"<id>\" -- ./dump_schema.sh" >&2
+  if ! url="$(bws run --project-id="${project_id}" -- "${python_bin}" -m utils.db)"; then
+    echo "❌ Failed to obtain DATABASE_URL via Bitwarden project ${project_id}" >&2
     return 1
   fi
   if [[ -z "${url}" ]]; then
-    echo "❌ utils.db returned an empty DATABASE_URL. Check Bitwarden secrets." >&2
+    echo "❌ utils.db returned an empty DATABASE_URL for project ${project_id}" >&2
     return 1
   fi
   echo "${url}"
@@ -78,29 +119,6 @@ get_database_url() {
 ts_utc() { date -u +%Y-%m-%d_%H%MUTC; }
 ts_utc_arch() { date -u +%Y_%m_%d_%H%M; }
 git_rev() { git rev-parse --short HEAD 2>/dev/null || echo "unknown"; }
-
-infer_env_label() {
-  local project_id="${BWS_PROJECT_ID:-}"
-  if [[ -z "${project_id}" ]]; then
-    echo "unknown"
-    return
-  fi
-
-  local match=""
-  while IFS='=' read -r key value; do
-    [[ -z "${key}" || -z "${value}" ]] && continue
-    if [[ "${value}" == "${project_id}" && "${key}" =~ ^[A-Z0-9_]+$ ]]; then
-      match="${key,,}"
-      break
-    fi
-  done < <(printenv)
-
-  if [[ -n "${match}" ]]; then
-    echo "${match}"
-  else
-    echo "${project_id}"
-  fi
-}
 
 archive_path() {
   local env="$1"
@@ -120,13 +138,8 @@ archive_path() {
 
 release_filename() {
   local env="$1"
-  local token
-  if [[ -n "${RELEASE_TAG}" ]]; then
-    token="${RELEASE_TAG}"
-  else
-    token="$(ts_utc)"
-  fi
-  echo "schema/releases/supabase_schema_${env}_${token}.sql"
+  local tag="$2"
+  echo "schema/releases/supabase_schema_${env}_${tag}.sql"
 }
 
 prepend_header() {
@@ -144,8 +157,8 @@ prepend_header() {
   {
     echo "-- ------------------------------------------------------------"
     echo "-- Schema dump"
-    echo "-- Env: via bws project (${env})"
-    echo "-- BWS Project ID: ${project}"
+    echo "-- Env: ${env}"
+    echo "-- Bitwarden project: ${project}"
     echo "-- Mode: ${mode}"
     echo "-- Timestamp (UTC): ${stamp}"
     echo "-- Git commit: ${rev}"
@@ -160,6 +173,7 @@ prepend_header() {
 
 main() {
   require_command pg_dump
+  require_command bws
 
   local python_bin
   if ! python_bin="$(resolve_python_bin)"; then
@@ -169,36 +183,38 @@ main() {
 
   mkdir -p schema/current schema/archive schema/releases
 
-  local env_label
-  env_label="$(infer_env_label)"
-  local project_id="${BWS_PROJECT_ID:-unknown}"
+  local project_id
+  project_id="$(extract_project_id "${ENV_NAME}")"
+  if [[ -z "${project_id}" ]]; then
+    echo "❌ Could not resolve Bitwarden project id for env '${ENV_NAME}'. Ensure '${ENV_NAME^^}' is exported in your shell or .envrc." >&2
+    exit 1
+  fi
 
   local db_url
-  db_url="$(get_database_url "${python_bin}")" || exit 1
+  db_url="$(fetch_database_url "${python_bin}" "${project_id}")" || exit 1
 
   local tmp
   tmp="$(mktemp)"
-  echo "🔄 Dumping schema (${MODE}) for ${env_label}..."
+  echo "🔄 Dumping schema (${MODE}) for ${ENV_NAME} (project ${project_id})..."
   pg_dump "${db_url}" --schema-only --no-owner --no-privileges --file="${tmp}"
 
-  prepend_header "${tmp}" "${env_label}" "${MODE}" "${RELEASE_TAG}" "${project_id}"
+  prepend_header "${tmp}" "${ENV_NAME}" "${MODE}" "${RELEASE_TAG}" "${project_id}"
 
-  local current="schema/current/supabase_schema_${env_label}.sql"
+  local current="schema/current/supabase_schema_${ENV_NAME}.sql"
   mv -f "${tmp}" "${current}"
 
-  local stamp_arch
+  local stamp_arch arch_path
   stamp_arch="$(ts_utc_arch)"
-  local arch
-  arch="$(archive_path "${env_label}" "${stamp_arch}")"
-  cp -f "${current}" "${arch}"
+  arch_path="$(archive_path "${ENV_NAME}" "${stamp_arch}")"
+  cp -f "${current}" "${arch_path}"
   echo "✅ Updated current schema → ${current}"
-  echo "🗄️  Archived snapshot     → ${arch}"
+  echo "🗄️  Archived snapshot     → ${arch_path}"
 
   if [[ "${MODE}" == "release" ]]; then
-    local rel
-    rel="$(release_filename "${env_label}")"
-    cp -f "${current}" "${rel}"
-    echo "🏷️  Release snapshot      → ${rel}"
+    local rel_path
+    rel_path="$(release_filename "${ENV_NAME}" "${RELEASE_TAG}")"
+    cp -f "${current}" "${rel_path}"
+    echo "🏷️  Release snapshot      → ${rel_path}"
   fi
 
   echo "🎉 Schema dump completed."
