@@ -2,7 +2,7 @@
 
 ## Steps (staging → prod)
 
-1. Apply migrations V012–V014 with ./migrate.sh up (dry-run first).
+1. Apply migrations V012–V014 with `./migrate.sh --env staging up --dry-run` (then rerun without `--dry-run`).
 2. Console toggles:
    - Auth → Passwords → Leaked password protection = ON
    - Database → Upgrade to latest 17.6.1.011 patch
