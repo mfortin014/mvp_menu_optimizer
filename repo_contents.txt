@@ -175,7 +175,7 @@
 │   │   ├── supabase_schema_2025-09-15_01.sql
 │   │   └── supabase_schema_2025-09-16_01.sql
 │   ├── current
-│   │   └── prod.schema.sql
+│   │   └── supabase_schema_prod.sql
 │   ├── migrations
 │   │   └── recipes_as_ingredients_v0.1.3
 │   │       └── recipes_as_ingredients_v0.1.3.sql
