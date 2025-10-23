@@ -105,7 +105,7 @@ All commands should pass before pushing a branch.
 ## 7. Sample Data (Optional)
 
 - Lightweight fixtures live under `data/fixtures/`.
-- Scripts (e.g., `dump_sample_data.sh`) honor `DATABASE_URL` from env.
+- Use `./dump_sample_data.sh --env <name>` (or `--project-id <uuid>`) to export CSV samples via Bitwarden-injected secrets.
 
 ---
 

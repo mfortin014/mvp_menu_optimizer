@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Allow `utils/db.py` to default to the plain `postgresql` driver and pass an explicit driver override for SQLAlchemy clients.
 - `migrate.sh` now resolves Bitwarden secrets internally via `--env/--project-id`, dropping `.env` fallbacks and supporting optional driver overrides.
+- `dump_sample_data.sh` now accepts `--env/--project-id`, derives its connection string via Bitwarden, and exports schema samples without `.env` fallbacks.
 
 ## [0.7.0] - 2025-10-17
 
