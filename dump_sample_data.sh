@@ -95,9 +95,15 @@ extract_project_id() {
     while IFS= read -r line; do
       line="${line%%#*}"
       [[ -z "${line// }" ]] && continue
-      if [[ "${line}" =~ ^[[:space:]]*export[[:space:]]+${varname}=(\"?)([^\"[:space:]]+)\1 ]]; then
-        echo "${BASH_REMATCH[2]}"
-        return
+      if [[ "${line}" =~ ^[[:space:]]*export[[:space:]]+${varname}= ]]; then
+        local value="${line#*=}"
+        value="${value%%[[:space:]]*}"
+        value="${value%\"}"
+        value="${value#\"}"
+        if [[ -n "${value}" ]]; then
+          echo "${value}"
+          return
+        fi
       fi
     done < .envrc
   fi
@@ -144,14 +150,14 @@ setup_connection() {
   fi
 
   local url
-  url="$(fetch_database_url "${python_bin}" "${project}" "${DRIVER_OVERRIDE}")" || {
+  if ! url="$(fetch_database_url "${python_bin}" "${project}" "${DRIVER_OVERRIDE}")"; then
     echo "Unable to synthesize DATABASE_URL via Bitwarden project ${project}." >&2
     exit 1
-  }
+  fi
   if [[ -z "${url}" ]]; then
     echo "utils.db returned an empty DATABASE_URL for project ${project}." >&2
     exit 1
-  }
+  fi
 
   DB_URL="${url}"
   BITWARDEN_PROJECT_ID="${project}"
