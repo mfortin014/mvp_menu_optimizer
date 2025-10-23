@@ -11,6 +11,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - Bootstrap migration `V000__bootstrap_schema.sql` capturing the 2025-09-09 schema baseline so fresh environments can replay the full chain.
+### Changed
+
+- Allow `utils/db.py` to default to the plain `postgresql` driver and pass an explicit driver override for SQLAlchemy clients.
 
 ## [0.7.0] - 2025-10-17
 

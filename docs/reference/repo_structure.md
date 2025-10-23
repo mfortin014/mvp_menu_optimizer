@@ -12,7 +12,7 @@ Purpose: quick map of the directories you will touch during Phase-1 work. Pair t
 - `data/fixtures/` — tiny, non-sensitive CSV fixtures used in docs and smoke tests.
 - `data/exports/` — larger Supabase export snapshots (ignored; keep local only).
 - `migrations/sql/` — ordered `V###__desc.sql` migrations (apply via Supabase/psql; never edit in place).
-- `schema/current/` — latest production schema dump (`prod.schema.sql`).
+- `schema/current/` — latest schema dump per Bitwarden project (`supabase_schema_<env>.sql`).
 - `schema/releases/` — tagged release snapshots (one file per shipped release).
 - `tests/unit/`, `tests/smoke/` — minimal test suites exercised by CI.
 - `docs/` — index, policies, runbooks, and specs (see `docs/README.md`).
@@ -30,7 +30,7 @@ Purpose: quick map of the directories you will touch during Phase-1 work. Pair t
 ### MVP now
 - Use `snake_case` for filenames; avoid spaces.  
 - Migrations follow `V###__desc.sql` and live under `migrations/sql/` only.  
-- Release schema dumps are `schema/releases/<version>.schema.sql` (human-triggered via `dump_schema.sh`).
+- Release schema dumps are `schema/releases/supabase_schema_<env>_<release>.sql` (human-triggered via `dump_schema.sh`).
 
 ### v1 later
 - Expect module splitting (`menu_optimizer/`) once we package the core library.  
