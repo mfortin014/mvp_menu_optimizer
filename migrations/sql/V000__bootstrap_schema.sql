@@ -411,6 +411,7 @@ CREATE FUNCTION public.get_unit_costs_for_inputs(ids uuid[]) RETURNS TABLE(id uu
   SELECT pc.recipe_id AS id, pc.unit_cost
   FROM prep_costs pc
   WHERE pc.recipe_id = ANY(ids);
+$$;
 
 
 
@@ -423,6 +424,9 @@ CREATE FUNCTION public.set_updated_at() RETURNS trigger
     AS $$
 begin
   new.updated_at = now();
+  return new;
+end;
+$$;
 
 
 
@@ -435,6 +439,9 @@ CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
     AS $$
 begin
   new.updated_at = now();
+  return new;
+end;
+$$;
 
 
 
