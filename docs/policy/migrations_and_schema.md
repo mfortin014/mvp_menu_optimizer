@@ -48,6 +48,24 @@ Purpose: keep database drift under control while the MVP evolves. Pair with `dum
 
 ---
 
+## Running Migrations
+
+### MVP now
+- Choose the Bitwarden project explicitly:
+  - `./migrate.sh --env staging up --dry-run`  
+    (`--env <name>` must match an export in `.envrc`; use `--project-id <uuid>` when running outside direnv.)
+  - Drop `--dry-run` to apply changes once the plan looks clean.
+- Optional driver override: `./migrate.sh --env staging --driver postgresql+psycopg up`.
+- Idempotent bookkeeping:
+  - `./migrate.sh --env staging mark V012__backfill.sql`
+  - `./migrate.sh --env staging mark-before V015__cutoff.sql`
+- The script resolves `DATABASE_URL` via `bws run --project-id=… -- python -m utils.db`; no `.env` sourcing or legacy `DB_URL` fallbacks remain.
+
+### v1 later
+- Wire migrations into CI sandbox runs and require automated dry-runs before production promotion.
+
+---
+
 ## Data Safety
 
 - Avoid destructive ops (`DROP`, `DELETE`) unless the accompanying spec approves it.  
