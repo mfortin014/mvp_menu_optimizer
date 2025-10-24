@@ -140,6 +140,56 @@
     "created_at": "2025-10-21T18:29:07.224Z"
   },
   {
+    "uid": "ghwf-upgrade-agents",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 193,
+    "issue_node_id": "I_kwDOPB2irc7TqNmv",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc9k",
+    "created_at": "2025-10-24T21:26:56.093Z"
+  },
+  {
+    "uid": "ghwf-upgrade-autolink",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 194,
+    "issue_node_id": "I_kwDOPB2irc7TqNnr",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc90",
+    "created_at": "2025-10-24T21:26:56.614Z"
+  },
+  {
+    "uid": "ghwf-upgrade-automation",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 195,
+    "issue_node_id": "I_kwDOPB2irc7TqNou",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc-I",
+    "created_at": "2025-10-24T21:26:57.129Z"
+  },
+  {
+    "uid": "ghwf-upgrade-docs",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 196,
+    "issue_node_id": "I_kwDOPB2irc7TqNpm",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc-Y",
+    "created_at": "2025-10-24T21:26:57.688Z"
+  },
+  {
+    "uid": "ghwf-upgrade-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 197,
+    "issue_node_id": "I_kwDOPB2irc7TqNq4",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc_Y",
+    "created_at": "2025-10-24T21:26:58.205Z"
+  },
+  {
     "uid": "scripts-dump-sample-data-bws2",
     "parent_uid": "epic-bws-script-hardening",
     "owner": "mfortin014",
