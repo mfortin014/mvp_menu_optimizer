@@ -221,6 +221,7 @@ jobs:
             --exclude='.git' \
             --exclude='.github/workflows/*.yml~' \
             --exclude='node_modules' \
+            --exclude='streamlit-app.tar.gz' \
             -czf streamlit-app.tar.gz .
 
       - name: Upload artifact
