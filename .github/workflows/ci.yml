@@ -217,12 +217,7 @@ jobs:
 
       - name: Build release archive
         run: |
-          tar \
-            --exclude='.git' \
-            --exclude='.github/workflows/*.yml~' \
-            --exclude='node_modules' \
-            --exclude='streamlit-app.tar.gz' \
-            -czf streamlit-app.tar.gz .
+          git archive --format=tar.gz --output=streamlit-app.tar.gz HEAD
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
