@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    branches: ["main", "prod"]
+  push:
     branches: ["main"]
   workflow_dispatch:
 
@@ -20,6 +22,7 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +36,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -58,6 +61,7 @@ jobs:
     name: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,6 +102,7 @@ jobs:
     name: unit
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -111,7 +116,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -136,6 +141,7 @@ jobs:
     timeout-minutes: 15
     needs: [lint, syntax, unit]
     environment: staging
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout
@@ -150,7 +156,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -196,4 +202,178 @@ jobs:
 
       # ---- Smoke tests that rely on env (DATABASE_URL, SUPABASE_URL, etc.) ----
       - name: Smoke tests
+        run: pytest tests/smoke -q
+
+  package-artifact:
+    name: package-artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, syntax, unit]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release archive
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.github/workflows/*.yml~' \
+            --exclude='node_modules' \
+            -czf streamlit-app.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamlit-app
+          path: streamlit-app.tar.gz
+          if-no-files-found: error
+
+  deploy-staging:
+    name: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [package-artifact]
+    if: github.event_name == 'push'
+    environment: staging
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: streamlit-app
+          path: release
+
+      - name: Extract artifact
+        run: |
+          mkdir -p release/src
+          tar -xzf release/streamlit-app.tar.gz -C release/src
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        working-directory: release/src
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Persist DB inputs to $GITHUB_ENV (no synthesis)
+        shell: bash
+        working-directory: release/src
+        env:
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
+          DB_HOST: ${{ vars.DB_HOST             || secrets.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT             || secrets.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME             || secrets.DB_NAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          : "${DB_NAME:=postgres}"
+          : "${DB_PORT:=5432}"
+
+          DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
+
+          {
+            printf 'DB_HOST=%s\n' "$DB_HOST"
+            printf 'DB_PORT=%s\n' "$DB_PORT"
+            printf 'DB_NAME=%s\n' "$DB_NAME"
+            printf 'DB_USER=%s\n' "$DB_USER"
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD"
+            if [ -n "${SUPABASE_PROJECT_ID:-}" ]; then
+              printf 'SUPABASE_URL=%s\n' "https://${SUPABASE_PROJECT_ID}.supabase.co"
+            fi
+          } >> "$GITHUB_ENV"
+
+      - name: Add repo root to PYTHONPATH
+        working-directory: release/src
+        run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
+
+      - name: Smoke tests (staging)
+        working-directory: release/src
+        run: pytest tests/smoke -q
+
+  deploy-production:
+    name: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deploy-staging]
+    if: github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: streamlit-app
+          path: release
+
+      - name: Extract artifact
+        run: |
+          mkdir -p release/src
+          tar -xzf release/streamlit-app.tar.gz -C release/src
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        working-directory: release/src
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Persist DB inputs to $GITHUB_ENV (no synthesis)
+        shell: bash
+        working-directory: release/src
+        env:
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
+          DB_HOST: ${{ vars.DB_HOST             || secrets.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT             || secrets.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME             || secrets.DB_NAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          : "${DB_NAME:=postgres}"
+          : "${DB_PORT:=5432}"
+
+          DB_USER="${DB_NAME}.${SUPABASE_PROJECT_ID}"
+
+          {
+            printf 'DB_HOST=%s\n' "$DB_HOST"
+            printf 'DB_PORT=%s\n' "$DB_PORT"
+            printf 'DB_NAME=%s\n' "$DB_NAME"
+            printf 'DB_USER=%s\n' "$DB_USER"
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD"
+            if [ -n "${SUPABASE_PROJECT_ID:-}" ]; then
+              printf 'SUPABASE_URL=%s\n' "https://${SUPABASE_PROJECT_ID}.supabase.co"
+            fi
+          } >> "$GITHUB_ENV"
+
+      - name: Add repo root to PYTHONPATH
+        working-directory: release/src
+        run: echo "PYTHONPATH=$PWD" >> "$GITHUB_ENV"
+
+      - name: Smoke tests (production)
+        working-directory: release/src
         run: pytest tests/smoke -q
