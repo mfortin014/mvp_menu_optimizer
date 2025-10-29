@@ -1,7 +1,7 @@
 <!--
 title: Orphan seed — agile field smoke test 2
 labels: ["ci","github-admin", "test"]
-assignees: [mfortin014]
+assignees: ["mfortin014"]
 uid: ghwf-upgrade-orphan-smoketest-2
 type: Chore
 status: Draft
