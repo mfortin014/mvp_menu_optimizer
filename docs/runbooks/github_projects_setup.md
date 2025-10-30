@@ -234,6 +234,9 @@ Interpretation tips:
 - Name iterations `Sprint NN` (e.g., `Sprint 16`) so seeds and dashboards stay stable.
 - When a sprint ends, create the next iteration immediately so automation can target it.
 
+Current reference:
+- **Sprint 13** — 2025-10-27 → 2025-11-02 (duration 7 days)
+
 Document temporary deviations (holidays, partial weeks) in this section so contributors know how to map dates to sprint labels.
 
 That’s it. This one Project becomes your **Town Square** you can slice by Status, Type, Area, or Release—without leaving GitHub.
