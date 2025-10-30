@@ -58,7 +58,7 @@ sprint: <Sprint label>                                                      # OP
 - Keys are **case-insensitive**; values for single-select fields are matched **case-insensitively** to option names in your Project.
 - Extra keys are ignored.
 - **Arrays must be JSON** (square brackets, quoted strings, comma separated).
-- Seeds default to the maintainer configured via `vars.GH_DEFAULT_SEED_ASSIGNEE` (see `docs/policy/ci_github_object_creation.md`). Override only when a different owner is explicitly requested.
+- **Assignee defaults:** human collaborators can define a local default by adding `export GH_DEFAULT_SEED_ASSIGNEE=<github-username>` to `.envrc` (and running `direnv allow`) or their shell profile. Codex agents and other automation should read the active value with `printenv GH_DEFAULT_SEED_ASSIGNEE` and fall back to an explicit `assignees: [...]` entry when unset. The workflow never overrides assignees; whatever appears in the seed header is what lands in GitHub.
 - Automation coerces every seed to **Status = Draft** even if another value is supplied. Provide the eventual status in notes if needed.
 - Sprint values should match the iteration title shown in Projects (e.g., `Sprint 16`). Use the schedule lookup in `docs/runbooks/github_projects_setup.md#7-sprint-schedule` to confirm dates. If the iteration is missing, automation logs a warning and leaves the Sprint empty so you can finish configuration manually.
 
@@ -76,7 +76,7 @@ sprint: <Sprint label>                                                      # OP
 | --------------- | --------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | `title`         | string                | Issue/PR title                       | ≤ 256 chars recommended                                                              |
 | `labels`        | JSON array of strings | GitHub labels                        | Must exist or GitHub creates on the fly                                              |
-| `assignees`     | JSON array of strings | Assignees                            | Defaults to maintainer set in `vars.GH_DEFAULT_SEED_ASSIGNEE`; override sparingly    |
+| `assignees`     | JSON array of strings | Assignees                            | Populate via `GH_DEFAULT_SEED_ASSIGNEE` or explicitly list collaborators; must be valid usernames |
 | `uid`           | string                | Idempotency + local library          | Regex: `^[a-z0-9][a-z0-9-_.]{2,64}$`; required for every seed                        |
 | `parent_uid`    | string                | Native hierarchy                     | Reference an existing UID when creating children                                     |
 | `children_uids` | JSON array of strings | Epic checklist + linking             | Required for epics so automation can mirror checklists and establish sub-issues      |
