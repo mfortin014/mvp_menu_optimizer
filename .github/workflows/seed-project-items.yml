@@ -725,7 +725,6 @@ jobs:
                     target_date: 'Target Date',  // DATE
                     area:     'Area',            // SINGLE_SELECT
                     doc:      'Doc Link',        // TEXT
-                    pr:       'PR Link',         // TEXT
                     series:   'Series',          // SINGLE_SELECT
                     work_type:'Work Type',       // SINGLE_SELECT
                     story_points: 'Story Points',// NUMBER
