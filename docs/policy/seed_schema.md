@@ -42,6 +42,7 @@ project_url: "https://github.com/users/<user>/projects/<n>"                 # OP
 doc: <path/to/doc.md>                                                       # OPTIONAL, maps to "Doc Link"
 pr: <https://github.com/...>                                                # OPTIONAL, maps to "PR Link"
 series: "Throughput"                                                        # REQUIRED, maps to "Series"
+work_type: <Epic|Child|Standalone>                                          # REQUIRED, maps to "Work Type"
 story_points: <1|2|3|5|8|13>                                                # OPTIONAL (see matrix), maps to "Story Points"
 step: <positive integer>                                                    # OPTIONAL (see matrix), maps to "Step"
 start_date: <YYYY-MM-DD>                                                    # OPTIONAL (see matrix), maps to "Start Date"
@@ -57,9 +58,9 @@ sprint: <Sprint label>                                                      # OP
 - Keys are **case-insensitive**; values for single-select fields are matched **case-insensitively** to option names in your Project.
 - Extra keys are ignored.
 - **Arrays must be JSON** (square brackets, quoted strings, comma separated).
-- Seeds default to the maintainer configured via `vars.DEFAULT_SEED_ASSIGNEE` (see `docs/policy/ci_github_object_creation.md`). Override only when a different owner is explicitly requested.
+- Seeds default to the maintainer configured via `vars.GH_DEFAULT_SEED_ASSIGNEE` (see `docs/policy/ci_github_object_creation.md`). Override only when a different owner is explicitly requested.
 - Automation coerces every seed to **Status = Draft** even if another value is supplied. Provide the eventual status in notes if needed.
-- Sprint values should match the iteration title shown in Projects (e.g., `Sprint 16`). If the iteration is missing, automation logs a warning and leaves the Sprint empty so you can finish configuration manually.
+- Sprint values should match the iteration title shown in Projects (e.g., `Sprint 16`). Use the schedule lookup in `docs/runbooks/github_projects_setup.md#7-sprint-schedule` to confirm dates. If the iteration is missing, automation logs a warning and leaves the Sprint empty so you can finish configuration manually.
 
 ### Routing quick reference
 
@@ -75,7 +76,7 @@ sprint: <Sprint label>                                                      # OP
 | --------------- | --------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | `title`         | string                | Issue/PR title                       | ≤ 256 chars recommended                                                              |
 | `labels`        | JSON array of strings | GitHub labels                        | Must exist or GitHub creates on the fly                                              |
-| `assignees`     | JSON array of strings | Assignees                            | Defaults to maintainer set in `vars.DEFAULT_SEED_ASSIGNEE`; override sparingly       |
+| `assignees`     | JSON array of strings | Assignees                            | Defaults to maintainer set in `vars.GH_DEFAULT_SEED_ASSIGNEE`; override sparingly    |
 | `uid`           | string                | Idempotency + local library          | Regex: `^[a-z0-9][a-z0-9-_.]{2,64}$`; required for every seed                        |
 | `parent_uid`    | string                | Native hierarchy                     | Reference an existing UID when creating children                                     |
 | `children_uids` | JSON array of strings | Epic checklist + linking             | Required for epics so automation can mirror checklists and establish sub-issues      |
@@ -89,6 +90,7 @@ sprint: <Sprint label>                                                      # OP
 | `doc`           | string                | **Doc Link** (Project text)          | Prefer repo-relative path                                                            |
 | `pr`            | string (URL)          | **PR Link** (Project text)           | Any valid URL                                                                        |
 | `series`        | string                | **Series** (Project single-select)   | Required; set to `"Throughput"` unless the maintainer requests another value         |
+| `work_type`     | string (enum)         | **Work Type** (Project single-select)| Required; one of `Epic`, `Child`, `Standalone`                                       |
 | `story_points`  | number (integer)      | **Story Points** (Project number)    | Allowed values: 1, 2, 3, 5, 8, 13; see matrix for when to include                    |
 | `step`          | number (integer)      | **Step** (Project number)            | Positive integer; include only for child issues                                      |
 | `start_date`    | string (YYYY-MM-DD)   | **Start Date** (Project date)        | Include only when the request supplies it                                            |
@@ -114,6 +116,7 @@ Keep seeds tiny but complete. The automation validates inputs according to the t
 | `priority`     | Required                               | Required                                                         | Required                                                         |
 | `area`         | Required                               | Required                                                         | Required                                                         |
 | `series`       | Required (`Throughput`)                | Required (`Throughput`)                                          | Required (`Throughput`)                                          |
+| `work_type`    | Required (`Epic`)                      | Required (`Child`)                                               | Required (`Standalone`)                                          |
 | `story_points` | Do not include                         | Required (1,2,3,5,8,13)                                          | Required (1,2,3,5,8,13)                                          |
 | `step`         | Do not include                         | Required (positive integer)                                      | Do not include                                                   |
 | `start_date`   | Include only if provided by maintainer | Do not include                                                   | Include only if provided by maintainer                           |
@@ -162,6 +165,7 @@ target: mvp-0.7.0
 area: ci
 children_uids: ["auto-gh-A","auto-gh-B","auto-gh-C","auto-gh-D"]
 series: "Throughput"
+work_type: Epic
 doc: ""
 pr: ""
 -->
@@ -193,6 +197,7 @@ priority: P1
 target: mvp-0.7.0
 area: ci
 series: "Throughput"
+work_type: Child
 story_points: 5
 step: 1
 doc: ""
@@ -231,6 +236,7 @@ priority: P1
 target: mvp-0.7.0
 area: policy
 series: "Throughput"
+work_type: Child
 story_points: 3
 step: 2
 doc: "docs/policy/seed_schema.md"
@@ -270,8 +276,7 @@ area: ci
 project: "test"
 children_uids: ["uidA","uidB"]
 series: "Throughput"
-story_points: 3
-step: 1
+work_type: Epic
 doc: "docs/policy/seed_schema.md"
 pr: "https://github.com/opsforge/menu-optimizer/pull/123"
 -->
