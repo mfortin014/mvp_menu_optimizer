@@ -25,8 +25,15 @@ from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, GridUpdateMode
 
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
+from utils.env import env_label, is_prod
 
-st.set_page_config(page_title="Recipes", layout="wide")
+# Page chrome
+title_suffix = "" if is_prod() else f" — {env_label()}"
+st.set_page_config(page_title=f"Recipes{title_suffix}", layout="wide")
+
+# Non-prod banner
+if not is_prod():
+    st.warning(f"{env_label()} environment — data and behavior may differ from production.")
 
 client_badge(clients_page_title="Clients")
 

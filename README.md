@@ -41,7 +41,7 @@ GitHub Actions runs on every PR (`.github/workflows/ci.yml`):
 - Smoke tests (`tests/smoke/`) that load lightweight fixtures only.
 - Syntax compilation sweep to catch regressions without hitting the network.
 
-Branch protection requires the `check` job to pass. Stage/production deploy choreography lives in the `ci` Phase-1 issue.
+On pushes to `main`, the workflow builds a single release artifact and promotes it via `deploy-staging` (auto) then `deploy-production` (manual approval in the GitHub `production` environment). After approval, fast-forward the protected `prod` branch so Streamlit Cloud (`surlefeu.streamlit.app`) serves the promoted commit. See [Release Playbook — Production promotion](docs/runbooks/release_playbook.md#4-production-promotion).
 
 ---
 
