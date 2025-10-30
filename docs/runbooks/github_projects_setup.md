@@ -79,10 +79,16 @@ Options (name — color — description):
 ### Field: Series — _Single select_
 
 **Purpose:** velocity roll-up bucket.  
-**Options:**
-
+**Options:**  
 - **Throughput** — Default bucket used for Story Points aggregation.
-- **Velocity** — Used only for stats purposes.
+
+### Field: Work Type — _Single select_
+
+**Purpose:** identify whether an item is coordinating work or executing it.  
+**Options (name — color — description):**  
+- **Epic** — Green — Coordination umbrella with children.  
+- **Child** — Emerald — Actionable slice inside an epic.  
+- **Standalone** — Teal — Independent item without parent/children.
 
 ### Field: Story Points — _Number_
 
@@ -135,7 +141,7 @@ Create each “New view” and set filters/group/sort as described. Rename the v
 - Filter: **Type** is not “Spec”
 - Columns: **Status** (Draft, Ready, In Progress, In Review, Done)
 - **Card color:** _Status_
-- Card layout: Title · Type · Priority · Story Points · Step · Sprint
+- Card layout: Title · Work Type · Type · Priority · Story Points · Step · Sprint
 
 ### C) Policy & Runbooks (Table)
 
@@ -167,7 +173,8 @@ Keep the label set lean—only add labels for signals not already captured by st
 - **Blocked** — needs an external unblock; include a short note.
 - **Parked** — intentionally paused; include a “revisit by” note.
 - **Test** — temporary validation, easy to cleanup.
-  Coordinate before introducing new labels so we keep filters tidy.
+
+Coordinate before introducing new labels so we keep filters tidy.
 
 ---
 
@@ -189,11 +196,44 @@ Use the “Spec Review” Issue template at `.github/ISSUE_TEMPLATE/spec_review.
 - **Priority**: sequencing (P0–P3).
 - **Area**: product/platform neighborhood.
 - **Series**: velocity roll-up bucket (default `Throughput`).
+- **Work Type**: whether an item is an Epic, Child, or Standalone (single-select).
 - **Story Points**: Fibonacci complexity for child/standalone issues.
 - **Step**: execution order inside an epic (child issues only).
 - **Sprint**: week-long iteration (`Sprint NN`, Monday → Sunday).
 - **Start / Target Date**: roadmap anchors for epics or standalone work.
 - **Target Release**: human milestone label (optional).
 - **Doc/PR Links**: create a tight handshake between docs, PRs, and the Project.
+
+---
+
+## 7) Sprint schedule
+
+The **Sprint** iteration field drives velocity charts and seed validation. Keep its schedule current by updating the Project’s iteration configuration (Project settings → Sprint field). To inspect the current mapping programmatically, run:
+
+```bash
+gh api graphql -f query='
+  query($owner:String!, $repo:String!, $number:Int!) {
+    repository(owner:$owner, name:$repo) {
+      projectV2(number:$number) {
+        fields(first: 20) {
+          nodes {
+            ... on ProjectV2IterationField {
+              name
+              configuration { iterations { title startDate duration } }
+            }
+          }
+        }
+      }
+    }
+  }
+' -F owner=OWNER -F repo=REPO -F number=PROJECT_NUMBER
+```
+
+Interpretation tips:
+- `startDate` is ISO (YYYY-MM-DD); `duration` is in days. Standard cadence is **Monday → Sunday (duration 7)**.
+- Name iterations `Sprint NN` (e.g., `Sprint 16`) so seeds and dashboards stay stable.
+- When a sprint ends, create the next iteration immediately so automation can target it.
+
+Document temporary deviations (holidays, partial weeks) in this section so contributors know how to map dates to sprint labels.
 
 That’s it. This one Project becomes your **Town Square** you can slice by Status, Type, Area, or Release—without leaving GitHub.
