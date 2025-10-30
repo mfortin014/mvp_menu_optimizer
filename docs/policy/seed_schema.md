@@ -53,6 +53,12 @@ sprint: <Sprint label>                                                      # OP
 
 ### Notes
 
+- **File naming convention:**
+  - Epic seeds: `<epic-name>-epic.md` with `uid` matching the filename and the title prefixed `Epic — ...`.
+  - Child seeds: `<epic-name>-child-<step>-<child-name>.md`; keep `uid` aligned to the filename and include the step number.
+  - Standalone seeds: `<name>.md`; keep `uid` aligned to the filename.
+  - Keep names lowercase with hyphens for consistency and easy cross-referencing.
+
 - **`uid`** is our idempotency key. The workflow embeds `<!-- seed-uid:... -->` in created Issues to find them on re-runs.
 - `children_uids` must list every planned child `uid` so automation can mirror checklists and create parent/child links.
 - Keys are **case-insensitive**; values for single-select fields are matched **case-insensitively** to option names in your Project.
