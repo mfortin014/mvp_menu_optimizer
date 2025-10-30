@@ -6,7 +6,16 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from components.active_client_badge import render as client_badge
 from utils import tenant_db as db
 from utils.cache import cache_by_tenant
+from utils.env import env_label, is_prod
 from utils.supabase_client import supabase
+
+# Page chrome
+title_suffix = "" if is_prod() else f" — {env_label()}"
+st.set_page_config(page_title=f"Recipe Editor{title_suffix}", layout="wide")
+
+# Non-prod banner
+if not is_prod():
+    st.warning(f"{env_label()} environment — data and behavior may differ from production.")
 
 # Auth wrapper (optional in MVP env)
 try:
@@ -16,7 +25,6 @@ try:
 except Exception:
     pass
 
-st.set_page_config(page_title="Recipe Editor", layout="wide")
 client_badge(clients_page_title="Clients")
 st.title("📝 Recipe Editor")
 

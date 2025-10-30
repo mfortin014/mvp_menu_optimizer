@@ -110,6 +110,7 @@ Pattern:
 - Protect `main`: require status checks to pass.  
 - Enable “Require linear history” and “Require pull request before merging.”  
 - Allow only **squash-merge**. Disable rebase/merge commits.  
+- Protect the production deployment branch (`prod`): require PR approval + status checks before promoting a commit (align with [Release Playbook — Production promotion](../runbooks/release_playbook.md#4-production-promotion)). No direct pushes.  
 - Optional (solo): don’t require code owners/reviews; rely on checks.
 
 See more principles in the [CI/CD Constitution](ci_cd_constitution.md).
