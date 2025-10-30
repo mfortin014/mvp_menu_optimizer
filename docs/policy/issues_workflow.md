@@ -8,8 +8,13 @@ Related: [Branching & PR Protocol](branching_and_prs.md), [Commits & Changelog](
 ---
 
 ## 1) When to open an Issue
-- **Default:** open an Issue for Feature, Bug, Chore, Policy, or Runbook work.  
+- **Default:** open an Issue for Feature, Bug, Chore, Policy, Runbook, or Standalone work.  
 - **Skip only for tiny edits** (typos, 1–2 line docs fixes). Everything else benefits from a single source of truth and acceptance bullets.
+
+Work items fall into three relationship patterns:
+- **Epic** — coordinates multiple child Issues; the seed lists `children_uids` but no `parent_uid`.
+- **Child** — lives under an epic; the seed includes `parent_uid`.
+- **Standalone** — self-contained work without parent or children; plan it like a child issue but outside an epic.
 
 **Town Square vs Library:** the Issue and its Project item are the **Town Square**; they point to the authoritative text in the repo (the **Library**).
 
@@ -46,7 +51,7 @@ For specs, use `spec/<short-slug>`; drafts live only on the branch until accepte
 - Link the Issue and include **“Closes #<issue>”** when the PR will finish the work.
 - Keep commits conventional; keep the PR small (micro-PRs win).
 
-Status in Project typically flows: **Todo → Doing → In review → Done**. Specs use **Draft → In review → Accepted**.
+Status in Project now flows: **Draft → Ready → In Progress → In Review → Done**. Specs use **Draft → In Review → Accepted** for the review cycle.
 
 ---
 
@@ -86,3 +91,29 @@ Use the general **Work Item** Issue template for most work. Use **Spec Review** 
 - **Town Square**: Issues/Projects. **Library**: repo docs/specs.
 
 Keep it light. The point is to **start with an Issue**, make the next action obvious, and land the change with a tiny blast radius.
+
+---
+
+## 10) Status conventions
+
+- **Allowed values** (seed automation enforces these and defaults to Draft):
+  - Draft — planning or newly seeded.
+  - Ready — refined and queued.
+  - In Progress — actively being worked.
+  - In Review — awaiting feedback or approval.
+  - Done — complete, no further work.
+- Retired statuses (`Blocked`, `Parked`, `Superseded`, `Todo`, `Doing`, `Accepted`) must be expressed via labels or notes instead.
+- Sprint cadence and iteration alignment live in `docs/runbooks/github_projects_setup.md`; follow that policy when choosing iteration values.
+
+---
+
+## 11) Label conventions
+
+Keep labels additive—never duplicate information already captured by structured Project fields (Status, Priority, Area, Type, Series). When in doubt, document nuance in the Issue body rather than minting a new label.
+
+Common process labels:
+- **Blocked** — needs an external unblock; include a short note.
+- **Parked** — intentionally paused; add a “revisit by” note.
+- **Test** — temporary validation item that will be cleaned up.
+
+Work-type tagging (Epic / Child / Standalone) is under evaluation. Prefer a dedicated Project field; only rely on labels if the maintainer requests it for a specific iteration.
