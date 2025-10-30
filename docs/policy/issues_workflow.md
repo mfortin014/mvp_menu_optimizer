@@ -11,10 +11,12 @@ Related: [Branching & PR Protocol](branching_and_prs.md), [Commits & Changelog](
 - **Default:** open an Issue for Feature, Bug, Chore, Policy, Runbook, or Standalone work.  
 - **Skip only for tiny edits** (typos, 1–2 line docs fixes). Everything else benefits from a single source of truth and acceptance bullets.
 
-Work items fall into three relationship patterns:
-- **Epic** — coordinates multiple child Issues; the seed lists `children_uids` but no `parent_uid`.
-- **Child** — lives under an epic; the seed includes `parent_uid`.
-- **Standalone** — self-contained work without parent or children; plan it like a child issue but outside an epic.
+Choose the structure that matches the work:
+- **Epic** — use when a single goal spans multiple deliverables. Capture the outcome at the epic level and spin up children for each concrete slice.
+- **Child** — use inside an epic to describe an actionable, independently testable slice. Each child should be shippable and scoped small enough for a short-lived branch.
+- **Standalone** — use when the work stands alone without coordination needs. Standalone issues follow the same discipline as a child issue but without an epic wrapper.
+
+Always set the Project **Work Type** field (Epic, Child, Standalone) to match the structure you pick.
 
 **Town Square vs Library:** the Issue and its Project item are the **Town Square**; they point to the authoritative text in the repo (the **Library**).
 
@@ -116,4 +118,4 @@ Common process labels:
 - **Parked** — intentionally paused; add a “revisit by” note.
 - **Test** — temporary validation item that will be cleaned up.
 
-Work-type tagging (Epic / Child / Standalone) is under evaluation. Prefer a dedicated Project field; only rely on labels if the maintainer requests it for a specific iteration.
+Set the Project **Work Type** field (Epic, Child, Standalone) on every item so the board and automation stay in sync; reserve labels for temporary state.
