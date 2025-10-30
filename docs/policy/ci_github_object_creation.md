@@ -10,7 +10,7 @@ This policy explains the CI configuration to:
 - (Later) Create **native parent/child** links via Sub-issues,
 - Keep runs **idempotent** and production-safe.
 
-> This doc matches our Project schema: **Status**, **Type**, **Priority**, **Target Release**, **Area**, **Series**, **Story Points**, **Step**, **Sprint**, **Start Date**, **Target Date**, **Doc Link**, **PR Link**.  
+> This doc matches our Project schema: **Status**, **Type**, **Priority**, **Target Release**, **Area**, **Series**, **Work Type**, **Story Points**, **Step**, **Sprint**, **Start Date**, **Target Date**, **Doc Link**, **PR Link**.  
 > It also matches our seed header schema in `docs/policy/seed_schema.md`.
 
 ---
@@ -77,14 +77,15 @@ Authoritative requirements live in `docs/policy/seed_schema.md#minimal-field-mat
 | Area          | Product/platform subsystem | Keeps filters from colliding with Type. |
 | Target Release| Human milestone text | Use when the request explicitly calls it out. |
 | Series        | Velocity roll-up grouping | Default is `Throughput`; change only when the maintainer asks. |
+| Work Type     | Relationship to epic      | One of `Epic`, `Child`, `Standalone`; keeps board filters accurate. |
 | Story Points  | Complexity estimate | Fibonacci scale (1,2,3,5,8,13) for child/standalone work. |
 | Step          | Sequencing inside an epic | Positive integer; only appears on child issues. |
-| Sprint        | Iteration assignment | Use the iteration title (e.g., `Sprint 16`) when provided; automation skips it if the iteration is missing. |
+| Sprint        | Iteration assignment | Use the iteration title (e.g., `Sprint 16`) when provided; see `docs/runbooks/github_projects_setup.md#sprint-schedule` for date lookup. Automation skips it if the iteration is missing. |
 | Start Date    | Roadmap start anchor | Include only when supplied for epics/standalone items. |
 | Target Date   | Expected completion | Drives roadmap views and sprint validation. |
 | Doc Link / PR Link | Cross-reference | Repo-relative doc path and PR URL (when known). |
 
-Default assignee: configure the GitHub Actions variable `DEFAULT_SEED_ASSIGNEE` (e.g., `mfortin014`). The workflow uses that value unless a seed overrides `assignees`.
+Default assignee: configure the GitHub Actions variable `GH_DEFAULT_SEED_ASSIGNEE` (e.g., `mfortin014`). The workflow uses that value unless a seed overrides `assignees`.
 
 ---
 
