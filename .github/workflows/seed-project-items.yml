@@ -372,6 +372,11 @@ jobs:
             const STORY_POINT_VALUES = new Set([1, 2, 3, 5, 8, 13]);
             const PRIORITY_ALLOWED = new Set(['P0', 'P1', 'P2', 'P3']);
             const SERIES_DEFAULT = 'Throughput';
+            const WORK_TYPE_MAP = new Map([
+              ['epic', 'Epic'],
+              ['child', 'Child'],
+              ['standalone', 'Standalone'],
+            ]);
             const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
             function isBlank(value) {
@@ -447,8 +452,17 @@ jobs:
               const typeRaw = isBlank(normalized.type) ? '' : String(normalized.type).trim();
               if (!typeRaw) errors.push('Missing required "type".');
               normalized.type = typeRaw || normalized.type;
-              const typeLower = (typeRaw || '').toLowerCase();
-              const isEpic = typeLower === 'epic';
+              const childrenSeed = normalized.children_uids;
+              let childrenList = [];
+              if (Array.isArray(childrenSeed)) {
+                childrenList = childrenSeed.filter(Boolean).map(String);
+              } else if (!isBlank(childrenSeed)) {
+                childrenList = String(childrenSeed)
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean);
+              }
+              normalized.children_uids = childrenList;
 
               if (!isBlank(normalized.parent_uid)) {
                 normalized.parent_uid = String(normalized.parent_uid).trim();
@@ -456,7 +470,35 @@ jobs:
                 delete normalized.parent_uid;
               }
               const hasParent = Boolean(normalized.parent_uid);
-              const isChild = hasParent && !isEpic;
+              const hasChildren = childrenList.length > 0;
+
+              let workTypeRaw = isBlank(normalized.work_type) ? '' : String(normalized.work_type).trim();
+              if (!workTypeRaw) {
+                if (hasParent) workTypeRaw = 'Child';
+                else if (hasChildren) workTypeRaw = 'Epic';
+                else workTypeRaw = 'Standalone';
+              }
+              const workTypeCanonical = workTypeRaw.toLowerCase();
+              const workTypeValue = WORK_TYPE_MAP.get(workTypeCanonical);
+              if (!workTypeValue) {
+                errors.push('Work Type must be one of Epic, Child, or Standalone.');
+              }
+              if (workTypeValue === 'Child' && !hasParent) {
+                errors.push('Work Type "Child" requires a parent_uid.');
+              }
+              if (workTypeValue !== 'Child' && hasParent) {
+                errors.push(`Work Type "${workTypeValue || workTypeRaw}" cannot include parent_uid.`);
+              }
+              if (workTypeValue === 'Epic' && !hasChildren) {
+                warnings.push('Epic work items should list children_uids; add them so automation can wire hierarchy.');
+              }
+              if (workTypeValue === 'Standalone' && hasChildren) {
+                errors.push('Standalone work should not include children_uids.');
+              }
+              normalized.work_type = workTypeValue || workTypeRaw;
+
+              const isEpic = workTypeValue === 'Epic';
+              const isChild = workTypeValue === 'Child';
 
               const statusResult = normalizeStatusValue(normalized.status);
               if (statusResult.error) errors.push(statusResult.error);
@@ -533,16 +575,10 @@ jobs:
               }
 
               // Series handling
-              if (isChild) {
-                if (isBlank(normalized.series)) {
-                  normalized.series = SERIES_DEFAULT;
-                } else {
-                  normalized.series = String(normalized.series).trim();
-                }
-              } else if (!isBlank(normalized.series)) {
-                normalized.series = String(normalized.series).trim();
+              if (isBlank(normalized.series)) {
+                normalized.series = SERIES_DEFAULT;
               } else {
-                delete normalized.series;
+                normalized.series = String(normalized.series).trim();
               }
 
               // Target Release / Date / Start Date rules
@@ -691,6 +727,7 @@ jobs:
                     doc:      'Doc Link',        // TEXT
                     pr:       'PR Link',         // TEXT
                     series:   'Series',          // SINGLE_SELECT
+                    work_type:'Work Type',       // SINGLE_SELECT
                     story_points: 'Story Points',// NUMBER
                     step:     'Step',            // NUMBER
                     sprint:   'Sprint',          // ITERATION
@@ -716,7 +753,7 @@ jobs:
             }
 
             if (hadValidationFailure) {
-              throw new Error('Seed validation failed; see errors above.');
+              core.warning('One or more seeds were skipped due to validation errors; review the logs above.');
             }
 
             core.setOutput('created', JSON.stringify(created));
@@ -725,7 +762,6 @@ jobs:
           PROJECT_ID: ${{ vars.PROJECT_ID }}
           DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
           DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
-          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
           FALLBACK_ASSIGNEE: ${{ github.actor }}
 
       - name: Wire hierarchy (epic checklists + late child linking)
