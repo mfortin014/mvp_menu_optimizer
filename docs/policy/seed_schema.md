@@ -40,7 +40,6 @@ area: <intake|identity|measure|chronicle|lexicon|ui|db|ci|policy|runbooks>  # OP
 project: <main|test>                                                        # OPTIONAL. Route to Main or Test Project. Defaults to "main" if omitted.
 project_url: "https://github.com/users/<user>/projects/<n>"                 # OPTIONAL explicit Project URL override (wins over `project`)
 doc: <path/to/doc.md>                                                       # OPTIONAL, maps to "Doc Link"
-pr: <https://github.com/...>                                                # OPTIONAL, maps to "PR Link"
 series: "Throughput"                                                        # REQUIRED, maps to "Series"
 work_type: <Epic|Child|Standalone>                                          # REQUIRED, maps to "Work Type"
 story_points: <1|2|3|5|8|13>                                                # OPTIONAL (see matrix), maps to "Story Points"
@@ -54,6 +53,7 @@ sprint: <Sprint label>                                                      # OP
 ### Notes
 
 - **File naming convention:**
+
   - Epic seeds: `<epic-name>-epic.md` with `uid` matching the filename and the title prefixed `Epic — ...`.
   - Child seeds: `<epic-name>-child-<step>-<child-name>.md`; keep `uid` aligned to the filename and include the step number.
   - Standalone seeds: `<name>.md`; keep `uid` aligned to the filename.
@@ -78,30 +78,29 @@ sprint: <Sprint label>                                                      # OP
 
 ## 3) Supported keys (reference)
 
-| Key             | Type                  | Maps to                              | Notes                                                                                |
-| --------------- | --------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| `title`         | string                | Issue/PR title                       | ≤ 256 chars recommended                                                              |
-| `labels`        | JSON array of strings | GitHub labels                        | Must exist or GitHub creates on the fly                                              |
-| `assignees`     | JSON array of strings | Assignees                            | Populate via `GH_DEFAULT_SEED_ASSIGNEE` or explicitly list collaborators; must be valid usernames |
-| `uid`           | string                | Idempotency + local library          | Regex: `^[a-z0-9][a-z0-9-_.]{2,64}$`; required for every seed                        |
-| `parent_uid`    | string                | Native hierarchy                     | Reference an existing UID when creating children                                     |
-| `children_uids` | JSON array of strings | Epic checklist + linking             | Required for epics so automation can mirror checklists and establish sub-issues      |
-| `type`          | string (enum)         | **Type** (Project single-select)     | One of: `Spec, Policy, Runbook, Feature, Bug, Chore`                                 |
-| `status`        | string (enum)         | **Status** (Project single-select)   | `Draft, Ready, In Progress, In Review, Done`; automation resets to Draft on creation |
-| `priority`      | string (enum)         | **Priority** (Project single-select) | `P0, P1, P2, P3`                                                                     |
-| `target`        | string                | **Target Release** (Project text)    | Omit unless specifically requested                                                   |
-| `area`          | string (enum)         | **Area** (Project single-select)     | `intake, identity, measure, chronicle, lexicon, ui, db, ci, policy, runbooks`        |
-| `project`       | string (enum)         | **Routing**                          | `"main"` (default) or `"test"`; see §5 for current availability                      |
-| `project_url`   | string (URL)          | **Routing**                          | Explicit Project URL override                                                        |
-| `doc`           | string                | **Doc Link** (Project text)          | Prefer repo-relative path                                                            |
-| `pr`            | string (URL)          | **PR Link** (Project text)           | Any valid URL                                                                        |
-| `series`        | string                | **Series** (Project single-select)   | Required; set to `"Throughput"` unless the maintainer requests another value         |
-| `work_type`     | string (enum)         | **Work Type** (Project single-select)| Required; one of `Epic`, `Child`, `Standalone`                                       |
-| `story_points`  | number (integer)      | **Story Points** (Project number)    | Allowed values: 1, 2, 3, 5, 8, 13; see matrix for when to include                    |
-| `step`          | number (integer)      | **Step** (Project number)            | Positive integer; include only for child issues                                      |
-| `start_date`    | string (YYYY-MM-DD)   | **Start Date** (Project date)        | Include only when the request supplies it                                            |
-| `target_date`   | string (YYYY-MM-DD)   | **Target Date** (Project date)       | Include only when the request supplies it                                            |
-| `sprint`        | string                | **Sprint** (Project iteration)       | Iteration title (e.g., `Sprint 16`); include only when the request supplies it       |
+| Key             | Type                  | Maps to                               | Notes                                                                                             |
+| --------------- | --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `title`         | string                | Issue/PR title                        | ≤ 256 chars recommended                                                                           |
+| `labels`        | JSON array of strings | GitHub labels                         | Must exist or GitHub creates on the fly                                                           |
+| `assignees`     | JSON array of strings | Assignees                             | Populate via `GH_DEFAULT_SEED_ASSIGNEE` or explicitly list collaborators; must be valid usernames |
+| `uid`           | string                | Idempotency + local library           | Regex: `^[a-z0-9][a-z0-9-_.]{2,64}$`; required for every seed                                     |
+| `parent_uid`    | string                | Native hierarchy                      | Reference an existing UID when creating children                                                  |
+| `children_uids` | JSON array of strings | Epic checklist + linking              | Required for epics so automation can mirror checklists and establish sub-issues                   |
+| `type`          | string (enum)         | **Type** (Project single-select)      | One of: `Spec, Policy, Runbook, Feature, Bug, Chore`                                              |
+| `status`        | string (enum)         | **Status** (Project single-select)    | `Draft, Ready, In Progress, In Review, Done`; automation resets to Draft on creation              |
+| `priority`      | string (enum)         | **Priority** (Project single-select)  | `P0, P1, P2, P3`                                                                                  |
+| `target`        | string                | **Target Release** (Project text)     | Omit unless specifically requested                                                                |
+| `area`          | string (enum)         | **Area** (Project single-select)      | `intake, identity, measure, chronicle, lexicon, ui, db, ci, policy, runbooks`                     |
+| `project`       | string (enum)         | **Routing**                           | `"main"` (default) or `"test"`; see §5 for current availability                                   |
+| `project_url`   | string (URL)          | **Routing**                           | Explicit Project URL override                                                                     |
+| `doc`           | string                | **Doc Link** (Project text)           | Prefer repo-relative path                                                                         |
+| `series`        | string                | **Series** (Project single-select)    | Required; set to `"Throughput"` unless the maintainer requests another value                      |
+| `work_type`     | string (enum)         | **Work Type** (Project single-select) | Required; one of `Epic`, `Child`, `Standalone`                                                    |
+| `story_points`  | number (integer)      | **Story Points** (Project number)     | Allowed values: 1, 2, 3, 5, 8, 13; see matrix for when to include                                 |
+| `step`          | number (integer)      | **Step** (Project number)             | Positive integer; include only for child issues                                                   |
+| `start_date`    | string (YYYY-MM-DD)   | **Start Date** (Project date)         | Include only when the request supplies it                                                         |
+| `target_date`   | string (YYYY-MM-DD)   | **Target Date** (Project date)        | Include only when the request supplies it                                                         |
+| `sprint`        | string                | **Sprint** (Project iteration)        | Iteration title (e.g., `Sprint 16`); include only when the request supplies it                    |
 
 ---
 
