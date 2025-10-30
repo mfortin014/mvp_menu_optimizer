@@ -264,8 +264,8 @@
     "parent_uid": "test-project-bootstrap-epic",
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 220,
-    "issue_node_id": "I_kwDOPB2irc7U7nNG",
+    "issue_number": 225,
+    "issue_node_id": "I_kwDOPB2irc7U7swL",
     "project_item_id": null,
     "created_at": "2025-10-30T20:29:37.513Z"
   },
@@ -274,8 +274,8 @@
     "parent_uid": "test-project-bootstrap-epic",
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 221,
-    "issue_node_id": "I_kwDOPB2irc7U7nOX",
+    "issue_number": 226,
+    "issue_node_id": "I_kwDOPB2irc7U7syq",
     "project_item_id": null,
     "created_at": "2025-10-30T20:29:38.042Z"
   },
@@ -284,8 +284,8 @@
     "parent_uid": null,
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 222,
-    "issue_node_id": "I_kwDOPB2irc7U7nPw",
+    "issue_number": 227,
+    "issue_node_id": "I_kwDOPB2irc7U7s0w",
     "project_item_id": null,
     "created_at": "2025-10-30T20:29:38.376Z"
   },
@@ -294,8 +294,8 @@
     "parent_uid": null,
     "owner": "mfortin014",
     "repo": "mvp_menu_optimizer",
-    "issue_number": 223,
-    "issue_node_id": "I_kwDOPB2irc7U7nRS",
+    "issue_number": 228,
+    "issue_node_id": "I_kwDOPB2irc7U7s2x",
     "project_item_id": null,
     "created_at": "2025-10-30T20:29:38.779Z"
   }
