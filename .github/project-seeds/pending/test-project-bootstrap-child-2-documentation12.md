@@ -15,6 +15,7 @@ story_points: 2
 step: 2
 sprint: "Sprint 13"
 doc: "docs/runbooks/github_projects_setup.md"
+
 -->
 
 # Document test project usage and cleanup - 12

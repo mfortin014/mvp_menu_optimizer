@@ -14,6 +14,7 @@ work_type: Child
 story_points: 3
 step: 1
 sprint: "Sprint 13"
+
 -->
 
 # Configure test project automation smoke checks - 12
