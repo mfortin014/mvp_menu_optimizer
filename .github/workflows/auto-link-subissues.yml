@@ -1,11 +1,6 @@
 name: Auto — Link native parent/child from library
 
 on:
-  push:
-    paths:
-      - ".github/workflows/auto-link-subissues.yml"
-      - "scripts/lib/link_sub_issues.js"
-      - ".github/project-seeds/library.json"
   workflow_run:
     workflows: ["Library Backfill", "Seed Project Items"]
     types: [completed]
