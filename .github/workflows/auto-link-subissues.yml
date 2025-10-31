@@ -7,7 +7,7 @@ on:
       - "scripts/lib/link_sub_issue.js"
       - ".github/project-seeds/library.json"
   workflow_run:
-    workflows: ["Library Backfill", "Seed Project Items"]
+    workflows: ["Library Backfill"]
     types: [completed]
   workflow_dispatch:
     inputs:
