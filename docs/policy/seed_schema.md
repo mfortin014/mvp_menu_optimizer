@@ -178,13 +178,6 @@ pr: ""
 # Epic — GitHub Objects Creation Automation
 
 Goals, context, and acceptance here.
-
-## Children
-
-- [ ] #auto-gh-A — Automation A — Projects v2 add & field writes
-- [ ] #auto-gh-B — Automation B — Native parent/child via Sub-issues
-- [ ] #auto-gh-C — Automation C — Seeds library index & applied moves
-- [ ] #auto-gh-D — Automation D — CI perms + Seed schema & examples (policy)
 ```
 
 ### B) Child issue with `parent_uid`
