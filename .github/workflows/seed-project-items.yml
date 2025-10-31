@@ -954,6 +954,25 @@ jobs:
             writeJsonAtomic(LIB_PATH, clean);
             core.notice(`library.json upserted with ${created.length} item(s).`);
 
+      - name: Link native parent/child relationships
+        if: steps.create.outputs.created != ''
+        uses: actions/github-script@v7
+        env:
+          LIB_PATH: ${{ env.LIB_PATH }}
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          script: |
+            const { linkFromLibrary } = require('./scripts/lib/link_sub_issue.js');
+            const libraryPath = process.env.LIB_PATH || '.github/project-seeds/library.json';
+            await linkFromLibrary({
+              octokit: github,
+              core,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              dryRun: false,
+              libraryPath,
+            });
+
       - name: Move processed seeds (pending → applied) and open PR if allowed
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
