@@ -954,6 +954,13 @@ jobs:
             writeJsonAtomic(LIB_PATH, clean);
             core.notice(`library.json upserted with ${created.length} item(s).`);
 
+      - name: Link native parent/child relationships
+        if: steps.create.outputs.created != ''
+        uses: ./.github/workflows/auto-link-subissues.yml
+        with:
+          dry_run: false
+        secrets: inherit
+
       - name: Move processed seeds (pending → applied) and open PR if allowed
         if: steps.list.outputs.files != ''
         uses: actions/github-script@v7
