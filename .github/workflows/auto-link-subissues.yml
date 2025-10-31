@@ -1,8 +1,13 @@
 name: Auto — Link native parent/child from library
 
 on:
+  push:
+    paths:
+      - ".github/workflows/auto-link-subissues.yml"
+      - "scripts/lib/link_sub_issue.js"
+      - ".github/project-seeds/library.json"
   workflow_run:
-    workflows: ["Seed Project Items", "Library Backfill"]
+    workflows: ["Library Backfill", "Seed Project Items"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -17,7 +22,7 @@ permissions:
 
 jobs:
   link:
-    if: ${{github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (use triggering ref)
