@@ -340,6 +340,16 @@
     "created_at": "2025-10-31T15:04:58.199Z"
   },
   {
+    "uid": "test-project-bootstrap-child-1-automation-7",
+    "parent_uid": "test-project-bootstrap-epic-7",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 240,
+    "issue_node_id": "I_kwDOPB2irc7VG3Rc",
+    "project_item_id": null,
+    "created_at": "2025-10-31T15:13:06.188Z"
+  },
+  {
     "uid": "test-project-bootstrap-child-2-documentation",
     "parent_uid": "test-project-bootstrap-epic",
     "owner": "mfortin014",
@@ -370,6 +380,16 @@
     "created_at": "2025-10-31T15:04:58.652Z"
   },
   {
+    "uid": "test-project-bootstrap-child-2-documentation-7",
+    "parent_uid": "test-project-bootstrap-epic-7",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 241,
+    "issue_node_id": "I_kwDOPB2irc7VG3Uy",
+    "project_item_id": null,
+    "created_at": "2025-10-31T15:13:06.667Z"
+  },
+  {
     "uid": "test-project-bootstrap-epic",
     "parent_uid": null,
     "owner": "mfortin014",
@@ -398,6 +418,16 @@
     "issue_node_id": "I_kwDOPB2irc7VGwpQ",
     "project_item_id": null,
     "created_at": "2025-10-31T15:04:59.268Z"
+  },
+  {
+    "uid": "test-project-bootstrap-epic-7",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 242,
+    "issue_node_id": "I_kwDOPB2irc7VG3X5",
+    "project_item_id": null,
+    "created_at": "2025-10-31T15:13:07.201Z"
   },
   {
     "uid": "test-project-standalone-smoke",
