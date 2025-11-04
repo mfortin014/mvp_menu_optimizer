@@ -10,7 +10,7 @@ This policy explains the CI configuration to:
 - (Later) Create **native parent/child** links via Sub-issues,
 - Keep runs **idempotent** and production-safe.
 
-> This doc matches our Project schema: **Status**, **Type**, **Priority**, **Target Release**, **Area**, **Doc Link**, **PR Link**.  
+> This doc matches our Project schema: **Status**, **Type**, **Priority**, **Target Release**, **Area**, **Series**, **Work Type**, **Story Points**, **Step**, **Sprint**, **Start Date**, **Target Date**, **Doc Link**, **PR Link**.  
 > It also matches our seed header schema in `docs/policy/seed_schema.md`.
 
 ---
@@ -65,6 +65,28 @@ Headers are **HTML comments** at the top of the file and fields must follow our 
 - **`docs/policy/seed_schema.md`** (authoritative)
 - Arrays must be **JSON arrays** (e.g., `labels: ["ci"]`, `children_uids: ["uidA","uidB"]`)
 
+### 2.1 Field purpose quick reference
+
+Authoritative requirements live in `docs/policy/seed_schema.md#minimal-field-matrix`. Use the table below as a reminder of why each Project field exists:
+
+| Project field | Purpose | Notes |
+| ------------- | ------- | ----- |
+| Status        | Lifecycle coordination | Automation seeds everything as **Draft**; adjust manually once work starts. |
+| Type          | High-level work classification | Mirrors the Type field in Issues (Spec, Policy, Runbook, Feature, Bug, Chore). |
+| Priority      | Sequencing | P0–P3 per Issues workflow. |
+| Area          | Product/platform subsystem | Keeps filters from colliding with Type. |
+| Target Release| Human milestone text | Use when the request explicitly calls it out. |
+| Series        | Velocity roll-up grouping | Default is `Throughput`; change only when the maintainer asks. |
+| Work Type     | Relationship to epic      | One of `Epic`, `Child`, `Standalone`; keeps board filters accurate. |
+| Story Points  | Complexity estimate | Fibonacci scale (1,2,3,5,8,13) for child/standalone work. |
+| Step          | Sequencing inside an epic | Positive integer; only appears on child issues. |
+| Sprint        | Iteration assignment | Use the iteration title (e.g., `Sprint 16`) when provided; see `docs/runbooks/github_projects_setup.md#sprint-schedule` for date lookup. Automation skips it if the iteration is missing. |
+| Start Date    | Roadmap start anchor | Include only when supplied for epics/standalone items. |
+| Target Date   | Expected completion | Drives roadmap views and sprint validation. |
+| Doc Link / PR Link | Cross-reference | Repo-relative doc path and PR URL (when known). |
+
+Default assignee: configure the GitHub Actions variable `GH_DEFAULT_SEED_ASSIGNEE` (e.g., `mfortin014`). The workflow uses that value unless a seed overrides `assignees`.
+
 ---
 
 ## 3) Project routing (Main vs Test)
@@ -74,193 +96,29 @@ We support per-seed routing to avoid polluting the main Project:
 - `project: "test" | "main"` chooses `PROJECT_URL_TEST` or `PROJECT_URL`
 - `project_url:` (explicit URL) **overrides** both
 
-You can also override via **manual dispatch input** (see §4.1).
+The workflow resolves Project IDs from the URLs stored in repository variables. To enable a test board, duplicate the main Project so it retains the same field schema, set `vars.PROJECT_URL_TEST` to the duplicate’s URL, and keep the fields in sync. Until that copy exists, omit `project: "test"` so seeds route to the main board.
 
 ---
 
-## 4) Workflow snippets (paste-and-do)
-
-### 4.1 Triggers + optional Project URL override
-
-```yaml
-name: Seed Project Items
-
-on:
-  push:
-    paths:
-      - ".github/project-seeds/pending/**.md"
-  workflow_dispatch:
-    inputs:
-      project_url_override:
-        description: "Optional: override Project URL for this run (use your Test Project)"
-        required: false
-        type: string
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
-env:
-  DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
-  TEST_PROJECT_URL: ${{ vars.PROJECT_URL_TEST }}
-
-jobs:
-  seed:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Resolve target Project URL
-        id: project
-        run: |
-          if [ -n "${{ github.event.inputs.project_url_override }}" ]; then
-            echo "url=${{ github.event.inputs.project_url_override }}" >> $GITHUB_OUTPUT
-          else
-            echo "url=${DEFAULT_PROJECT_URL}" >> $GITHUB_OUTPUT
-          fi
-      - run: echo "Seeding into: ${{ steps.project.outputs.url }}"
-```
-
-> Internally, our seeder also reads per-seed `project` / `project_url` headers to route each item individually.
-
-### 4.2 Resolve Project node id (GraphQL)
-
-```yaml
-- name: Resolve Project node id
-  id: project_id
-  env:
-    GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
-  run: |
-    node -e '
-      (async () => {
-        const { GraphQLClient, gql } = await import("graphql-request");
-        const url = process.env.PROJECT_URL_TO_RESOLVE || process.env.PROJECT_URL || "";
-        const token = process.env.GH_TOKEN;
-        if(!url) { throw new Error("Missing Project URL"); }
-
-        // Minimal resolver: ask for node by URL
-        // Tip: You can also derive org/user & project number then query owner.projectsV2
-        const client = new GraphQLClient("https://api.github.com/graphql", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        const q = gql`query($url:String!){
-          resource(url:$url){ ... on ProjectV2 { id title } }
-        }`;
-
-        const data = await client.request(q, { url });
-        if(!data?.resource?.id) { throw new Error("Project id not found for URL: "+url); }
-        console.log("PROJECT_ID="+data.resource.id);
-      })().catch(e => { console.error(e); process.exit(1); });
-    ' > project_env
-    cat project_env >> $GITHUB_ENV
-```
-
-> Our production workflow caches the id per URL in-run.
-
-### 4.3 Add issue to Project (create-only path)
-
-```yaml
-- name: Add to Project (create-only path)
-  env:
-    GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
-  run: |
-    node -e '
-      (async () => {
-        const { GraphQLClient, gql } = await import("graphql-request");
-        const client = new GraphQLClient("https://api.github.com/graphql", {
-          headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` }
-        });
-
-        const projectId = process.env.PROJECT_ID;
-        const contentId = process.env.CONTENT_NODE_ID; // resolved from issue number
-        const m = gql`mutation($projectId:ID!, $contentId:ID!){
-          addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
-            item { id }
-          }
-        }`;
-        await client.request(m, { projectId, contentId });
-        console.log("Added to Project:", projectId);
-      })().catch(e => { console.error(e); process.exit(1); });
-    '
-```
-
-### 4.4 Write Project fields
-
-```yaml
-- name: Update Project fields
-  env:
-    GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
-  run: |
-    node -e '
-      (async () => {
-        const { GraphQLClient, gql } = await import("graphql-request");
-        const client = new GraphQLClient("https://api.github.com/graphql", {
-          headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` }
-        });
-
-        const projectId = process.env.PROJECT_ID;
-        const itemId = process.env.PROJECT_ITEM_ID; // from addProjectV2ItemById
-        // Assume we discovered fieldId + optionId map earlier in the run:
-        const fieldId = process.env.FIELD_ID_TYPE;
-        const optionId = process.env.OPTION_ID_TYPE_FEATURE;
-
-        const m = gql`mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!){
-          updateProjectV2ItemFieldValue(input:{
-            projectId:$projectId, itemId:$itemId,
-            fieldId:$fieldId,
-            value:{ singleSelectOptionId:$optionId }
-          }) { projectV2Item { id } }
-        }`;
-        await client.request(m, { projectId, itemId, fieldId, optionId });
-        console.log("Updated fields on item:", itemId);
-      })().catch(e => { console.error(e); process.exit(1); });
-    '
-```
-
-### 4.5 Create native Parent/Child (Sub-issues) — B enables this
-
-B uses the **REST Sub-issues API** after parent/child issue numbers are known.
-
-```yaml
-- name: Link Parent ⇄ Child (Sub-issues)
-  env:
-    GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
-  run: |
-    PARENT=${PARENT_NUMBER}
-    CHILD=${CHILD_NUMBER}
-    curl -sS -X POST \
-      -H "Authorization: Bearer ${GH_TOKEN}" \
-      -H "Accept: application/vnd.github+json" \
-      https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PARENT}/sub_issues \
-      -d "{\\"sub_issue_id\\": ${CHILD}}"
-    echo "::notice::Linked parent #${PARENT} ⇄ child #${CHILD}"
-```
-
-> B also pre-checks existing links to keep runs idempotent.
-
----
-
-## 5) Idempotency rules we enforce
+## 4) Idempotency rules we enforce
 
 - **Create-only** for A: if an issue with the same `uid` exists, we **skip** creation and (by default) skip field rewrites.  
   Optional future flag: `update_fields: true`.
 - **Project add** is treated as success if the item already exists in the Project.
-- **Field writes** are skipped if values are unmapped; we log available options.
+- **Field writes** are skipped if values are unmapped; we log available options and keep going so you can finish manually.
 - **Sub-issues**: if already linked, we treat as success.
 
 ---
 
-## 6) Safety & environments
+## 5) Safety & environments
 
-- Use per-seed `project: "test"` or `project_url:` to divert runs into a **Test Project**.
-- Keep **`ALLOW_AUTOCONSUME_PR`** off until you’ve verified Project add/fields/hierarchy are correct; turning it on lets the bot open the “pending → applied” PR.
+- Use per-seed `project: "test"` or `project_url:` to divert runs into a **Test Project** once it mirrors the main board’s schema.
+- Keep **`ALLOW_AUTOCONSUME_PR`** enabled so the bot moves processed seeds to `applied/`. Disable temporarily if you need to inspect changes before moving them.
 - Don’t store PATs in code; use **`secrets.PROJECTS_TOKEN`**.
 
 ---
 
-## 7) Troubleshooting
+## 6) Troubleshooting
 
 **“Project id not found”**
 
@@ -278,9 +136,9 @@ B uses the **REST Sub-issues API** after parent/child issue numbers are known.
 
 ---
 
-## 8) References
+## 7) References
 
-- Project schema & colors: `docs/policy/github_projects_setup.md`
+- Project schema & colors: `docs/runbooks/github_projects_setup.md`
 - Seed schema (authoritative): `docs/policy/seed_schema.md`
 - Sub-issues: implemented in **Automation B**
 

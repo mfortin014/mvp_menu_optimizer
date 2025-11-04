@@ -33,7 +33,7 @@ See also: [Minimal CI (Week 1)](ci_minimal.md) and [Release Playbook](../runbook
 
 Name → purpose (and whether secret):
 
-- `APP_ENV` → `staging` or `production` (not secret). \*not implemented yet
+- `APP_ENV` → environment label consumed by `utils/env.get_env()` (e.g., `preview` for staging Streamlit, `prod` for production). Not secret; set per-deploy in Streamlit secrets or via CI.
 - `APP_VERSION` → injected from `VERSION`/tag (not secret). \*not implemented yet
 - `CHEF_PASSWORD` → temporary page guard for Streamlit (secret; local/staging only;
 - `DB_HOST` → used to create `DATABASE_URL` (not secret)

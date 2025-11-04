@@ -178,7 +178,8 @@ jobs:
                         nodes{
                           __typename
                           ... on ProjectV2SingleSelectField { id name options { id name } }
-                          ... on ProjectV2Field             { id name }  # text / number / date
+                          ... on ProjectV2Field             { id name dataType }  # text / number / date
+                          ... on ProjectV2IterationField    { id name configuration { iterations { id title startDate duration } } }
                         }
                       }
                     }
@@ -190,8 +191,25 @@ jobs:
               for (const n of nodes) {
                 if (n.__typename === 'ProjectV2SingleSelectField') {
                   map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'SINGLE_SELECT', options: n.options || [] });
+                } else if (n.__typename === 'ProjectV2IterationField') {
+                  const iterations = (n.configuration?.iterations || []).map(it => ({
+                    id: it.id,
+                    title: it.title,
+                    startDate: it.startDate,
+                    duration: it.duration,
+                  }));
+                  map.set(n.name.toLowerCase(), {
+                    id: n.id,
+                    name: n.name,
+                    kind: 'ITERATION',
+                    iterations,
+                  });
                 } else if (n.__typename === 'ProjectV2Field') {
-                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind: 'TEXT' });
+                  const dataType = String(n.dataType || 'TEXT').toUpperCase();
+                  let kind = 'TEXT';
+                  if (dataType === 'NUMBER') kind = 'NUMBER';
+                  else if (dataType === 'DATE') kind = 'DATE';
+                  map.set(n.name.toLowerCase(), { id: n.id, name: n.name, kind, dataType });
                 }
               }
               fieldCache.set(projectId, map);
@@ -253,7 +271,7 @@ jobs:
               const fname = fieldInfo.name;
               const kind  = fieldInfo.kind;
 
-              if (rawValue == null || String(rawValue).trim() === '') {
+              if (rawValue == null || (typeof rawValue === 'string' && rawValue.trim() === '')) {
                 core.info(`Field "${fname}": no value provided → skip`);
                 return;
               }
@@ -267,6 +285,64 @@ jobs:
                   return;
                 }
                 value = { singleSelectOptionId: option.id };
+              } else if (kind === 'NUMBER') {
+                const num = Number(rawValue);
+                if (!Number.isFinite(num)) {
+                  core.warning(`Field "${fname}": value "${rawValue}" is not a number`);
+                  return;
+                }
+                value = { number: num };
+              } else if (kind === 'DATE') {
+                let iso = null;
+                if (rawValue && typeof rawValue === 'object' && !(rawValue instanceof Date)) {
+                  if (rawValue.date) iso = String(rawValue.date).trim();
+                  else if (rawValue.startDate) iso = String(rawValue.startDate).trim();
+                }
+                if (!iso) {
+                  if (rawValue instanceof Date) {
+                    iso = rawValue.toISOString().slice(0, 10);
+                  } else {
+                    iso = String(rawValue).trim();
+                  }
+                }
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+                  core.warning(`Field "${fname}": date must be YYYY-MM-DD (received "${rawValue}")`);
+                  return;
+                }
+                value = { date: iso };
+              } else if (kind === 'ITERATION') {
+                const iterations = fieldInfo.iterations || [];
+                let match = null;
+
+                if (rawValue && typeof rawValue === 'object') {
+                  const candidateId = rawValue.id || rawValue.iterationId;
+                  if (candidateId) {
+                    match = iterations.find(it => it.id === candidateId);
+                  }
+                  if (!match && rawValue.title) {
+                    const wanted = String(rawValue.title).trim().toLowerCase();
+                    match = iterations.find(it => (it.title || '').toLowerCase() === wanted);
+                  }
+                  if (!match && rawValue.startDate) {
+                    const wanted = String(rawValue.startDate).trim().toLowerCase();
+                    match = iterations.find(it => (it.startDate || '').toLowerCase() === wanted);
+                  }
+                } else {
+                  const wanted = String(rawValue).trim();
+                  const wantedLower = wanted.toLowerCase();
+                  match = iterations.find(it =>
+                    it.id === wanted ||
+                    (it.title || '').toLowerCase() === wantedLower ||
+                    (it.startDate || '').toLowerCase() === wantedLower
+                  );
+                }
+
+                if (!match) {
+                  const options = iterations.map(it => `${it.title || it.startDate || it.id}`.trim()).filter(Boolean);
+                  core.warning(`Field "${fname}": iteration "${rawValue}" not found; available: ${options.join(', ') || '(none)'}`);
+                  return;
+                }
+                value = { iterationId: match.id };
               } else {
                 // Treat as TEXT; covers the policy fields "Target Release", "Doc Link"
                 value = { text: String(rawValue) };
@@ -282,24 +358,307 @@ jobs:
             }
 
             // ---------- /helpers ----------
+            const STATUS_ALLOWED = ['Draft', 'Ready', 'In Progress', 'In Review', 'Done'];
+            const STATUS_REMAPPED = new Map([
+              ['accepted', 'Ready'],
+              ['todo', 'Ready'],
+              ['doing', 'In Progress'],
+              ['in-progress', 'In Progress'],
+              ['in progress', 'In Progress'],
+              ['in-review', 'In Review'],
+              ['in review', 'In Review'],
+            ]);
+            const STATUS_DEPRECATED = new Set(['blocked', 'parked', 'superseded']);
+            const STORY_POINT_VALUES = new Set([1, 2, 3, 5, 8, 13]);
+            const PRIORITY_ALLOWED = new Set(['P0', 'P1', 'P2', 'P3']);
+            const SERIES_DEFAULT = 'Throughput';
+            const WORK_TYPE_MAP = new Map([
+              ['epic', 'Epic'],
+              ['child', 'Child'],
+              ['standalone', 'Standalone'],
+            ]);
+            const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+            function isBlank(value) {
+              return value == null || (typeof value === 'string' && value.trim() === '');
+            }
+
+            function normalizeStatusValue(raw) {
+              if (isBlank(raw)) {
+                return { value: null, error: 'Status is required.' };
+              }
+
+              const trimmed = String(raw).trim();
+              const lower = trimmed.toLowerCase();
+
+              if (STATUS_DEPRECATED.has(lower)) {
+                return {
+                  value: null,
+                  error: `Status "${trimmed}" was removed. Use a label instead and choose one of: ${STATUS_ALLOWED.join(', ')}.`,
+                };
+              }
+
+              if (STATUS_REMAPPED.has(lower)) {
+                const mapped = STATUS_REMAPPED.get(lower);
+                const warning = trimmed === mapped ? null : `Mapped legacy status "${trimmed}" → "${mapped}".`;
+                return { value: mapped, warning };
+              }
+
+              const canonical = STATUS_ALLOWED.find(s => s.toLowerCase() === lower);
+              if (canonical) {
+                return { value: canonical, warning: null };
+              }
+
+              return { value: null, error: `Status "${trimmed}" not recognized. Use one of: ${STATUS_ALLOWED.join(', ')}.` };
+            }
+
+            function coerceIsoDate(raw, fieldName, errors) {
+              if (isBlank(raw)) return null;
+              let iso = null;
+              if (raw && typeof raw === 'object' && !(raw instanceof Date)) {
+                if (raw.date) iso = String(raw.date).trim();
+                else if (raw.startDate) iso = String(raw.startDate).trim();
+              }
+              if (!iso) {
+                if (raw instanceof Date) {
+                  iso = raw.toISOString().slice(0, 10);
+                } else {
+                  iso = String(raw).trim();
+                }
+              }
+              if (!DATE_RE.test(iso)) {
+                errors.push(`${fieldName} must be formatted as YYYY-MM-DD.`);
+                return null;
+              }
+              return iso;
+            }
+
+            function normalizeSeedMeta(meta) {
+              const normalized = { ...meta };
+              const errors = [];
+              const warnings = [];
+
+              // Normalized key aliases
+              if (normalized.sequence != null && normalized.step == null) normalized.step = normalized.sequence;
+              if (normalized.iteration != null && normalized.sprint == null) normalized.sprint = normalized.iteration;
+              if (normalized.storypoints != null && normalized.story_points == null) normalized.story_points = normalized.storypoints;
+
+              delete normalized.sequence;
+              delete normalized.iteration;
+              delete normalized.storypoints;
+
+              normalized.uid = normalized.uid || normalized.id || null;
+
+              const typeRaw = isBlank(normalized.type) ? '' : String(normalized.type).trim();
+              if (!typeRaw) errors.push('Missing required "type".');
+              normalized.type = typeRaw || normalized.type;
+              const childrenSeed = normalized.children_uids;
+              let childrenList = [];
+              if (Array.isArray(childrenSeed)) {
+                childrenList = childrenSeed.filter(Boolean).map(String);
+              } else if (!isBlank(childrenSeed)) {
+                childrenList = String(childrenSeed)
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean);
+              }
+              normalized.children_uids = childrenList;
+
+              if (!isBlank(normalized.parent_uid)) {
+                normalized.parent_uid = String(normalized.parent_uid).trim();
+              } else {
+                delete normalized.parent_uid;
+              }
+              const hasParent = Boolean(normalized.parent_uid);
+              const hasChildren = childrenList.length > 0;
+
+              let workTypeRaw = isBlank(normalized.work_type) ? '' : String(normalized.work_type).trim();
+              if (!workTypeRaw) {
+                if (hasParent) workTypeRaw = 'Child';
+                else if (hasChildren) workTypeRaw = 'Epic';
+                else workTypeRaw = 'Standalone';
+              }
+              const workTypeCanonical = workTypeRaw.toLowerCase();
+              const workTypeValue = WORK_TYPE_MAP.get(workTypeCanonical);
+              if (!workTypeValue) {
+                errors.push('Work Type must be one of Epic, Child, or Standalone.');
+              }
+              if (workTypeValue === 'Child' && !hasParent) {
+                errors.push('Work Type "Child" requires a parent_uid.');
+              }
+              if (workTypeValue !== 'Child' && hasParent) {
+                errors.push(`Work Type "${workTypeValue || workTypeRaw}" cannot include parent_uid.`);
+              }
+              if (workTypeValue === 'Epic' && !hasChildren) {
+                warnings.push('Epic work items should list children_uids; add them so automation can wire hierarchy.');
+              }
+              if (workTypeValue === 'Standalone' && hasChildren) {
+                errors.push('Standalone work should not include children_uids.');
+              }
+              normalized.work_type = workTypeValue || workTypeRaw;
+
+              const isEpic = workTypeValue === 'Epic';
+              const isChild = workTypeValue === 'Child';
+
+              const statusResult = normalizeStatusValue(normalized.status);
+              if (statusResult.error) errors.push(statusResult.error);
+              if (statusResult.value) normalized.status = statusResult.value;
+              if (statusResult.warning) warnings.push(statusResult.warning);
+
+              // Base required fields
+              for (const key of ['priority', 'area']) {
+                if (isBlank(normalized[key])) {
+                  errors.push(`Missing required "${key}".`);
+                } else {
+                  normalized[key] = String(normalized[key]).trim();
+                }
+              }
+
+              if (!isBlank(normalized.priority)) {
+                normalized.priority = normalized.priority.toUpperCase();
+                if (!PRIORITY_ALLOWED.has(normalized.priority)) {
+                  errors.push(`Priority "${normalized.priority}" must be one of ${Array.from(PRIORITY_ALLOWED).join(', ')}.`);
+                }
+              }
+
+              if (!isBlank(normalized.area)) {
+                normalized.area = String(normalized.area).trim();
+              }
+
+              // Step / sequence handling
+              if (isChild) {
+                if (isBlank(normalized.step)) {
+                  errors.push('Child issues require "step" to sequence work within the epic.');
+                } else {
+                  const stepNum = Number(normalized.step);
+                  if (!Number.isFinite(stepNum) || !Number.isInteger(stepNum) || stepNum < 1) {
+                    errors.push(`Step "${normalized.step}" must be a positive integer.`);
+                  } else {
+                    normalized.step = stepNum;
+                  }
+                }
+              } else {
+                if (!isBlank(normalized.step)) {
+                  warnings.push('Step is only applied to child issues; ignoring value.');
+                }
+                delete normalized.step;
+              }
+
+              // Story points handling
+              if (isChild) {
+                if (isBlank(normalized.story_points)) {
+                  errors.push('Child issues require "story_points" for velocity tracking.');
+                } else {
+                  const sp = Number(normalized.story_points);
+                  if (!Number.isFinite(sp) || !Number.isInteger(sp)) {
+                    errors.push(`Story Points "${normalized.story_points}" must be a whole number.`);
+                  } else if (!STORY_POINT_VALUES.has(sp)) {
+                    errors.push(`Story Points "${sp}" must be one of ${Array.from(STORY_POINT_VALUES).join(', ')}.`);
+                  } else {
+                    normalized.story_points = sp;
+                  }
+                }
+              } else if (isEpic) {
+                if (!isBlank(normalized.story_points)) {
+                  warnings.push('Epics do not take Story Points; ignoring value.');
+                }
+                delete normalized.story_points;
+              } else if (!isBlank(normalized.story_points)) {
+                const sp = Number(normalized.story_points);
+                if (!Number.isFinite(sp) || !Number.isInteger(sp)) {
+                  errors.push(`Story Points "${normalized.story_points}" must be a whole number.`);
+                } else if (!STORY_POINT_VALUES.has(sp)) {
+                  errors.push(`Story Points "${sp}" must be one of ${Array.from(STORY_POINT_VALUES).join(', ')}.`);
+                } else {
+                  normalized.story_points = sp;
+                }
+              }
+
+              // Series handling
+              if (isBlank(normalized.series)) {
+                normalized.series = SERIES_DEFAULT;
+              } else {
+                normalized.series = String(normalized.series).trim();
+              }
+
+              // Target Release / Date / Start Date rules
+              if (isChild) {
+                if (!isBlank(normalized.target)) {
+                  warnings.push('Target Release is only tracked on epics or orphan issues; ignoring value.');
+                }
+                if (!isBlank(normalized.target_date)) {
+                  warnings.push('Target Date is only tracked on epics or orphan issues; ignoring value.');
+                }
+                if (!isBlank(normalized.start_date)) {
+                  warnings.push('Start Date is only tracked on epics or orphan issues; ignoring value.');
+                }
+                delete normalized.target;
+                delete normalized.target_date;
+                delete normalized.start_date;
+              } else {
+                if (!isBlank(normalized.target)) {
+                  normalized.target = String(normalized.target).trim();
+                }
+                const targetDate = coerceIsoDate(normalized.target_date, 'Target Date', errors);
+                if (targetDate) normalized.target_date = targetDate;
+                else delete normalized.target_date;
+
+                const startDate = coerceIsoDate(normalized.start_date, 'Start Date', errors);
+                if (startDate) normalized.start_date = startDate;
+                else delete normalized.start_date;
+              }
+
+              // Sprint (iteration) cleanup
+              if (isBlank(normalized.sprint)) {
+                delete normalized.sprint;
+              } else if (typeof normalized.sprint === 'string') {
+                normalized.sprint = normalized.sprint.trim();
+              }
+
+              return { meta: normalized, errors, warnings, isChild, isEpic };
+            }
 
             const created = []; // [{ number, uid, meta, createdNew: true }]
+            let hadValidationFailure = false;
 
             for (const f of files) {
               const raw = fs.readFileSync(f, 'utf8');
-              const { meta, rest } = parseHeader(raw);
+              const parsed = parseHeader(raw);
+              const metaRaw = parsed.meta || {};
+              const rest = parsed.rest || '';
+              const meta = {};
+              for (const [key, value] of Object.entries(metaRaw)) {
+                meta[key.toLowerCase()] = value;
+              }
 
-              const title  = meta.title || path.basename(f);
-              const labels = Array.isArray(meta.labels) ? meta.labels : (meta.labels ? [meta.labels] : []);
-              const uid    = meta.uid || null;
+              const uid = meta.uid || null;
+              if (!uid) {
+                core.warning(`Seed ${f} missing 'uid'; skipping.`);
+                continue;
+              }
+
+              const { meta: normalizedMeta, errors, warnings } = normalizeSeedMeta(meta);
+              if (errors.length) {
+                for (const msg of errors) {
+                  core.error(`Seed ${uid}: ${msg}`);
+                }
+                hadValidationFailure = true;
+                continue;
+              }
+              for (const msg of warnings) {
+                core.warning(`Seed ${uid}: ${msg}`);
+              }
+
+              const title  = normalizedMeta.title || path.basename(f);
+              const labels = Array.isArray(normalizedMeta.labels) ? normalizedMeta.labels : (normalizedMeta.labels ? [normalizedMeta.labels] : []);
+              const assigneeSeed = normalizedMeta.assignees;
+              const metaForFields = normalizedMeta;
 
               // Create-only semantics by default
-              const mode      = String(meta.mode ?? 'create_only');
-              const frozen    = String(meta.frozen ?? 'true') === 'true';
-              const lifecycle = String(meta.lifecycle ?? 'seed_only');
+              const mode      = String(normalizedMeta.mode ?? 'create_only');
+              const frozen    = String(normalizedMeta.frozen ?? 'true') === 'true';
+              const lifecycle = String(normalizedMeta.lifecycle ?? 'seed_only');
               const createOnly = (mode === 'create_only') || frozen || (lifecycle === 'seed_only');
-
-              if (!uid) { core.warning(`Seed ${f} missing 'uid'; skipping.`); continue; }
 
               const existing = await findIssueByUid(uid);
               if (existing && createOnly) {
@@ -309,16 +668,16 @@ jobs:
 
               // Assignees: seed > default var > fallback
               let assignees = [];
-              if (Array.isArray(meta.assignees)) assignees = meta.assignees;
-              else if (meta.assignees)           assignees = [meta.assignees];
+              if (Array.isArray(assigneeSeed)) assignees = assigneeSeed;
+              else if (assigneeSeed)           assignees = [assigneeSeed];
               else if (DEFAULT_ASSIGNEE)         assignees = [DEFAULT_ASSIGNEE];
               else if (FALLBACK_ASSIGNEE)        assignees = [FALLBACK_ASSIGNEE];
 
               // ------------------ per-seed routing ------------------
               // Priority: (1) meta.project_url → (2) meta.project == "test" → (3) DEFAULT_PROJECT_URL (main)
-              const routeSwitch = (meta.project || '').toString().trim().toLowerCase();
+              const routeSwitch = (normalizedMeta.project || '').toString().trim().toLowerCase();
               const chosenProjectUrl =
-                (meta.project_url && String(meta.project_url)) ||
+                (normalizedMeta.project_url && String(normalizedMeta.project_url)) ||
                 (routeSwitch === 'test' ? (PROJECT_URL_TEST || DEFAULT_PROJECT_URL) : DEFAULT_PROJECT_URL) ||
                 null;
 
@@ -333,7 +692,7 @@ jobs:
               // Dry-run diagnostics, before any mutations
               core.notice([
                 `Seed: ${uid}`,
-                `Routing source: ${meta.project_url ? 'seed.project_url' : (routeSwitch === 'test' ? 'vars.PROJECT_URL_TEST' : 'vars.PROJECT_URL (default)')}`,
+                `Routing source: ${normalizedMeta.project_url ? 'seed.project_url' : (routeSwitch === 'test' ? 'vars.PROJECT_URL_TEST' : 'vars.PROJECT_URL (default)')}`,
                 `Chosen Project URL: ${chosenProjectUrl || '(N/A; using PROJECT_ID override)'}`,
                 `Resolved Project ID: ${chosenProjectId || '(unresolved)'}`
               ].join(' | '));
@@ -362,9 +721,16 @@ jobs:
                     type:     'Type',            // SINGLE_SELECT
                     status:   'Status',          // SINGLE_SELECT
                     priority: 'Priority',        // SINGLE_SELECT
-                    target:   'Target Release',  // TEXT
+                    target:   'Target Release',  // SINGLE_SELECT / TEXT
+                    target_date: 'Target Date',  // DATE
                     area:     'Area',            // SINGLE_SELECT
                     doc:      'Doc Link',        // TEXT
+                    series:   'Series',          // SINGLE_SELECT
+                    work_type:'Work Type',       // SINGLE_SELECT
+                    story_points: 'Story Points',// NUMBER
+                    step:     'Step',            // NUMBER
+                    sprint:   'Sprint',          // ITERATION
+                    start_date: 'Start Date',    // DATE
                   };
 
                   for (const [seedKey, fieldName] of Object.entries(map)) {
@@ -373,7 +739,7 @@ jobs:
                       core.warning(`Project is missing field "${fieldName}" → skip`);
                       continue;
                     }
-                    await writeFieldValue(chosenProjectId, itemId, fieldInfo, meta[seedKey]);
+                    await writeFieldValue(chosenProjectId, itemId, fieldInfo, metaForFields[seedKey]);
                   }
                 }
               } else {
@@ -381,8 +747,12 @@ jobs:
               }
               // ---------- /Field writes ----------
 
-              created.push({ number: issue.number, uid, meta, createdNew: true });
+              created.push({ number: issue.number, uid, meta: metaForFields, createdNew: !existing });
               core.info(`Created issue #${issue.number} for seed ${uid}`);
+            }
+
+            if (hadValidationFailure) {
+              core.warning('One or more seeds were skipped due to validation errors; review the logs above.');
             }
 
             core.setOutput('created', JSON.stringify(created));
@@ -391,7 +761,6 @@ jobs:
           PROJECT_ID: ${{ vars.PROJECT_ID }}
           DEFAULT_PROJECT_URL: ${{ vars.PROJECT_URL }}
           DEFAULT_PROJECT_URL_TEST: ${{ vars.PROJECT_URL_TEST }}
-          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
           FALLBACK_ASSIGNEE: ${{ github.actor }}
 
       - name: Wire hierarchy (epic checklists + late child linking)
@@ -584,6 +953,25 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             writeJsonAtomic(LIB_PATH, clean);
             core.notice(`library.json upserted with ${created.length} item(s).`);
+
+      - name: Link native parent/child relationships
+        if: steps.create.outputs.created != ''
+        uses: actions/github-script@v7
+        env:
+          LIB_PATH: ${{ env.LIB_PATH }}
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          script: |
+            const { linkFromLibrary } = require('./scripts/lib/link_sub_issue.js');
+            const libraryPath = process.env.LIB_PATH || '.github/project-seeds/library.json';
+            await linkFromLibrary({
+              octokit: github,
+              core,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              dryRun: false,
+              libraryPath,
+            });
 
       - name: Move processed seeds (pending → applied) and open PR if allowed
         if: steps.list.outputs.files != ''

@@ -36,9 +36,9 @@ Tag message template:
 Triggered automatically from tag push (or merge to `main`, depending on workflow):
 
 - Build **immutable artifact** for the tag; label with version + SHA.  
-- Deploy to **staging** using environment‑scoped secrets.  
+- Deploy to **staging** (`surlefeu-preview.streamlit.app` on branch `main`) using environment-scoped secrets.  
 - Add a **deploy marker** with version + SHA.  
-- Run post‑deploy **smoke** (Golden Path) in staging.
+- Run post-deploy **smoke** (Golden Path) in staging. (CI job: `deploy-staging` in `.github/workflows/ci.yml`)
 
 Gate to proceed:
 - Smoke green.  
@@ -53,9 +53,10 @@ If staging fails:
 ## 4) Production promotion
 Manual approval via GitHub **production** environment.
 
-- Deploy the **same artifact** used in staging.  
+- Deploy the **same artifact** used in staging (CI job: `deploy-production`). Requires approval in **Environments → production**.  
 - Add **deploy marker**.  
-- Run **smoke** again.  
+- Run **smoke** again against production secrets.  
+- After the gate passes, fast-forward the `prod` branch so Streamlit Cloud (`surlefeu.streamlit.app`) serves the promoted commit.  
 - Watch key metrics (error rate, success rate, latency) for the soak window.
 
 If production smoke fails or SLOs degrade:
@@ -80,6 +81,7 @@ Use when production smoke fails or a severe regression appears.
 
 1. Identify last good tag (e.g., `mvp-X.Y.(Z-1)`).  
 2. Promote its artifact to production (no rebuild).  
+   - Fast-forward or reset the `prod` branch to the last good commit so Streamlit Cloud serves the rollback.  
 3. Post a deploy marker `ROLLBACK mvp-X.Y.Z → mvp-X.Y.(Z-1)`.  
 4. Disable related feature flags.  
 5. Open an Incident Issue with: **Impact, Timeline, Suspected Cause, Fix plan**.  

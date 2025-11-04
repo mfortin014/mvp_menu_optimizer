@@ -24,13 +24,15 @@ See: `branching_and_prs.md`, `ci_minimal.md`, `ci_cd_constitution.md`.
 
 ## 3) Start-here handshake
 
-1. **Create a branch** from the default branch using our naming (see `branching_and_prs.md`).
-2. **Use the Issue provided in the prompt.**
-   - If an Issue link/number is not provided, stop and request it (do not self-discover Issues).
-3. **If instructed, seed an Issue** via our automation (see `ci_github_object_creation.md` and `issues_workflow.md`).
-   - Generate a minimal seed file under `.github/project-seeds/pending/`, then commit and push.
-4. **Prepare Draft PR content** associated with the issue in mardown format.
-   - Provide a squash-ready **title** and a concise **body** that links the Issue and cites exact policy sections (see `branching_and_prs.md`, `ci_minimal.md`, `commits_and_changelog.md`, and if applicable `migrations_and_schema.md`).
+1. **Create a branch** from the default branch using our naming (see `docs/policy/branching_and_prs.md#3-branching`).
+   - Seed-generation work still happens on a short-lived branch; keep the branch limited to the seed file (and supporting docs if needed) before opening the Draft PR.
+2. **Confirm you have the right Issue context.**
+   - Default: use the Issue in the prompt, or request the link if it’s missing per `docs/policy/issues_workflow.md#1-when-to-open-an-issue`.
+   - Exception: when the prompt explicitly asks you to seed and no Issue exists yet, move forward with the seed so automation can mint the Issue.
+3. **If instructed, seed an Issue** via our automation (see `docs/policy/ci_github_object_creation.md#2-seeds-folders--schema`).
+   - Generate the seed under `.github/project-seeds/pending/`, capturing the full context you have; ask for clarifications when details are missing. Following this path takes the place of requesting an Issue link because automation will create the Issue from the seed for maintainer approval.
+4. **Prepare Draft PR content** tied to the Issue or seed intent.
+   - Provide a squash-ready **title** and a concise **body** that links the Issue (once it exists) and cites exact policy sections (see `docs/policy/branching_and_prs.md`, `docs/policy/ci_minimal.md`, `docs/policy/commits_and_changelog.md`, and if applicable `docs/policy/migrations_and_schema.md`).
 
 ---
 
@@ -70,7 +72,14 @@ See: `commits_and_changelog.md`, `release_playbook.md`, `ci_minimal.md`.
 
 ---
 
-## 7) Docs discovery & linking rules
+## 7) Commit recommendations
+
+- Always share the Conventional Commit message you recommend for the current work in a fenced code block, following `docs/policy/commits_and_changelog.md#1-commit-anatomy` and the intent decision tree in that doc.
+- Anchor the message to the staged diff only; avoid summarizing prior discussion or future intent.
+
+---
+
+## 8) Docs discovery & linking rules
 
 Treat repo docs as the **library of truth**. Always **use relative links**.
 
@@ -90,7 +99,7 @@ Common entry points (not exhaustive):
 
 ---
 
-## 8) Migration authorship protocol (when explicitly requested)
+## 9) Migration authorship protocol (when explicitly requested)
 
 1. Read the Issue and the relevant sections in `migrations_and_schema.md`.
 2. Generate files **in the correct directory** with the **prescribed naming** and include **up/down** or rollback notes if required.
@@ -99,7 +108,7 @@ Common entry points (not exhaustive):
 
 ---
 
-## 9) Failure modes & recovery
+## 10) Failure modes & recovery
 
 - **Missing info?** Post a concise assumption list and a minimal plan; request confirmation.
 - **CI failing?** Point to the exact job/log line, propose the smallest corrective change, and stop for review.
@@ -107,13 +116,13 @@ Common entry points (not exhaustive):
 
 ---
 
-## 10) Sidecars (future)
+## 11) Sidecars (future)
 
 If files like `.cursorrules`, `CLAUDE.md`, or `.github/copilot-instructions.md` are added, they **must** defer to this `AGENTS.md` and only add tool-specific syntax/ergonomics.
 
 ---
 
-## 11) GitHub collaboration
+## 12) GitHub collaboration
 
 - When providing contents for GitHub objects to be manually updated to GitHub by humans, always provide it as markdown codeblocs. If the contents itself contains codeblocs, make sure the outter codebloc is quadruple fenced.
 
