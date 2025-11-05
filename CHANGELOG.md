@@ -6,17 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-[Compare](https://github.com/mfortin014/mvp_menu_optimizer/compare/v0.7.0...HEAD)
+[Compare](https://github.com/mfortin014/mvp_menu_optimizer/compare/mvp-0.7.1...HEAD)
+
+_No entries yet._
+
+## [0.7.1] - 2025-11-04
+
+[Tag: mvp-0.7.1](https://github.com/mfortin014/mvp_menu_optimizer/releases/tag/mvp-0.7.1) ·
+[Compare](https://github.com/mfortin014/mvp_menu_optimizer/compare/mvp-0.7.0...mvp-0.7.1)
 
 ### Added
 
 - Bootstrap migration `V000__bootstrap_schema.sql` capturing the 2025-09-09 schema baseline so fresh environments can replay the full chain.
+- Streamlit deployments now surface an environment-aware banner and preview subdomain setup so staging vs production are unmistakable (#206).
+- The release pipeline publishes a git-archive artifact for each build, giving Supabase/Streamlit promotions an immutable bundle (#209).
+- Post-promotion production snapshot (`schema/releases/supabase_schema_PROD_mvp-0.7.1.sql`) for release diagnostics (#152/#205).
 
 ### Changed
 
-- Allow `utils/db.py` to default to the plain `postgresql` driver and pass an explicit driver override for SQLAlchemy clients.
-- `migrate.sh` now resolves Bitwarden secrets internally via `--env/--project-id`, dropping `.env` fallbacks and supporting optional driver overrides.
-- `dump_sample_data.sh` now accepts `--env/--project-id`, derives its connection string via Bitwarden, and exports schema samples without `.env` fallbacks.
+- `utils/db.py` now emits plain `postgresql` URLs for Bitwarden-run CLI scripts while `get_engine()` keeps using `postgresql+psycopg`, letting operators override the driver when required (#170).
+- `migrate.sh`, `dump_schema.sh`, and `dump_sample_data.sh` call `bws run --project-id ...` directly, accept explicit `--env/--project-id` flags, and drop `.env` fallbacks so the Bitwarden-first workflow is consistent across environments (#168/#169/#173).
+- GitHub object creation automation and seed files were refreshed to cover the new project field matrix, keeping release and policy work in sync with the scrum board (#195/#202).
+- CI release jobs gained a manual production promotion gate and the git-archive step now excludes the artifact itself to keep builds lean (#207/#208/#209).
+
+### Fixed
+
+- Restored GitHub workflow automation’s ability to auto-link sub-issues after seed processing (#266).
+
+### Documentation
+
+- Rewrote `AGENTS.md` and supporting policy docs to clarify the seeding handshake and project field definitions (#166/#200/#201/#193).
 
 ## [0.7.0] - 2025-10-17
 
