@@ -188,6 +188,8 @@
     "issue_node_id": "I_kwDOPB2irc7TqNq4",
     "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc_Y",
     "created_at": "2025-10-24T21:26:58.205Z"
+  },
+  {
     "uid": "prod-db-migrate",
     "parent_uid": "prod-setup-epic",
     "owner": "mfortin014",
@@ -236,6 +238,16 @@
     "issue_node_id": "I_kwDOPB2irc7TZZJo",
     "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcU4",
     "created_at": "2025-10-23T21:25:34.373Z"
+  },
+  {
+    "uid": "release-mvp-0-7-1",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 268,
+    "issue_node_id": "I_kwDOPB2irc7VzYTQ",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggtxIw",
+    "created_at": "2025-11-04T15:11:50.262Z"
   },
   {
     "uid": "scripts-dump-sample-data-bws2",
