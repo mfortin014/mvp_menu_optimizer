@@ -12,3 +12,4 @@ backups/
 schema/archive/
 *.Zone.Identifier
 menu_optimizer.code-workspace
+docs/features/
