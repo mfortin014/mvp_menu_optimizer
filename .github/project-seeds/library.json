@@ -1,5 +1,245 @@
 [
   {
+    "uid": "auto-gh-A",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 31,
+    "issue_node_id": "I_kwDOPB2irc7OKsA0",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:47.603Z"
+  },
+  {
+    "uid": "auto-gh-agents-refresh-20251020",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 164,
+    "issue_node_id": "I_kwDOPB2irc7Snebn",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggGekI",
+    "created_at": "2025-10-20T18:59:56.912Z"
+  },
+  {
+    "uid": "auto-gh-B",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 117,
+    "issue_node_id": "I_kwDOPB2irc7Pin7X",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:48.303Z"
+  },
+  {
+    "uid": "auto-gh-C",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 33,
+    "issue_node_id": "I_kwDOPB2irc7OKsBe",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:48.930Z"
+  },
+  {
+    "uid": "auto-gh-C1",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 97,
+    "issue_node_id": "I_kwDOPB2irc7PSSxS",
+    "project_item_id": null,
+    "created_at": "2025-10-01T15:52:18.622Z"
+  },
+  {
+    "uid": "auto-gh-D",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 34,
+    "issue_node_id": "I_kwDOPB2irc7OKsBt",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:49.709Z"
+  },
+  {
+    "uid": "auto-gh-E",
+    "parent_uid": "auto-gh-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 115,
+    "issue_node_id": "I_kwDOPB2irc7PiAvP",
+    "project_item_id": null,
+    "created_at": "2025-10-03T16:56:28.125Z"
+  },
+  {
+    "uid": "auto-gh-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 35,
+    "issue_node_id": "I_kwDOPB2irc7OKsB6",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:50.288Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 25,
+    "issue_node_id": "I_kwDOPB2irc7N675A",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:51.025Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-first-export",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 26,
+    "issue_node_id": "I_kwDOPB2irc7N7Vlc",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:51.613Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-schema",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 27,
+    "issue_node_id": "I_kwDOPB2irc7N7VmH",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:52.247Z"
+  },
+  {
+    "uid": "ci-cd-phase1a-workflow",
+    "parent_uid": "ci-cd-phase1a-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 28,
+    "issue_node_id": "I_kwDOPB2irc7N7Vm1",
+    "project_item_id": null,
+    "created_at": "2025-09-30T21:54:52.856Z"
+  },
+  {
+    "uid": "ci-phase1-secrets-direnv",
+    "parent_uid": "ci-phase1-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 154,
+    "issue_node_id": "I_kwDOPB2irc7Qmhg2",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgftS_c",
+    "created_at": "2025-10-09T16:04:54.166Z"
+  },
+  {
+    "uid": "epic-bws-script-hardening",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 168,
+    "issue_node_id": "I_kwDOPB2irc7S3Sam",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggJqPc",
+    "created_at": "2025-10-21T18:29:07.224Z"
+  },
+  {
+    "uid": "ghwf-upgrade-agents",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 193,
+    "issue_node_id": "I_kwDOPB2irc7TqNmv",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc9k",
+    "created_at": "2025-10-24T21:26:56.093Z"
+  },
+  {
+    "uid": "ghwf-upgrade-autolink",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 194,
+    "issue_node_id": "I_kwDOPB2irc7TqNnr",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc90",
+    "created_at": "2025-10-24T21:26:56.614Z"
+  },
+  {
+    "uid": "ghwf-upgrade-automation",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 195,
+    "issue_node_id": "I_kwDOPB2irc7TqNou",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc-I",
+    "created_at": "2025-10-24T21:26:57.129Z"
+  },
+  {
+    "uid": "ghwf-upgrade-docs",
+    "parent_uid": "ghwf-upgrade-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 196,
+    "issue_node_id": "I_kwDOPB2irc7TqNpm",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc-Y",
+    "created_at": "2025-10-24T21:26:57.688Z"
+  },
+  {
+    "uid": "ghwf-upgrade-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 197,
+    "issue_node_id": "I_kwDOPB2irc7TqNq4",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggTc_Y",
+    "created_at": "2025-10-24T21:26:58.205Z"
+  },
+  {
+    "uid": "prod-db-migrate",
+    "parent_uid": "prod-setup-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 181,
+    "issue_node_id": "I_kwDOPB2irc7TZZFA",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcTc",
+    "created_at": "2025-10-23T21:25:32.492Z"
+  },
+  {
+    "uid": "prod-default-tenant-secrets",
+    "parent_uid": "prod-setup-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 182,
+    "issue_node_id": "I_kwDOPB2irc7TZZGh",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcT8",
+    "created_at": "2025-10-23T21:25:32.996Z"
+  },
+  {
+    "uid": "prod-setup-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 183,
+    "issue_node_id": "I_kwDOPB2irc7TZZHk",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcUQ",
+    "created_at": "2025-10-23T21:25:33.324Z"
+  },
+  {
+    "uid": "prod-smoke-and-promotion",
+    "parent_uid": "prod-setup-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 184,
+    "issue_node_id": "I_kwDOPB2irc7TZZIo",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcUw",
+    "created_at": "2025-10-23T21:25:33.933Z"
+  },
+  {
+    "uid": "prod-streamlit-app",
+    "parent_uid": "prod-setup-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 185,
+    "issue_node_id": "I_kwDOPB2irc7TZZJo",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggQcU4",
+    "created_at": "2025-10-23T21:25:34.373Z"
+  },
+  {
     "uid": "release-mvp-0-7-1",
     "parent_uid": null,
     "owner": "mfortin014",
@@ -8,5 +248,125 @@
     "issue_node_id": "I_kwDOPB2irc7VzYTQ",
     "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggtxIw",
     "created_at": "2025-11-04T15:11:50.262Z"
+  },
+  {
+    "uid": "scripts-dump-sample-data-bws2",
+    "parent_uid": "epic-bws-script-hardening",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 173,
+    "issue_node_id": "I_kwDOPB2irc7S3kCk",
+    "project_item_id": null,
+    "created_at": "2025-10-21T18:51:14.143Z"
+  },
+  {
+    "uid": "scripts-dump-schema-env-agnostic",
+    "parent_uid": "ci-phase1-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 156,
+    "issue_node_id": "I_kwDOPB2irc7Rky7w",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgf5DkA",
+    "created_at": "2025-10-15T02:12:05.148Z"
+  },
+  {
+    "uid": "scripts-migrate-bws",
+    "parent_uid": "epic-bws-script-hardening",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 169,
+    "issue_node_id": "I_kwDOPB2irc7S3SdQ",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggJqP0",
+    "created_at": "2025-10-21T18:29:07.724Z"
+  },
+  {
+    "uid": "scripts-shared-db-helper-bws",
+    "parent_uid": "epic-bws-script-hardening",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 170,
+    "issue_node_id": "I_kwDOPB2irc7S3SfM",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zggJqQE",
+    "created_at": "2025-10-21T18:29:08.225Z"
+  },
+  {
+    "uid": "SEC-000",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 102,
+    "issue_node_id": "I_kwDOPB2irc7PUXB-",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:42.006Z"
+  },
+  {
+    "uid": "SEC-001",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 103,
+    "issue_node_id": "I_kwDOPB2irc7PUXDw",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:42.344Z"
+  },
+  {
+    "uid": "SEC-002",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 104,
+    "issue_node_id": "I_kwDOPB2irc7PUXFK",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:42.896Z"
+  },
+  {
+    "uid": "SEC-003",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 105,
+    "issue_node_id": "I_kwDOPB2irc7PUXGY",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:43.540Z"
+  },
+  {
+    "uid": "SEC-004",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 106,
+    "issue_node_id": "I_kwDOPB2irc7PUXHs",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:44.125Z"
+  },
+  {
+    "uid": "SEC-005",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 107,
+    "issue_node_id": "I_kwDOPB2irc7PUXIp",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:44.469Z"
+  },
+  {
+    "uid": "SEC-006",
+    "parent_uid": "SEC-000",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 108,
+    "issue_node_id": "I_kwDOPB2irc7PUXJ_",
+    "project_item_id": null,
+    "created_at": "2025-10-02T16:55:44.872Z"
+  },
+  {
+    "uid": "sec-migrate-publishable-key",
+    "parent_uid": "ci-phase1-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 158,
+    "issue_node_id": "I_kwDOPB2irc7RlBi5",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgf5Hns",
+    "created_at": "2025-10-15T02:53:37.773Z"
   }
 ]
