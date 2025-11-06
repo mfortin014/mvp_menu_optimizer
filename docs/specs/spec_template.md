@@ -18,7 +18,7 @@
 
 | Field | Value |
 |---|---|
-| Area | &lt;intake • identity • measure • chronicle • lexicon • ui • db • ci • policy • runbooks&gt; |
+| Area | &lt;ANVIL • COPPER • GAUGE • CHRONICLE • LATTICE • STEEL • SMELT • YARD • MINT • WORKS • ATLAS • SPARK&gt; |
 | Type | Spec |
 | Priority | &lt;P0 • P1 • P2 • P3&gt; |
 | Target release | `mvp-<X.Y.Z>` |

@@ -86,7 +86,7 @@ Use the general **Work Item** Issue template for most work. Use **Spec Review** 
 ---
 
 ## 9) Glossary touchpoints
-- **Area**: intake, identity, measure, chronicle, lexicon, ui, db, ci, policy, runbooks.  
+- **Area**: ANVIL, COPPER, GAUGE, CHRONICLE, LATTICE, STEEL, SMELT, YARD, MINT, WORKS, ATLAS, SPARK.  
 - **Type**: Feature, Bug, Chore, Policy, Runbook, Spec.  
 - **Target Release**: `mvp-X.Y.Z` milestone.  
 - **Done when**: acceptance bullets that gate the PR merge.  

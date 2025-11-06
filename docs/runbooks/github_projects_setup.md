@@ -63,18 +63,20 @@ Options (name — color — description):
 ### Field: Area — _Single select_
 
 **Purpose:** where it belongs in product/platform.  
-**Options (suggested colors):**
+**Options (suggested colors & Forge alignment):**
 
-- **intake** — Teal — Menu intake & editor flows.
-- **identity** — Blue — Auth & tenant membership.
-- **measure** — Yellow — Metrics & analytics.
-- **chronicle** — Purple — Audit/history/chronicles.
-- **lexicon** — Pink — Shared vocab, dictionaries.
-- **ui** — Cyan — UI components/layout.
-- **db** — Indigo — Schema/migrations/data.
-- **ci** — Orange — CI/CD pipelines & envs.
-- **policy** — Gray — Governance docs.
-- **runbooks** — Green — Operational guides.
+- **ANVIL** — Teal — Ingestion, mapping, dedupe, identity registry.
+- **COPPER** — Blue — Composition, components, costing, recipe versions.
+- **GAUGE** — Yellow — UOM taxonomy, conversions, measurement.
+- **CHRONICLE** — Purple — Temporal truth, SCD, snapshots.
+- **LATTICE** — Pink — Metrics catalog, analytics, diffs/time series.
+- **STEEL** — Gray — Change control, document vault, releases.
+- **SMELT** — Orange — Sourcing, procurement, supplier collaboration.
+- **YARD** — Green — Inventory, locations, stock movements.
+- **MINT** — Gold — Pricing, finance insights, margin management.
+- **WORKS** — Cyan — Projects, capacity, delivery workflow.
+- **ATLAS** — Indigo — Knowledge base, SOPs, docs, content.
+- **SPARK** — Red — Workflows, rules engines, notifications, automation.
 
 ### Field: Series — _Single select_
 
