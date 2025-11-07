@@ -19,6 +19,7 @@
 | Field | Value |
 |---|---|
 | Area | &lt;`Intake` • `Composition` • `Conversions` • `Temporal` • `Analytics` • `Change` • `Procurement` • `Inventory` • `Pricing` • `Projects` • `Knowledge` • `Automation`&gt; |
+| Step | &lt;positive integer> |
 | Type | Spec |
 | Priority | &lt;P0 • P1 • P2 • P3&gt; |
 | Target release | `mvp-<X.Y.Z>` |
