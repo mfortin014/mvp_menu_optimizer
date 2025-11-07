@@ -86,7 +86,7 @@ Use the general **Work Item** Issue template for most work. Use **Spec Review** 
 ---
 
 ## 9) Glossary touchpoints
-- **Area**: ANVIL, COPPER, GAUGE, CHRONICLE, LATTICE, STEEL, SMELT, YARD, MINT, WORKS, ATLAS, SPARK.  
+- **Area**: [`Intake`](../reference/glossary.md#intake-engine), [`Composition`](../reference/glossary.md#composition-engine), [`Conversions`](../reference/glossary.md#conversions-engine), [`Temporal`](../reference/glossary.md#temporal-engine), [`Analytics`](../reference/glossary.md#analytics-engine), [`Change`](../reference/glossary.md#change-engine), [`Procurement`](../reference/glossary.md#procurement-engine), [`Inventory`](../reference/glossary.md#inventory-engine), [`Pricing`](../reference/glossary.md#pricing-engine), [`Projects`](../reference/glossary.md#projects-engine), [`Knowledge`](../reference/glossary.md#knowledge-engine), [`Automation`](../reference/glossary.md#automation-engine).  
 - **Type**: Feature, Bug, Chore, Policy, Runbook, Spec.  
 - **Target Release**: `mvp-X.Y.Z` milestone.  
 - **Done when**: acceptance bullets that gate the PR merge.  
