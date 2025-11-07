@@ -63,20 +63,20 @@ Options (name — color — description):
 ### Field: Area — _Single select_
 
 **Purpose:** where it belongs in product/platform.  
-**Options (suggested colors & Forge alignment):**
+**Options (suggested colors & glossary references):**
 
-- **ANVIL** — Teal — Ingestion, mapping, dedupe, identity registry.
-- **COPPER** — Blue — Composition, components, costing, recipe versions.
-- **GAUGE** — Yellow — UOM taxonomy, conversions, measurement.
-- **CHRONICLE** — Purple — Temporal truth, SCD, snapshots.
-- **LATTICE** — Pink — Metrics catalog, analytics, diffs/time series.
-- **STEEL** — Gray — Change control, document vault, releases.
-- **SMELT** — Orange — Sourcing, procurement, supplier collaboration.
-- **YARD** — Green — Inventory, locations, stock movements.
-- **MINT** — Gold — Pricing, finance insights, margin management.
-- **WORKS** — Cyan — Projects, capacity, delivery workflow.
-- **ATLAS** — Indigo — Knowledge base, SOPs, docs, content.
-- **SPARK** — Red — Workflows, rules engines, notifications, automation.
+- **`Intake`** — Teal — Ingestion, mapping, validation, dedupe, alias map.
+- **`Composition`** — Blue — Components/variants, assemblies, cost rollups.
+- **`Conversions`** — Yellow — UOM taxonomy, global + item-scoped conversions.
+- **`Temporal`** — Purple — SCD histories, as-of queries, snapshots.
+- **`Analytics`** — Pink — Metric catalog, diffs/time series, analytics surfaces.
+- **`Change`** — Gray — Document vault, redlines, ECO and release workflows.
+- **`Procurement`** — Orange — RFQs, quotes, supplier awards, AVL.
+- **`Inventory`** — Green — Stock levels, movements, locations/bins.
+- **`Pricing`** — Gold — Pricing, margin insights, finance hooks.
+- **`Projects`** — Cyan — Projects, capacity, delivery coordination.
+- **`Knowledge`** — Indigo — SOPs, wiki, templates, contextual help.
+- **`Automation`** — Red — Workflows, rules, notifications, agent playbooks.
 
 ### Field: Series — _Single select_
 
