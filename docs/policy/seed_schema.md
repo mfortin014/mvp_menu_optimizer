@@ -36,7 +36,7 @@ type: <Spec|Policy|Runbook|Feature|Bug|Chore>                               # RE
 status: <Draft|Ready|In Progress|In Review|Done>                            # OPTIONAL (automation forces "Draft")
 priority: <P0|P1|P2|P3>                                                     # OPTIONAL
 target: <string>                                                            # OPTIONAL, maps to "Target Release" (text)
-area: <ANVIL|COPPER|GAUGE|CHRONICLE|LATTICE|STEEL|SMELT|YARD|MINT|WORKS|ATLAS|SPARK>  # OPTIONAL
+area: <Intake|Composition|Conversions|Temporal|Analytics|Change|Procurement|Inventory|Pricing|Projects|Knowledge|Automation>  # OPTIONAL
 project: <main|test>                                                        # OPTIONAL. Route to Main or Test Project. Defaults to "main" if omitted.
 project_url: "https://github.com/users/<user>/projects/<n>"                 # OPTIONAL explicit Project URL override (wins over `project`)
 doc: <path/to/doc.md>                                                       # OPTIONAL, maps to "Doc Link"
@@ -90,7 +90,7 @@ sprint: <Sprint label>                                                      # OP
 | `status`        | string (enum)         | **Status** (Project single-select)    | `Draft, Ready, In Progress, In Review, Done`; automation resets to Draft on creation              |
 | `priority`      | string (enum)         | **Priority** (Project single-select)  | `P0, P1, P2, P3`                                                                                  |
 | `target`        | string                | **Target Release** (Project text)     | Omit unless specifically requested                                                                |
-| `area`          | string (enum)         | **Area** (Project single-select)      | `ANVIL, COPPER, GAUGE, CHRONICLE, LATTICE, STEEL, SMELT, YARD, MINT, WORKS, ATLAS, SPARK`         |
+| `area`          | string (enum)         | **Area** (Project single-select)      | `Intake, Composition, Conversions, Temporal, Analytics, Change, Procurement, Inventory, Pricing, Projects, Knowledge, Automation` |
 | `project`       | string (enum)         | **Routing**                           | `"main"` (default) or `"test"`; see §5 for current availability                                   |
 | `project_url`   | string (URL)          | **Routing**                           | Explicit Project URL override                                                                     |
 | `doc`           | string                | **Doc Link** (Project text)           | Prefer repo-relative path                                                                         |
@@ -167,7 +167,7 @@ type: Chore
 status: Draft
 priority: P1
 target: mvp-0.7.0
-area: SPARK
+area: Automation
 children_uids: ["auto-gh-A","auto-gh-B","auto-gh-C","auto-gh-D"]
 series: "Throughput"
 work_type: Epic
@@ -200,7 +200,7 @@ type: Chore
 status: Draft
 priority: P1
 target: mvp-0.7.0
-area: SPARK
+area: Automation
 series: "Throughput"
 work_type: Child
 story_points: 5
@@ -239,7 +239,7 @@ type: Policy
 status: Draft
 priority: P1
 target: mvp-0.7.0
-area: ATLAS
+area: Knowledge
 series: "Throughput"
 work_type: Child
 story_points: 3
@@ -277,7 +277,7 @@ type: Feature
 status: Draft
 priority: P2
 target: mvp-0.7.0
-area: SPARK
+area: Automation
 project: "test"
 children_uids: ["uidA","uidB"]
 series: "Throughput"
