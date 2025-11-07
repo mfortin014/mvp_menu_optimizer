@@ -6,6 +6,44 @@ When in doubt, link terms here from any doc or PR.
 
 ---
 
+### Intake (Engine)
+`Intake` owns dataset registration, ingestion jobs, mapping templates, validation, dedupe scoring, and the alias map that links source rows to canonical IDs.
+
+### Composition (Engine)
+`Composition` manages canonical components/variants, assemblies/versions/lines, and cost rollups so recipes/BOMs stay consistent.
+
+### Conversions (Engine)
+`Conversions` keeps the unit-of-measure taxonomy plus global and item-scoped conversions (densities, yields) and exposes helper functions for convertibility.
+
+### Temporal (Engine)
+`Temporal` enforces SCD2 histories, serves as-of views, and records immutable snapshots for releases or audits.
+
+### Analytics (Engine)
+`Analytics` maintains the semantic metric catalog, diff/time-series services, and query routing so operational metrics stay consistent across surfaces.
+
+### Change (Engine)
+`Change` covers the document vault, redlines, ECO workflows, and release/effectivity approvals.
+
+### Procurement (Engine)
+`Procurement` powers RFQs, quote capture, supplier awards, AVL management, and collaboration with vendors.
+
+### Inventory (Engine)
+`Inventory` tracks stock levels, locations/bins, movements, and reorder policies across warehouses or kitchens.
+
+### Pricing (Engine)
+`Pricing` manages price lists, margin analysis, and finance-facing insights such as waterfalls or scenarios.
+
+### Projects (Engine)
+`Projects` coordinates initiatives, tasks, dependencies, capacity, and delivery workflow (our internal project management layer).
+
+### Knowledge (Engine)
+`Knowledge` stores SOPs, wiki content, templates, and search so operational context stays close to the work.
+
+### Automation (Engine)
+`Automation` executes workflows/rules/notifications and agent playbooks with guardrails like dry-runs and kill switches.
+
+---
+
 ### ADR (Architecture Decision Record)
 A small, dated note that captures a decision, the options considered, and the reasons. Lives in `docs/adr/`. See also: [Docs Policy & Map](../policy/docs_policy.md).
 
