@@ -18,7 +18,7 @@
 
 | Field | Value |
 |---|---|
-| Area | &lt;ANVIL • COPPER • GAUGE • CHRONICLE • LATTICE • STEEL • SMELT • YARD • MINT • WORKS • ATLAS • SPARK&gt; |
+| Area | &lt;`Intake` • `Composition` • `Conversions` • `Temporal` • `Analytics` • `Change` • `Procurement` • `Inventory` • `Pricing` • `Projects` • `Knowledge` • `Automation`&gt; |
 | Type | Spec |
 | Priority | &lt;P0 • P1 • P2 • P3&gt; |
 | Target release | `mvp-<X.Y.Z>` |
