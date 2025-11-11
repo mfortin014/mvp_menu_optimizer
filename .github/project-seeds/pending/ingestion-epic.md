@@ -4,6 +4,7 @@ labels: ["intake"]
 assignees: []
 uid: ingestion-epic
 type: Feature
+status: Draft
 priority: P1
 target: mvp-0.8.0
 area: Intake

@@ -5,6 +5,7 @@ assignees: []
 uid: ingestion-child-1
 parent_uid: ingestion-epic
 type: Feature
+status: Draft
 priority: P1
 target: mvp-0.8.0
 area: Intake
