@@ -190,6 +190,66 @@
     "created_at": "2025-10-24T21:26:58.205Z"
   },
   {
+    "uid": "ingestion-child-1",
+    "parent_uid": "ingestion-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 282,
+    "issue_node_id": "I_kwDOPB2irc7XZYdW",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK50",
+    "created_at": "2025-11-11T20:13:32.778Z"
+  },
+  {
+    "uid": "ingestion-child-2",
+    "parent_uid": "ingestion-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 283,
+    "issue_node_id": "I_kwDOPB2irc7XZYjz",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK6Q",
+    "created_at": "2025-11-11T20:13:33.235Z"
+  },
+  {
+    "uid": "ingestion-child-3",
+    "parent_uid": "ingestion-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 284,
+    "issue_node_id": "I_kwDOPB2irc7XZYlS",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK6s",
+    "created_at": "2025-11-11T20:13:33.887Z"
+  },
+  {
+    "uid": "ingestion-child-4",
+    "parent_uid": "ingestion-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 285,
+    "issue_node_id": "I_kwDOPB2irc7XZYmx",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK7E",
+    "created_at": "2025-11-11T20:13:34.313Z"
+  },
+  {
+    "uid": "ingestion-child-5",
+    "parent_uid": "ingestion-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 286,
+    "issue_node_id": "I_kwDOPB2irc7XZYr3",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK7c",
+    "created_at": "2025-11-11T20:13:34.655Z"
+  },
+  {
+    "uid": "ingestion-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 287,
+    "issue_node_id": "I_kwDOPB2irc7XZYti",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEK7w",
+    "created_at": "2025-11-11T20:13:35.206Z"
+  },
+  {
     "uid": "prod-db-migrate",
     "parent_uid": "prod-setup-epic",
     "owner": "mfortin014",
