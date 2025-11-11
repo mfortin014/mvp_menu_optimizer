@@ -190,6 +190,56 @@
     "created_at": "2025-10-24T21:26:58.205Z"
   },
   {
+    "uid": "identity-dedupe-child-1",
+    "parent_uid": "identity-dedupe-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 290,
+    "issue_node_id": "I_kwDOPB2irc7XZgHN",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEMLc",
+    "created_at": "2025-11-11T20:23:37.249Z"
+  },
+  {
+    "uid": "identity-dedupe-child-2",
+    "parent_uid": "identity-dedupe-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 291,
+    "issue_node_id": "I_kwDOPB2irc7XZgIf",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEML0",
+    "created_at": "2025-11-11T20:23:37.900Z"
+  },
+  {
+    "uid": "identity-dedupe-child-3",
+    "parent_uid": "identity-dedupe-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 292,
+    "issue_node_id": "I_kwDOPB2irc7XZgOk",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEMMU",
+    "created_at": "2025-11-11T20:23:38.718Z"
+  },
+  {
+    "uid": "identity-dedupe-child-5",
+    "parent_uid": "identity-dedupe-epic",
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 293,
+    "issue_node_id": "I_kwDOPB2irc7XZgP2",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEMMg",
+    "created_at": "2025-11-11T20:23:39.100Z"
+  },
+  {
+    "uid": "identity-dedupe-epic",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 294,
+    "issue_node_id": "I_kwDOPB2irc7XZgRB",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zghEMMw",
+    "created_at": "2025-11-11T20:23:39.567Z"
+  },
+  {
     "uid": "ingestion-child-1",
     "parent_uid": "ingestion-epic",
     "owner": "mfortin014",
