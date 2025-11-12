@@ -22,6 +22,15 @@ TENANT_SCOPED: Set[str] = {
     "recipe_summary",
     "prep_costs",
     "missing_uom_conversions",
+    "ingestion_jobs",
+    "ingestion_job_files",
+    "ingestion_job_artifacts",
+    "stg_component",
+    "stg_variant",
+    "stg_recipe",
+    "stg_recipe_line",
+    "stg_party",
+    "stg_uom_conversion",
     # add more here as you tenant-scope them
 }
 
@@ -185,3 +194,10 @@ def rpc(name: str, params: Optional[Json] = None):
     if name in {"get_recipe_details_mt", "get_unit_costs_for_inputs_mt"}:
         p.setdefault("p_tenant", _tid())
     return supabase.rpc(name, p)
+
+
+def current_tenant_id() -> str:
+    """
+    Export the resolved tenant id so helpers can reuse the canonical lookup.
+    """
+    return _tid()
