@@ -8,7 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 [Compare](https://github.com/mfortin014/mvp_menu_optimizer/compare/mvp-0.7.1...HEAD)
 
-_No entries yet._
+### Added
+
+- Ingestion job registry + staging layer (`migrations/sql/V015__ingestion_job_registry.sql`), the `ingestion_open_job` RPC, python helper `utils/ingestion_jobs.py`, and sample fixture `data/fixtures/ingestion_staging_sample.json` to fulfill Issue #282’s “job registry & staging” acceptance.
 
 ## [0.7.1] - 2025-11-04
 
