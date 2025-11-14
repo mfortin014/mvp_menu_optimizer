@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
-- Ingestion job registry + staging layer (`migrations/sql/V015__ingestion_job_registry.sql`), the `ingestion_open_job` RPC, python helper `utils/ingestion_jobs.py`, and sample fixture `data/fixtures/ingestion_staging_sample.json` to fulfill Issue #282’s “job registry & staging” acceptance.
+- Ingestion job registry + staging layer (`migrations/sql/V015__ingestion_job_registry.sql`) aligned to product/BOM/component terminology, the `ingestion_open_job` RPC, python helper `utils/ingestion_jobs.py`, and sample fixture `data/fixtures/ingestion_staging_sample.json` to fulfill Issue #282’s “job registry & staging” acceptance.
 
 ## [0.7.1] - 2025-11-04
 
