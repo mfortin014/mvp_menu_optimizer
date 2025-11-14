@@ -11,8 +11,8 @@
       "source_row_num": 2,
       "row_checksum": "f7f83d8f470b498f9f15b9bd3b69c25d671a4d1f895e62fbccd1bbfda5ae0f61",
       "payload": {
+        "component_code": "ROMA-001",
         "name": "Roma Tomato",
-        "ingredient_code": "ROMA-001",
         "base_uom": "g",
         "package_qty": 5000,
         "package_uom": "g",
@@ -22,8 +22,8 @@
         "source_system": "wizard",
         "file_name": "components.csv",
         "column_map": {
-          "ingredient_code": "code",
-          "name": "ingredient_name",
+          "component_code": "code",
+          "name": "component_name",
           "package_qty": "pack_qty",
           "package_cost": "pack_cost"
         }
@@ -31,53 +31,53 @@
       "validation_errors": []
     }
   ],
-  "stg_variant": [
+  "stg_bom_header": [
     {
       "job_id": "11111111-2222-3333-4444-555555555555",
       "job_file_id": "99999999-8888-7777-6666-555555555555",
       "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      "source_row_id": "variant:roma-tomato:bulk",
+      "source_row_id": "bom_header:sauce-base:v1",
       "source_row_num": 5,
       "row_checksum": "e4b1dc0fd878bbad4595f2ce0b5ba0f3f3d8f2fba90520a66e0c6ec92d6d24b2",
       "payload": {
-        "variant_code": "ROMA-001-BULK",
-        "parent_code": "ROMA-001",
-        "uom": "g",
-        "yield_pct": 94.5,
-        "unit_cost": 0.0094
+        "bom_code": "SAUCE-BASE-BOM",
+        "product_code": "SAUCE-BASE",
+        "version_label": "v1",
+        "status": "draft"
       },
       "provenance": {
         "source_system": "wizard",
-        "file_name": "variants.csv",
+        "file_name": "bom_headers.csv",
         "column_map": {
-          "variant_code": "variant_id",
-          "parent_code": "ingredient_code",
-          "unit_cost": "cost_per_g"
+          "bom_code": "bom_id",
+          "product_code": "product_id",
+          "version_label": "variant",
+          "status": "bom_status"
         }
       },
       "validation_errors": []
     }
   ],
-  "stg_recipe": [
+  "stg_product": [
     {
       "job_id": "11111111-2222-3333-4444-555555555555",
       "job_file_id": "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb",
       "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      "source_row_id": "recipe:sauce-base",
+      "source_row_id": "product:sauce-base",
       "source_row_num": 12,
       "row_checksum": "5b10a1ed4c1fb8c8db5fc24159b9e33989fdcef6c1ec93d6f9a0a8fb6f80b9f4",
       "payload": {
-        "recipe_code": "SAUCE-BASE",
+        "product_code": "SAUCE-BASE",
         "name": "House Sauce Base",
-        "recipe_type": "prep",
+        "product_type": "prep",
         "yield_qty": 8,
         "yield_uom": "kg"
       },
       "provenance": {
         "source_system": "wizard",
-        "file_name": "recipes.csv",
+        "file_name": "products.csv",
         "column_map": {
-          "recipe_code": "code",
+          "product_code": "code",
           "name": "label",
           "yield_qty": "batch_qty",
           "yield_uom": "batch_uom"
@@ -91,26 +91,26 @@
       ]
     }
   ],
-  "stg_recipe_line": [
+  "stg_bom_line": [
     {
       "job_id": "11111111-2222-3333-4444-555555555555",
       "job_file_id": "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb",
       "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      "source_row_id": "recipe_line:sauce-base:roma-tomato",
+      "source_row_id": "bom_line:sauce-base-bom:roma-tomato",
       "source_row_num": 13,
       "row_checksum": "7eba62385eaf1bf6d14ed7e70b512ba384dc377d030c2d29c4684bd6b9bcf5fe",
       "payload": {
-        "recipe_code": "SAUCE-BASE",
-        "ingredient_code": "ROMA-001",
+        "bom_code": "SAUCE-BASE-BOM",
+        "component_code": "ROMA-001",
         "quantity": 2.4,
         "uom": "kg"
       },
       "provenance": {
         "source_system": "wizard",
-        "file_name": "recipe_lines.csv",
+        "file_name": "bom_lines.csv",
         "column_map": {
-          "recipe_code": "parent_code",
-          "ingredient_code": "input_code",
+          "bom_code": "parent_bom",
+          "component_code": "input_code",
           "quantity": "qty",
           "uom": "qty_uom"
         }
@@ -161,7 +161,7 @@
         "source_system": "wizard",
         "file_name": "uom_conversions.csv",
         "column_map": {
-          "item_code": "variant_code",
+          "item_code": "product_code",
           "factor": "density"
         }
       },
