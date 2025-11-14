@@ -26,9 +26,9 @@ TENANT_SCOPED: Set[str] = {
     "ingestion_job_files",
     "ingestion_job_artifacts",
     "stg_component",
-    "stg_variant",
-    "stg_recipe",
-    "stg_recipe_line",
+    "stg_bom_header",
+    "stg_product",
+    "stg_bom_line",
     "stg_party",
     "stg_uom_conversion",
     # add more here as you tenant-scope them
