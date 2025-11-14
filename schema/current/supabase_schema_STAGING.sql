@@ -3,14 +3,14 @@
 -- Env: STAGING
 -- Bitwarden project: 4b5e71e8-c979-4125-acba-b37101280d71
 -- Mode: latest
--- Timestamp (local): 2025-10-22_1515
--- Git commit: d7ee522
+-- Timestamp (local): 2025-11-14_1250
+-- Git commit: e93ceb2
 -- ------------------------------------------------------------
 --
 -- PostgreSQL database dump
 --
 
-\restrict iZLOui6NRoarMTuHQ8GauPX2F4nqF4gou0HIV3SewfTdkFYcnkhNGK61LR9wemB
+\restrict fKPs2SrEgjPeLX7JA3eb89ZoJKFCyK8KSaSdgp1nsKKAEw776Cbscrbin2VwDJ4
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6 (Ubuntu 17.6-2.pgdg22.04+1)
@@ -918,6 +918,217 @@ $$;
 
 
 --
+-- Name: ingestion_enforce_job_tenant(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ingestion_enforce_job_tenant() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  job_tenant uuid;
+begin
+  select tenant_id into job_tenant
+  from public.ingestion_jobs
+  where id = new.job_id;
+
+  if job_tenant is null then
+    raise exception 'Unknown ingestion job %', new.job_id;
+  end if;
+
+  if new.tenant_id is null then
+    new.tenant_id = job_tenant;
+  elsif new.tenant_id is distinct from job_tenant then
+    raise exception 'Cross-tenant ingestion reference';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: ingestion_enforce_staging_lineage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ingestion_enforce_staging_lineage() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  job_tenant uuid;
+  file_job uuid;
+  file_tenant uuid;
+begin
+  select tenant_id into job_tenant
+  from public.ingestion_jobs
+  where id = new.job_id;
+
+  if job_tenant is null then
+    raise exception 'Unknown ingestion job %', new.job_id;
+  end if;
+
+  if new.tenant_id is null then
+    new.tenant_id = job_tenant;
+  elsif new.tenant_id is distinct from job_tenant then
+    raise exception 'Cross-tenant ingestion staging reference (job mismatch)';
+  end if;
+
+  if new.job_file_id is not null then
+    select job_id, tenant_id into file_job, file_tenant
+    from public.ingestion_job_files
+    where id = new.job_file_id;
+
+    if file_job is null then
+      raise exception 'Unknown ingestion job file %', new.job_file_id;
+    end if;
+
+    if file_job is distinct from new.job_id then
+      raise exception 'Job file % does not belong to job %', new.job_file_id, new.job_id;
+    end if;
+
+    if file_tenant is not null and file_tenant is distinct from new.tenant_id then
+      raise exception 'Cross-tenant ingestion staging reference (file mismatch)';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: ingestion_open_job(uuid, text, jsonb, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ingestion_open_job(p_tenant_id uuid, p_preset text, p_files jsonb DEFAULT '[]'::jsonb, p_actor uuid DEFAULT NULL::uuid, p_source text DEFAULT 'wizard'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_job_id uuid;
+  v_bucket text := 'ingestion-artifacts';
+  v_files jsonb := '[]'::jsonb;
+  v_checksum text;
+  caller_tenant uuid;
+begin
+  -- Ensure callers can only open jobs for their tenant unless using the service role.
+  if auth.role() is distinct from 'service_role' then
+    caller_tenant := (auth.jwt() ->> 'tenant_id')::uuid;
+    if caller_tenant is null or caller_tenant is distinct from p_tenant_id then
+      raise exception 'Tenant mismatch for ingestion job';
+    end if;
+  end if;
+
+  with file_checks as (
+    select coalesce(value->>'checksum', '') as checksum
+    from jsonb_array_elements(coalesce(p_files, '[]'::jsonb)) as value
+  )
+  select encode(
+      digest(coalesce(string_agg(checksum, ',' order by checksum), ''), 'sha256'),
+      'hex'
+    )
+  into v_checksum
+  from file_checks;
+
+  if v_checksum is null then
+    v_checksum := encode(digest('', 'sha256'), 'hex');
+  end if;
+
+  insert into public.ingestion_jobs (
+    tenant_id,
+    requested_by,
+    preset_code,
+    source_system,
+    status,
+    job_checksum
+  )
+  values (
+    p_tenant_id,
+    p_actor,
+    p_preset,
+    coalesce(nullif(p_source, ''), 'wizard'),
+    'uploading',
+    v_checksum
+  )
+  returning id into v_job_id;
+
+  with payload as (
+    select
+      coalesce(value->>'kind', 'component') as kind,
+      coalesce(
+        value->>'file_name',
+        value->>'filename',
+        format('%s.csv', coalesce(value->>'kind', 'component'))
+      ) as file_name,
+      coalesce(value->>'checksum', '') as checksum,
+      coalesce(value->>'content_type', 'text/csv') as content_type,
+      coalesce((value->>'byte_length')::bigint, 0) as byte_length
+    from jsonb_array_elements(coalesce(p_files, '[]'::jsonb)) as value
+  ),
+  inserted as (
+    insert into public.ingestion_job_files (
+      job_id,
+      tenant_id,
+      kind,
+      file_name,
+      storage_path,
+      checksum,
+      content_type,
+      byte_length,
+      bucket_id,
+      status
+    )
+    select
+      v_job_id,
+      p_tenant_id,
+      kind,
+      file_name,
+      format(
+        'tenants/%s/ingestion/%s/%s/%s',
+        p_tenant_id,
+        v_job_id,
+        kind,
+        gen_random_uuid() || '-' || file_name
+      ),
+      checksum,
+      content_type,
+      byte_length,
+      v_bucket,
+      'pending'
+    from payload
+    returning
+      id,
+      kind,
+      file_name,
+      storage_path,
+      checksum,
+      byte_length,
+      content_type
+  )
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'file_id', id,
+      'kind', kind,
+      'file_name', file_name,
+      'storage_path', storage_path,
+      'checksum', checksum,
+      'byte_length', byte_length,
+      'content_type', content_type,
+      'bucket', v_bucket
+    )
+  ), '[]'::jsonb)
+  into v_files
+  from inserted;
+
+  return jsonb_build_object(
+    'job_id', v_job_id,
+    'tenant_id', p_tenant_id,
+    'files', coalesce(v_files, '[]'::jsonb)
+  );
+end;
+$$;
+
+
+--
 -- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1516,14 +1727,27 @@ CREATE FUNCTION realtime.quote_wal2json(entity regclass) RETURNS text
 CREATE FUNCTION realtime.send(payload jsonb, event text, topic text, private boolean DEFAULT true) RETURNS void
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  generated_id uuid;
+  final_payload jsonb;
 BEGIN
   BEGIN
+    -- Generate a new UUID for the id
+    generated_id := gen_random_uuid();
+
+    -- Check if payload has an 'id' key, if not, add the generated UUID
+    IF payload ? 'id' THEN
+      final_payload := payload;
+    ELSE
+      final_payload := jsonb_set(payload, '{id}', to_jsonb(generated_id));
+    END IF;
+
     -- Set the topic configuration
     EXECUTE format('SET LOCAL realtime.topic TO %L', topic);
 
     -- Attempt to insert the message
-    INSERT INTO realtime.messages (payload, event, topic, private, extension)
-    VALUES (payload, event, topic, private, 'broadcast');
+    INSERT INTO realtime.messages (id, payload, event, topic, private, extension)
+    VALUES (generated_id, final_payload, event, topic, private, 'broadcast');
   EXCEPTION
     WHEN OTHERS THEN
       -- Capture and notify the error
@@ -2726,7 +2950,8 @@ CREATE TABLE auth.mfa_factors (
     phone text,
     last_challenged_at timestamp with time zone,
     web_authn_credential jsonb,
-    web_authn_aaguid uuid
+    web_authn_aaguid uuid,
+    last_webauthn_challenge_data jsonb
 );
 
 
@@ -2735,6 +2960,13 @@ CREATE TABLE auth.mfa_factors (
 --
 
 COMMENT ON TABLE auth.mfa_factors IS 'auth: stores metadata about factors';
+
+
+--
+-- Name: COLUMN mfa_factors.last_webauthn_challenge_data; Type: COMMENT; Schema: auth; Owner: -
+--
+
+COMMENT ON COLUMN auth.mfa_factors.last_webauthn_challenge_data IS 'Stores the latest WebAuthn challenge data including attestation/assertion for customer verification';
 
 
 --
@@ -2950,7 +3182,9 @@ CREATE TABLE auth.sessions (
     user_agent text,
     ip inet,
     tag text,
-    oauth_client_id uuid
+    oauth_client_id uuid,
+    refresh_token_hmac_key text,
+    refresh_token_counter bigint
 );
 
 
@@ -2966,6 +3200,20 @@ COMMENT ON TABLE auth.sessions IS 'Auth: Stores session data associated to a use
 --
 
 COMMENT ON COLUMN auth.sessions.not_after IS 'Auth: Not after is a nullable column that contains a timestamp after which the session should be regarded as expired.';
+
+
+--
+-- Name: COLUMN sessions.refresh_token_hmac_key; Type: COMMENT; Schema: auth; Owner: -
+--
+
+COMMENT ON COLUMN auth.sessions.refresh_token_hmac_key IS 'Holds a HMAC-SHA256 key used to sign refresh tokens for this session.';
+
+
+--
+-- Name: COLUMN sessions.refresh_token_counter; Type: COMMENT; Schema: auth; Owner: -
+--
+
+COMMENT ON COLUMN auth.sessions.refresh_token_counter IS 'Holds the ID (counter) of the last issued refresh token.';
 
 
 --
@@ -3073,6 +3321,75 @@ COMMENT ON TABLE auth.users IS 'Auth: Stores user login data within a secure sch
 --
 
 COMMENT ON COLUMN auth.users.is_sso_user IS 'Auth: Set this column to true when the account comes from SSO. These accounts can have duplicate emails.';
+
+
+--
+-- Name: ingestion_job_artifacts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ingestion_job_artifacts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    artifact_type text NOT NULL,
+    label text,
+    bucket_id text DEFAULT 'ingestion-artifacts'::text NOT NULL,
+    storage_path text NOT NULL,
+    checksum text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.ingestion_job_artifacts FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: ingestion_job_files; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ingestion_job_files (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text NOT NULL,
+    file_name text NOT NULL,
+    bucket_id text DEFAULT 'ingestion-artifacts'::text NOT NULL,
+    storage_path text NOT NULL,
+    checksum text NOT NULL,
+    byte_length bigint DEFAULT 0 NOT NULL,
+    content_type text DEFAULT 'text/csv'::text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    uploaded_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ingestion_job_files_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'uploading'::text, 'uploaded'::text, 'failed'::text])))
+);
+
+ALTER TABLE ONLY public.ingestion_job_files FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: ingestion_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ingestion_jobs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    requested_by uuid,
+    preset_code text NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    job_checksum text DEFAULT ''::text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_summary jsonb DEFAULT '{}'::jsonb NOT NULL,
+    published_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ingestion_jobs_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'uploading'::text, 'validating'::text, 'ready'::text, 'published'::text, 'failed'::text, 'canceled'::text])))
+);
+
+ALTER TABLE ONLY public.ingestion_jobs FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -3456,6 +3773,138 @@ CREATE TABLE public.schema_migrations (
     checksum text NOT NULL,
     executed_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: stg_bom_header; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_bom_header (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_bom_header FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: stg_bom_line; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_bom_line (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_bom_line FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: stg_component; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_component (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_component FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: stg_party; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_party (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_party FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: stg_product; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_product (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_product FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: stg_uom_conversion; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stg_uom_conversion (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_id uuid NOT NULL,
+    job_file_id uuid,
+    tenant_id uuid NOT NULL,
+    source_system text DEFAULT 'wizard'::text NOT NULL,
+    source_row_id text NOT NULL,
+    source_row_num integer,
+    row_checksum text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provenance jsonb DEFAULT '{}'::jsonb NOT NULL,
+    validation_errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.stg_uom_conversion FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -3905,6 +4354,30 @@ ALTER TABLE ONLY auth.users
 
 
 --
+-- Name: ingestion_job_artifacts ingestion_job_artifacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_artifacts
+    ADD CONSTRAINT ingestion_job_artifacts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ingestion_job_files ingestion_job_files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_files
+    ADD CONSTRAINT ingestion_job_files_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ingestion_jobs ingestion_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_jobs
+    ADD CONSTRAINT ingestion_jobs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ingredients ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3974,6 +4447,54 @@ ALTER TABLE ONLY public.sales
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
+
+
+--
+-- Name: stg_bom_header stg_bom_header_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_header
+    ADD CONSTRAINT stg_bom_header_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stg_bom_line stg_bom_line_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_line
+    ADD CONSTRAINT stg_bom_line_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stg_component stg_component_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_component
+    ADD CONSTRAINT stg_component_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stg_party stg_party_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_party
+    ADD CONSTRAINT stg_party_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stg_product stg_product_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_product
+    ADD CONSTRAINT stg_product_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stg_uom_conversion stg_uom_conversion_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_uom_conversion
+    ADD CONSTRAINT stg_uom_conversion_pkey PRIMARY KEY (id);
 
 
 --
@@ -4418,6 +4939,55 @@ CREATE INDEX users_is_anonymous_idx ON auth.users USING btree (is_anonymous);
 
 
 --
+-- Name: idx_ingestion_job_artifacts_job; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_job_artifacts_job ON public.ingestion_job_artifacts USING btree (job_id);
+
+
+--
+-- Name: idx_ingestion_job_artifacts_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_job_artifacts_type ON public.ingestion_job_artifacts USING btree (artifact_type);
+
+
+--
+-- Name: idx_ingestion_job_files_job; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_job_files_job ON public.ingestion_job_files USING btree (job_id);
+
+
+--
+-- Name: idx_ingestion_job_files_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_job_files_tenant ON public.ingestion_job_files USING btree (tenant_id);
+
+
+--
+-- Name: idx_ingestion_jobs_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_jobs_created ON public.ingestion_jobs USING btree (created_at DESC);
+
+
+--
+-- Name: idx_ingestion_jobs_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_jobs_status ON public.ingestion_jobs USING btree (status);
+
+
+--
+-- Name: idx_ingestion_jobs_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingestion_jobs_tenant ON public.ingestion_jobs USING btree (tenant_id);
+
+
+--
 -- Name: idx_ingredients_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4481,6 +5051,55 @@ CREATE INDEX idx_sales_tenant_recipe ON public.sales USING btree (tenant_id, rec
 
 
 --
+-- Name: idx_stg_bom_header_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_bom_header_checksum ON public.stg_bom_header USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: idx_stg_bom_line_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_bom_line_checksum ON public.stg_bom_line USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: idx_stg_component_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_component_checksum ON public.stg_component USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: idx_stg_party_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_party_checksum ON public.stg_party USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: idx_stg_product_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_product_checksum ON public.stg_product USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: idx_stg_uom_conversion_checksum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stg_uom_conversion_checksum ON public.stg_uom_conversion USING btree (tenant_id, row_checksum);
+
+
+--
+-- Name: ux_ingestion_job_files_job_kind_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_ingestion_job_files_job_kind_file ON public.ingestion_job_files USING btree (job_id, kind, file_name);
+
+
+--
 -- Name: ux_ingredients_tenant_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4527,6 +5146,48 @@ CREATE UNIQUE INDEX ux_ref_storage_type_tenant_name_active ON public.ref_storage
 --
 
 CREATE UNIQUE INDEX ux_ref_uom_conversion_pair ON public.ref_uom_conversion USING btree (from_uom, to_uom);
+
+
+--
+-- Name: ux_stg_bom_header_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_bom_header_job_row ON public.stg_bom_header USING btree (job_id, source_row_id);
+
+
+--
+-- Name: ux_stg_bom_line_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_bom_line_job_row ON public.stg_bom_line USING btree (job_id, source_row_id);
+
+
+--
+-- Name: ux_stg_component_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_component_job_row ON public.stg_component USING btree (job_id, source_row_id);
+
+
+--
+-- Name: ux_stg_party_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_party_job_row ON public.stg_party USING btree (job_id, source_row_id);
+
+
+--
+-- Name: ux_stg_product_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_product_job_row ON public.stg_product USING btree (job_id, source_row_id);
+
+
+--
+-- Name: ux_stg_uom_conversion_job_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_stg_uom_conversion_job_row ON public.stg_uom_conversion USING btree (job_id, source_row_id);
 
 
 --
@@ -4635,6 +5296,34 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.recipes FOR EACH ROW EXECU
 
 
 --
+-- Name: ingestion_job_artifacts tr_ingestion_job_artifacts_tenant_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_ingestion_job_artifacts_tenant_guard BEFORE INSERT OR UPDATE ON public.ingestion_job_artifacts FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_job_tenant();
+
+
+--
+-- Name: ingestion_job_files tr_ingestion_job_files_tenant_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_ingestion_job_files_tenant_guard BEFORE INSERT OR UPDATE ON public.ingestion_job_files FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_job_tenant();
+
+
+--
+-- Name: ingestion_job_files tr_ingestion_job_files_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_ingestion_job_files_updated_at BEFORE UPDATE ON public.ingestion_job_files FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
+-- Name: ingestion_jobs tr_ingestion_jobs_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_ingestion_jobs_updated_at BEFORE UPDATE ON public.ingestion_jobs FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
 -- Name: ingredients tr_ingredients_tenant_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -4653,6 +5342,48 @@ CREATE TRIGGER tr_recipe_lines_tenant_guard BEFORE INSERT OR UPDATE ON public.re
 --
 
 CREATE TRIGGER tr_sales_tenant_guard BEFORE INSERT OR UPDATE ON public.sales FOR EACH ROW EXECUTE FUNCTION public.enforce_same_tenant_sales();
+
+
+--
+-- Name: stg_bom_header tr_stg_bom_header_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_bom_header_guard BEFORE INSERT OR UPDATE ON public.stg_bom_header FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
+
+
+--
+-- Name: stg_bom_line tr_stg_bom_line_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_bom_line_guard BEFORE INSERT OR UPDATE ON public.stg_bom_line FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
+
+
+--
+-- Name: stg_component tr_stg_component_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_component_guard BEFORE INSERT OR UPDATE ON public.stg_component FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
+
+
+--
+-- Name: stg_party tr_stg_party_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_party_guard BEFORE INSERT OR UPDATE ON public.stg_party FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
+
+
+--
+-- Name: stg_product tr_stg_product_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_product_guard BEFORE INSERT OR UPDATE ON public.stg_product FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
+
+
+--
+-- Name: stg_uom_conversion tr_stg_uom_conversion_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_stg_uom_conversion_guard BEFORE INSERT OR UPDATE ON public.stg_uom_conversion FOR EACH ROW EXECUTE FUNCTION public.ingestion_enforce_staging_lineage();
 
 
 --
@@ -4847,6 +5578,46 @@ ALTER TABLE ONLY auth.sso_domains
 
 
 --
+-- Name: ingestion_job_artifacts ingestion_job_artifacts_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_artifacts
+    ADD CONSTRAINT ingestion_job_artifacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ingestion_job_artifacts ingestion_job_artifacts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_artifacts
+    ADD CONSTRAINT ingestion_job_artifacts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ingestion_job_files ingestion_job_files_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_files
+    ADD CONSTRAINT ingestion_job_files_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ingestion_job_files ingestion_job_files_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_job_files
+    ADD CONSTRAINT ingestion_job_files_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ingestion_jobs ingestion_jobs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ingestion_jobs
+    ADD CONSTRAINT ingestion_jobs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ingredients ingredients_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4932,6 +5703,150 @@ ALTER TABLE ONLY public.sales
 
 ALTER TABLE ONLY public.sales
     ADD CONSTRAINT sales_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_bom_header stg_bom_header_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_header
+    ADD CONSTRAINT stg_bom_header_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_bom_header stg_bom_header_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_header
+    ADD CONSTRAINT stg_bom_header_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_bom_header stg_bom_header_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_header
+    ADD CONSTRAINT stg_bom_header_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_bom_line stg_bom_line_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_line
+    ADD CONSTRAINT stg_bom_line_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_bom_line stg_bom_line_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_line
+    ADD CONSTRAINT stg_bom_line_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_bom_line stg_bom_line_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_bom_line
+    ADD CONSTRAINT stg_bom_line_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_component stg_component_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_component
+    ADD CONSTRAINT stg_component_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_component stg_component_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_component
+    ADD CONSTRAINT stg_component_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_component stg_component_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_component
+    ADD CONSTRAINT stg_component_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_party stg_party_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_party
+    ADD CONSTRAINT stg_party_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_party stg_party_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_party
+    ADD CONSTRAINT stg_party_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_party stg_party_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_party
+    ADD CONSTRAINT stg_party_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_product stg_product_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_product
+    ADD CONSTRAINT stg_product_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_product stg_product_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_product
+    ADD CONSTRAINT stg_product_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_product stg_product_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_product
+    ADD CONSTRAINT stg_product_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: stg_uom_conversion stg_uom_conversion_job_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_uom_conversion
+    ADD CONSTRAINT stg_uom_conversion_job_file_id_fkey FOREIGN KEY (job_file_id) REFERENCES public.ingestion_job_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: stg_uom_conversion stg_uom_conversion_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_uom_conversion
+    ADD CONSTRAINT stg_uom_conversion_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.ingestion_jobs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stg_uom_conversion stg_uom_conversion_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stg_uom_conversion
+    ADD CONSTRAINT stg_uom_conversion_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
 
 
 --
@@ -5206,6 +6121,45 @@ CREATE POLICY "deny all on schema_migrations" ON public.schema_migrations USING 
 
 
 --
+-- Name: ingestion_job_artifacts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ingestion_job_artifacts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ingestion_job_artifacts ingestion_job_artifacts_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ingestion_job_artifacts_tenant_rw ON public.ingestion_job_artifacts TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: ingestion_job_files; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ingestion_job_files ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ingestion_job_files ingestion_job_files_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ingestion_job_files_tenant_rw ON public.ingestion_job_files TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: ingestion_jobs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ingestion_jobs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ingestion_jobs ingestion_jobs_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ingestion_jobs_tenant_rw ON public.ingestion_jobs TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
 -- Name: ingredients; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -5300,6 +6254,84 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_bom_header; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_bom_header ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_bom_header stg_bom_header_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_bom_header_tenant_rw ON public.stg_bom_header TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: stg_bom_line; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_bom_line ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_bom_line stg_bom_line_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_bom_line_tenant_rw ON public.stg_bom_line TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: stg_component; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_component ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_component stg_component_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_component_tenant_rw ON public.stg_component TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: stg_party; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_party ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_party stg_party_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_party_tenant_rw ON public.stg_party TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: stg_product; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_product ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_product stg_product_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_product_tenant_rw ON public.stg_product TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
+
+--
+-- Name: stg_uom_conversion; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.stg_uom_conversion ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: stg_uom_conversion stg_uom_conversion_tenant_rw; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY stg_uom_conversion_tenant_rw ON public.stg_uom_conversion TO authenticated USING ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid))) WITH CHECK ((NOT (tenant_id IS DISTINCT FROM ((auth.jwt() ->> 'tenant_id'::text))::uuid)));
+
 
 --
 -- Name: tenants; Type: ROW SECURITY; Schema: public; Owner: -
@@ -5438,5 +6470,5 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 -- PostgreSQL database dump complete
 --
 
-\unrestrict iZLOui6NRoarMTuHQ8GauPX2F4nqF4gou0HIV3SewfTdkFYcnkhNGK61LR9wemB
+\unrestrict fKPs2SrEgjPeLX7JA3eb89ZoJKFCyK8KSaSdgp1nsKKAEw776Cbscrbin2VwDJ4
 
