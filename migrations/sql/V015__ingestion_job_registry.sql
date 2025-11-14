@@ -103,7 +103,7 @@ create unique index if not exists ux_stg_component_job_row
 create index if not exists idx_stg_component_checksum
   on public.stg_component(tenant_id, row_checksum);
 
-create table if not exists public.stg_variant (
+create table if not exists public.stg_bom_header (
   id uuid primary key default gen_random_uuid(),
   job_id uuid not null references public.ingestion_jobs(id) on delete cascade,
   job_file_id uuid references public.ingestion_job_files(id) on delete set null,
@@ -118,12 +118,12 @@ create table if not exists public.stg_variant (
   created_at timestamptz not null default now()
 );
 
-create unique index if not exists ux_stg_variant_job_row
-  on public.stg_variant(job_id, source_row_id);
-create index if not exists idx_stg_variant_checksum
-  on public.stg_variant(tenant_id, row_checksum);
+create unique index if not exists ux_stg_bom_header_job_row
+  on public.stg_bom_header(job_id, source_row_id);
+create index if not exists idx_stg_bom_header_checksum
+  on public.stg_bom_header(tenant_id, row_checksum);
 
-create table if not exists public.stg_recipe (
+create table if not exists public.stg_product (
   id uuid primary key default gen_random_uuid(),
   job_id uuid not null references public.ingestion_jobs(id) on delete cascade,
   job_file_id uuid references public.ingestion_job_files(id) on delete set null,
@@ -138,12 +138,12 @@ create table if not exists public.stg_recipe (
   created_at timestamptz not null default now()
 );
 
-create unique index if not exists ux_stg_recipe_job_row
-  on public.stg_recipe(job_id, source_row_id);
-create index if not exists idx_stg_recipe_checksum
-  on public.stg_recipe(tenant_id, row_checksum);
+create unique index if not exists ux_stg_product_job_row
+  on public.stg_product(job_id, source_row_id);
+create index if not exists idx_stg_product_checksum
+  on public.stg_product(tenant_id, row_checksum);
 
-create table if not exists public.stg_recipe_line (
+create table if not exists public.stg_bom_line (
   id uuid primary key default gen_random_uuid(),
   job_id uuid not null references public.ingestion_jobs(id) on delete cascade,
   job_file_id uuid references public.ingestion_job_files(id) on delete set null,
@@ -158,10 +158,10 @@ create table if not exists public.stg_recipe_line (
   created_at timestamptz not null default now()
 );
 
-create unique index if not exists ux_stg_recipe_line_job_row
-  on public.stg_recipe_line(job_id, source_row_id);
-create index if not exists idx_stg_recipe_line_checksum
-  on public.stg_recipe_line(tenant_id, row_checksum);
+create unique index if not exists ux_stg_bom_line_job_row
+  on public.stg_bom_line(job_id, source_row_id);
+create index if not exists idx_stg_bom_line_checksum
+  on public.stg_bom_line(tenant_id, row_checksum);
 
 create table if not exists public.stg_party (
   id uuid primary key default gen_random_uuid(),
@@ -292,19 +292,19 @@ create trigger tr_stg_component_guard
 before insert or update on public.stg_component
 for each row execute function public.ingestion_enforce_staging_lineage();
 
-drop trigger if exists tr_stg_variant_guard on public.stg_variant;
-create trigger tr_stg_variant_guard
-before insert or update on public.stg_variant
+drop trigger if exists tr_stg_bom_header_guard on public.stg_bom_header;
+create trigger tr_stg_bom_header_guard
+before insert or update on public.stg_bom_header
 for each row execute function public.ingestion_enforce_staging_lineage();
 
-drop trigger if exists tr_stg_recipe_guard on public.stg_recipe;
-create trigger tr_stg_recipe_guard
-before insert or update on public.stg_recipe
+drop trigger if exists tr_stg_product_guard on public.stg_product;
+create trigger tr_stg_product_guard
+before insert or update on public.stg_product
 for each row execute function public.ingestion_enforce_staging_lineage();
 
-drop trigger if exists tr_stg_recipe_line_guard on public.stg_recipe_line;
-create trigger tr_stg_recipe_line_guard
-before insert or update on public.stg_recipe_line
+drop trigger if exists tr_stg_bom_line_guard on public.stg_bom_line;
+create trigger tr_stg_bom_line_guard
+before insert or update on public.stg_bom_line
 for each row execute function public.ingestion_enforce_staging_lineage();
 
 drop trigger if exists tr_stg_party_guard on public.stg_party;
@@ -330,9 +330,9 @@ begin
     'ingestion_job_files',
     'ingestion_job_artifacts',
     'stg_component',
-    'stg_variant',
-    'stg_recipe',
-    'stg_recipe_line',
+    'stg_bom_header',
+    'stg_product',
+    'stg_bom_line',
     'stg_party',
     'stg_uom_conversion'
   ]
