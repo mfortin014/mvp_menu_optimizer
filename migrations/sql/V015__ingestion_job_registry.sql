@@ -324,8 +324,7 @@ for each row execute function public.ingestion_enforce_staging_lineage();
 do $$
 declare
   rel text;
-begin
-  foreach rel in array [
+  rels text[] := array[
     'ingestion_jobs',
     'ingestion_job_files',
     'ingestion_job_artifacts',
@@ -335,8 +334,9 @@ begin
     'stg_bom_line',
     'stg_party',
     'stg_uom_conversion'
-  ]
-  loop
+  ];
+begin
+  foreach rel in array rels loop
     execute format('alter table public.%I enable row level security;', rel);
     execute format('alter table public.%I force row level security;', rel);
     execute format('drop policy if exists %I_tenant_rw on public.%I;', rel, rel);
