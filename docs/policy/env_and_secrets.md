@@ -35,7 +35,6 @@ Name → purpose (and whether secret):
 
 - `APP_ENV` → environment label consumed by `utils/env.get_env()` (e.g., `preview` for staging Streamlit, `prod` for production). Not secret; set per-deploy in Streamlit secrets or via CI.
 - `APP_VERSION` → injected from `VERSION`/tag (not secret). \*not implemented yet
-- `CHEF_PASSWORD` → temporary page guard for Streamlit (secret; local/staging only;
 - `DB_HOST` → used to create `DATABASE_URL` (not secret)
 - `DB_NAME` → used to create `DATABASE_URL` (not secret)
 - `DB_PASSWORD` → non-encoded database password, is encoded and then used to create `DATABASE_URL` (secret)
@@ -80,7 +79,7 @@ If you add more, update this list and the templates.
 - Developer workflow (shell-only; secrets never touch disk):
   ```bash
   export BWS_ACCESS_TOKEN='<machine-token>'   # or use helper: bws_on
-  direnv reload                                # injects DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, CHEF_PASSWORD, …
+  direnv reload                                # injects DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, …
   # run app/tests
   unset BWS_ACCESS_TOKEN && direnv reload      # un-injects on exit
   ```
