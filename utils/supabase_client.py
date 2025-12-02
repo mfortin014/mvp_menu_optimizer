@@ -23,11 +23,23 @@ def get_authenticated_client(access_token: str) -> Client:
     Returns:
         Authenticated Supabase client
     """
-    return create_client(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        options={"headers": {"Authorization": f"Bearer {access_token}"}},
-    )
+    # Create a new client instance
+    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+    # Set the Authorization header on the postgrest client's session
+    # This is the internal HTTP client that Supabase uses
+    if hasattr(client, "postgrest") and hasattr(client.postgrest, "session"):
+        if hasattr(client.postgrest.session, "headers"):
+            client.postgrest.session.headers.update(
+                {"Authorization": f"Bearer {access_token}", "apikey": SUPABASE_ANON_KEY}
+            )
+        elif hasattr(client.postgrest, "headers"):
+            # Alternative location for headers
+            client.postgrest.headers.update(
+                {"Authorization": f"Bearer {access_token}", "apikey": SUPABASE_ANON_KEY}
+            )
+
+    return client
 
 
 def get_admin_client() -> Client:

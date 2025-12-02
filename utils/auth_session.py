@@ -44,10 +44,18 @@ def get_current_user() -> Optional[dict]:
 
 
 def get_current_user_id() -> Optional[str]:
-    """Get the current user's ID from session state."""
+    """
+    Get the current user's ID from session state.
+
+    Note: This should match auth.uid() in the JWT token.
+    If the user was created manually, ensure the user_id in
+    user_tenant_memberships matches this value.
+    """
     user = get_current_user()
     if user:
-        return user.get("id")
+        user_id = user.get("id")
+        if user_id:
+            return user_id
     return st.session_state.get(USER_ID_KEY)
 
 
@@ -127,6 +135,49 @@ def refresh_session() -> bool:
     return False
 
 
+def ensure_profile_exists(user_id: str) -> bool:
+    """
+    Ensure a profile exists for the given user_id.
+    This is a safety check in case the trigger didn't fire.
+
+    Returns:
+        True if profile exists or was created, False otherwise
+    """
+    try:
+        auth_client = get_authenticated_supabase()
+        if not auth_client:
+            return False
+
+        # Check if profile exists
+        profile_response = (
+            auth_client.table("profiles").select("id").eq("id", user_id).limit(1).execute()
+        )
+
+        if profile_response.data:
+            return True
+
+        # Profile doesn't exist - try to get user info and create it
+        # Note: This requires the user to have email in their auth session
+        user = get_current_user()
+        if not user:
+            return False
+
+        # Try to create profile (this might fail due to RLS, but worth trying)
+        try:
+            auth_client.table("profiles").insert(
+                {
+                    "id": user_id,
+                    "email": user.get("email", ""),
+                }
+            ).execute()
+            return True
+        except Exception:
+            # If insert fails, the trigger should handle it, or admin needs to create it
+            return False
+    except Exception:
+        return False
+
+
 def get_user_tenants() -> list[dict]:
     """
     Fetch the current user's tenant memberships.
@@ -138,20 +189,80 @@ def get_user_tenants() -> list[dict]:
     if not user_id:
         return []
 
+    # Ensure profile exists (safety check)
+    ensure_profile_exists(user_id)
+
     try:
         # Use authenticated client to respect RLS
         auth_client = get_authenticated_supabase()
         if not auth_client:
             return []
 
+        # Query memberships with filters for active, non-deleted memberships
+        # Note: We can't filter on joined table columns directly, so we'll filter in Python
         response = (
             auth_client.table("user_tenant_memberships")
             .select("*, tenants(*)")
             .eq("user_id", user_id)
+            .eq("is_active", True)
+            .is_("deleted_at", "null")
             .execute()
         )
-        return response.data or []
-    except Exception:
+
+        # Filter results to only include active, non-deleted tenants
+        memberships = response.data or []
+        filtered = []
+        for membership in memberships:
+            tenant = membership.get("tenants")
+            if tenant and tenant.get("is_active") and not tenant.get("deleted_at"):
+                filtered.append(membership)
+
+        return filtered
+    except Exception as e:
+        # Log error for debugging - show in UI temporarily to help diagnose
+        import traceback
+
+        error_msg = str(e)
+        # Show error details to help diagnose the issue
+        st.error(f"Error fetching tenant memberships: {error_msg}")
+        # Add expander for debug details
+        with st.expander("Debug details (click to expand)"):
+            st.code(traceback.format_exc())
+            st.write(f"**User ID from session:** `{user_id}`")
+
+            # Try to check if profile exists and get auth_client separately
+            auth_client_check = None
+            try:
+                auth_client_check = get_authenticated_supabase()
+                st.write(f"**Has authenticated client:** {auth_client_check is not None}")
+
+                if auth_client_check:
+                    profile_check = (
+                        auth_client_check.table("profiles")
+                        .select("id, email")
+                        .eq("id", user_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    st.write(f"**Profile exists:** {bool(profile_check.data)}")
+                    if profile_check.data:
+                        st.write(f"**Profile email:** {profile_check.data[0].get('email', 'N/A')}")
+            except Exception as profile_err:
+                st.write(f"**Error checking profile:** {str(profile_err)}")
+
+            # Show current user info
+            user = get_current_user()
+            if user:
+                st.write(f"**Current user email:** {user.get('email', 'N/A')}")
+                st.write(f"**Current user ID from auth:** {user.get('id', 'N/A')}")
+
+            st.info(
+                "**Troubleshooting tips:**\n"
+                "1. Verify the user_id in user_tenant_memberships matches the auth.users.id\n"
+                "2. Ensure the profile exists (V017 migration should create it)\n"
+                "3. Check that is_active=true and deleted_at is null in the membership\n"
+                "4. Verify RLS policies allow access (user_tenant_memberships_select_own policy)"
+            )
         return []
 
 
