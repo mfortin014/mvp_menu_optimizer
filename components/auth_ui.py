@@ -12,7 +12,7 @@ from typing import Optional
 import streamlit as st
 
 from utils.auth_session import clear_auth_session, set_auth_session
-from utils.supabase_client import supabase
+from utils.supabase_client import get_authenticated_client, supabase
 
 
 def render_login_form() -> bool:
@@ -132,8 +132,7 @@ def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool
                 # Accept invitation and set password
                 response = supabase.auth.verify_otp({"token": token, "type": "invite"})
                 if response.session:
-                    # Update password
-                    supabase.auth.update_user({"password": password})
+                    # Set session first, then use authenticated client to update password
                     set_auth_session(
                         response.session.access_token,
                         response.session.refresh_token,
@@ -143,6 +142,9 @@ def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool
                             else response.user
                         ),
                     )
+                    # Use authenticated client to update password
+                    auth_client = get_authenticated_client(response.session.access_token)
+                    auth_client.auth.update_user({"password": password})
                     st.success("Invitation accepted! You are now logged in.")
                     st.rerun()
                     return True

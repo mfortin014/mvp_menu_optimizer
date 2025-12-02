@@ -38,10 +38,17 @@ def ensure_client_selected_post_auth():
     for membership in user_tenants:
         tenant = membership.get("tenants", {})
         tenant_id = membership.get("tenant_id")
-        tenant_name = tenant.get("name", f"Tenant {tenant_id[:8]}")
+        tenant_name = tenant.get("name")
+        if not tenant_name:
+            # Fallback: use tenant_id if available, otherwise generic name
+            if tenant_id:
+                tenant_name = f"Tenant {tenant_id[:8]}"
+            else:
+                tenant_name = "Unknown Tenant"
         tenant_options.append(tenant_name)
         tenant_id_by_name[tenant_name] = tenant_id
-        name_by_id[tenant_id] = tenant_name
+        if tenant_id:
+            name_by_id[tenant_id] = tenant_name
 
     if not tenant_options:
         st.error("No tenants available.")

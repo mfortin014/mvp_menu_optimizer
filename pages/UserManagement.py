@@ -71,6 +71,9 @@ tenant_names = list(tenant_options.keys())
 
 # Tenant filter
 st.subheader("Filter by Tenant")
+if not tenant_names:
+    st.error("No active tenants found. Please configure at least one tenant.")
+    st.stop()
 selected_tenant_name = st.selectbox(
     "Select tenant",
     ["All Tenants"] + tenant_names,
@@ -110,12 +113,15 @@ with tab1:
         # User actions
         st.subheader("Manage User")
         action_user_id = st.text_input("User ID", key="action_user_id")
-        action_tenant_id = st.selectbox(
-            "Tenant",
-            tenant_names,
-            key="action_tenant_select",
-            format_func=lambda x: x,
-        )
+        if tenant_names:
+            action_tenant_id = st.selectbox(
+                "Tenant",
+                tenant_names,
+                key="action_tenant_select",
+                format_func=lambda x: x,
+            )
+        else:
+            action_tenant_id = None
         action_tenant_uuid = tenant_options.get(action_tenant_id)
 
         col1, col2, col3 = st.columns(3)
