@@ -29,6 +29,32 @@ $$;
 
 comment on function public.user_has_tenant_access(uuid) is 'Checks if the current authenticated user has access to a tenant via user_tenant_memberships';
 
+-- Helper function to check if user is admin/owner in a tenant (bypasses RLS)
+-- This is used by RLS policies to verify admin status without causing infinite recursion
+create or replace function public.user_is_tenant_admin(p_tenant_id uuid)
+returns boolean
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+begin
+  -- Check if current user (auth.uid()) is admin/owner for this tenant
+  -- Uses security definer to bypass RLS on user_tenant_memberships
+  return exists (
+    select 1
+    from public.user_tenant_memberships
+    where user_id = auth.uid()
+      and tenant_id = p_tenant_id
+      and role in ('admin', 'owner')
+      and is_active = true
+      and deleted_at is null
+  );
+end;
+$$;
+
+comment on function public.user_is_tenant_admin(uuid) is 'Checks if the current user is admin/owner in a tenant (bypasses RLS to avoid recursion)';
+
 -- ============================================
 -- Ingredients
 -- ============================================
@@ -150,45 +176,17 @@ create policy "user_tenant_memberships_select_own"
 
 -- Admins can view all memberships in their tenants
 -- (This allows admins to manage users, but RLS still restricts to their tenants)
+-- Uses helper function to avoid infinite recursion
 create policy "user_tenant_memberships_select_tenant_admin"
   on public.user_tenant_memberships for select
-  using (
-    exists (
-      select 1
-      from public.user_tenant_memberships utm
-      where utm.user_id = auth.uid()
-        and utm.tenant_id = user_tenant_memberships.tenant_id
-        and utm.role in ('admin', 'owner')
-        and utm.is_active = true
-        and utm.deleted_at is null
-    )
-  );
+  using (user_is_tenant_admin(tenant_id));
 
 -- Only admins/owners can modify memberships
+-- Uses helper function to avoid infinite recursion
 create policy "user_tenant_memberships_modify_admin"
   on public.user_tenant_memberships for all
-  using (
-    exists (
-      select 1
-      from public.user_tenant_memberships utm
-      where utm.user_id = auth.uid()
-        and utm.tenant_id = user_tenant_memberships.tenant_id
-        and utm.role in ('admin', 'owner')
-        and utm.is_active = true
-        and utm.deleted_at is null
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.user_tenant_memberships utm
-      where utm.user_id = auth.uid()
-        and utm.tenant_id = user_tenant_memberships.tenant_id
-        and utm.role in ('admin', 'owner')
-        and utm.is_active = true
-        and utm.deleted_at is null
-    )
-  );
+  using (user_is_tenant_admin(tenant_id))
+  with check (user_is_tenant_admin(tenant_id));
 
 -- ============================================
 -- Tenants

@@ -93,12 +93,20 @@ def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool
     Render invitation acceptance form.
 
     Args:
-        invitation_token: Optional invitation token from URL
+        invitation_token: Optional invitation token from URL or parameter
 
     Returns:
         True if invitation was accepted successfully, False otherwise
     """
     st.title("🎫 Accept Invitation")
+
+    # Get token from parameter or URL query params
+    if not invitation_token:
+        query_params = st.query_params
+        invitation_token = query_params.get("token")
+        # Also check for 'token_hash' which Supabase sometimes uses
+        if not invitation_token:
+            invitation_token = query_params.get("token_hash")
 
     token = invitation_token or st.text_input(
         "Invitation Token", type="default", key="invitation_token"
@@ -145,6 +153,10 @@ def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool
                     # Use authenticated client to update password
                     auth_client = get_authenticated_client(response.session.access_token)
                     auth_client.auth.update_user({"password": password})
+
+                    # Clear URL parameters to avoid showing invitation form again
+                    st.query_params.clear()
+
                     st.success("Invitation accepted! You are now logged in.")
                     st.rerun()
                     return True

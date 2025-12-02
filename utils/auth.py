@@ -86,6 +86,20 @@ def require_auth():
     Require authentication before accessing the page.
     Shows login form if not authenticated, otherwise ensures tenant is selected.
     """
+    # Check for invitation token in URL query parameters
+    query_params = st.query_params
+    invitation_token = query_params.get("token")
+    invitation_type = query_params.get("type")
+
+    # If we have an invitation token, show invitation acceptance form
+    if invitation_token and invitation_type == "invite":
+        from components.auth_ui import render_invitation_acceptance
+
+        if render_invitation_acceptance(invitation_token):
+            # Invitation accepted, user is now logged in
+            st.rerun()
+        st.stop()
+
     # Check if we have a valid access token
     access_token = get_access_token()
     user = get_current_user()

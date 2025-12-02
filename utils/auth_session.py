@@ -219,50 +219,55 @@ def get_user_tenants() -> list[dict]:
 
         return filtered
     except Exception as e:
-        # Log error for debugging - show in UI temporarily to help diagnose
+        # Log error for debugging
         import traceback
 
+        from utils.env import is_prod
+
         error_msg = str(e)
-        # Show error details to help diagnose the issue
-        st.error(f"Error fetching tenant memberships: {error_msg}")
-        # Add expander for debug details
-        with st.expander("Debug details (click to expand)"):
-            st.code(traceback.format_exc())
-            st.write(f"**User ID from session:** `{user_id}`")
+        # Show user-friendly error message
+        st.error(
+            "Unable to load your tenant access. Please contact an administrator if this persists."
+        )
 
-            # Try to check if profile exists and get auth_client separately
-            auth_client_check = None
-            try:
-                auth_client_check = get_authenticated_supabase()
-                st.write(f"**Has authenticated client:** {auth_client_check is not None}")
+        # Only show detailed debug info in non-production environments
+        if not is_prod():
+            with st.expander("Debug details (click to expand)"):
+                st.code(traceback.format_exc())
+                st.write(f"**Error:** {error_msg}")
+                st.write(f"**User ID:** `{user_id}`")
 
-                if auth_client_check:
-                    profile_check = (
-                        auth_client_check.table("profiles")
-                        .select("id, email")
-                        .eq("id", user_id)
-                        .limit(1)
-                        .execute()
-                    )
-                    st.write(f"**Profile exists:** {bool(profile_check.data)}")
-                    if profile_check.data:
-                        st.write(f"**Profile email:** {profile_check.data[0].get('email', 'N/A')}")
-            except Exception as profile_err:
-                st.write(f"**Error checking profile:** {str(profile_err)}")
+                # Try to check if profile exists
+                try:
+                    auth_client_check = get_authenticated_supabase()
+                    if auth_client_check:
+                        profile_check = (
+                            auth_client_check.table("profiles")
+                            .select("id, email")
+                            .eq("id", user_id)
+                            .limit(1)
+                            .execute()
+                        )
+                        st.write(f"**Profile exists:** {bool(profile_check.data)}")
+                        if profile_check.data:
+                            st.write(
+                                f"**Profile email:** {profile_check.data[0].get('email', 'N/A')}"
+                            )
+                except Exception:
+                    pass
 
-            # Show current user info
-            user = get_current_user()
-            if user:
-                st.write(f"**Current user email:** {user.get('email', 'N/A')}")
-                st.write(f"**Current user ID from auth:** {user.get('id', 'N/A')}")
+                # Show current user info
+                user = get_current_user()
+                if user:
+                    st.write(f"**User email:** {user.get('email', 'N/A')}")
 
-            st.info(
-                "**Troubleshooting tips:**\n"
-                "1. Verify the user_id in user_tenant_memberships matches the auth.users.id\n"
-                "2. Ensure the profile exists (V017 migration should create it)\n"
-                "3. Check that is_active=true and deleted_at is null in the membership\n"
-                "4. Verify RLS policies allow access (user_tenant_memberships_select_own policy)"
-            )
+                st.info(
+                    "**Troubleshooting:**\n"
+                    "1. Verify user_id in user_tenant_memberships matches auth.users.id\n"
+                    "2. Ensure profile exists (V017 migration)\n"
+                    "3. Check is_active=true and deleted_at is null\n"
+                    "4. Verify RLS policies (V019 should fix recursion issues)"
+                )
         return []
 
 
