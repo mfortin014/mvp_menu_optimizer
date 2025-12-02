@@ -140,6 +140,16 @@
     "created_at": "2025-10-21T18:29:07.224Z"
   },
   {
+    "uid": "fix-env-require-explicit-app-env",
+    "parent_uid": null,
+    "owner": "mfortin014",
+    "repo": "mvp_menu_optimizer",
+    "issue_number": 298,
+    "issue_node_id": "I_kwDOPB2irc7bw_hT",
+    "project_item_id": "PVTI_lAHOB1-2zM4BDih-zgiBMJc",
+    "created_at": "2025-12-02T18:24:25.381Z"
+  },
+  {
     "uid": "ghwf-upgrade-agents",
     "parent_uid": "ghwf-upgrade-epic",
     "owner": "mfortin014",
