@@ -91,6 +91,7 @@ def render_password_reset() -> None:
 def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool:
     """
     Render invitation acceptance form.
+    Handles both OTP token flow and direct session setup from hash.
 
     Args:
         invitation_token: Optional invitation token from URL or parameter
@@ -98,6 +99,55 @@ def render_invitation_acceptance(invitation_token: Optional[str] = None) -> bool
     Returns:
         True if invitation was accepted successfully, False otherwise
     """
+    from utils.auth_session import get_access_token, get_current_user
+
+    # Check if user is already authenticated (from hash redirect)
+    access_token = get_access_token()
+    user = get_current_user()
+
+    if access_token and user:
+        # User is already authenticated from hash - just need to set password
+        st.title("🎫 Set Your Password")
+        st.info(f"Welcome! Please set a password for your account ({user.get('email', '')}).")
+
+        with st.form("set_password_form"):
+            password = st.text_input("Set Password", type="password", key="invitation_password")
+            password_confirm = st.text_input(
+                "Confirm Password", type="password", key="invitation_password_confirm"
+            )
+            submitted = st.form_submit_button("Set Password", use_container_width=True)
+
+            if submitted:
+                if not password or not password_confirm:
+                    st.error("Please enter and confirm your password.")
+                    return False
+
+                if password != password_confirm:
+                    st.error("Passwords do not match.")
+                    return False
+
+                if len(password) < 8:
+                    st.error("Password must be at least 8 characters long.")
+                    return False
+
+                try:
+                    # Update password using authenticated client
+                    auth_client = get_authenticated_client(access_token)
+                    auth_client.auth.update_user({"password": password})
+
+                    # Clear any query params
+                    st.query_params.clear()
+
+                    st.success("Password set successfully! You are now logged in.")
+                    st.rerun()
+                    return True
+                except Exception as e:
+                    st.error(f"Error setting password: {str(e)}")
+                    return False
+
+        return False
+
+    # Not authenticated yet - use OTP token flow
     st.title("🎫 Accept Invitation")
 
     # Get token from parameter or URL query params

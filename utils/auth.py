@@ -15,7 +15,9 @@ from utils.auth_session import (
     get_access_token,
     get_current_user,
     get_user_tenants,
+    handle_hash_redirect,
     refresh_session,
+    setup_session_from_tokens,
 )
 from utils.tenant_state import get_active_tenant, set_active_tenant
 
@@ -86,8 +88,23 @@ def require_auth():
     Require authentication before accessing the page.
     Shows login form if not authenticated, otherwise ensures tenant is selected.
     """
-    # Check for invitation token in URL query parameters
+    # Handle hash redirect first (if URL has hash with tokens)
+    handle_hash_redirect()
+
+    # Check URL query parameters
     query_params = st.query_params
+    access_token_from_url = query_params.get("access_token")
+    refresh_token_from_url = query_params.get("refresh_token")
+    url_type = query_params.get("type")
+
+    # If we have access_token in query params with type=invite, set up session
+    if access_token_from_url and url_type == "invite":
+        if setup_session_from_tokens(access_token_from_url, refresh_token_from_url or "", url_type):
+            # Clear query params and rerun
+            st.query_params.clear()
+            st.rerun()
+
+    # Check for invitation token in URL query parameters (legacy OTP token flow)
     invitation_token = query_params.get("token")
     invitation_type = query_params.get("type")
 
@@ -100,7 +117,7 @@ def require_auth():
             st.rerun()
         st.stop()
 
-    # Check if we have a valid access token
+    # Check if we have a valid access token in session
     access_token = get_access_token()
     user = get_current_user()
 
